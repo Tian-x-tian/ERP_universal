@@ -1,16 +1,26 @@
 # Node
 node_modules/
 dist/
+.npm/
+.pnpm-store/
 
 # Java
 target/
+*.class
+*.jar
+*.war
 
 # IDE
 .idea/
 .vscode/
+*.iml
 
 # Logs
 *.log
 
 # OS
 .DS_Store
+Thumbs.db
+
+# Runtime / temp
+work/
