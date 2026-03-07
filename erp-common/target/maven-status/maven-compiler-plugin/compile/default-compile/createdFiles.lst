@@ -1,0 +1,4 @@
+com\erp\common\core\context\TenantContextHolder.class
+com\erp\common\utils\JwtUtils.class
+com\erp\common\core\domain\R.class
+com\erp\common\core\domain\ResultCode.class
