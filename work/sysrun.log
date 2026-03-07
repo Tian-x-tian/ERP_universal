@@ -1,0 +1,45 @@
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Build Order:
+[INFO] 
+[INFO] erp-parent                                                         [pom]
+[INFO] erp-common                                                         [jar]
+[INFO] erp-gateway                                                        [jar]
+[INFO] erp-auth                                                           [jar]
+[INFO] erp-system                                                         [jar]
+[INFO] erp-business                                                       [jar]
+[INFO] erp-modules                                                        [pom]
+[WARNING] Could not transfer metadata org.springframework.boot/maven-metadata.xml from/to maven-default-http-blocker (http://0.0.0.0/): Blocked mirror for repositories: [aliyun-http (http://maven.aliyun.com/repository/public, default, releases)]
+[WARNING] Could not transfer metadata org.apache.maven.plugins/maven-metadata.xml from/to maven-default-http-blocker (http://0.0.0.0/): Blocked mirror for repositories: [aliyun-http (http://maven.aliyun.com/repository/public, default, releases)]
+[WARNING] Could not transfer metadata org.codehaus.mojo/maven-metadata.xml from/to maven-default-http-blocker (http://0.0.0.0/): Blocked mirror for repositories: [aliyun-http (http://maven.aliyun.com/repository/public, default, releases)]
+[INFO] 
+[INFO] -------------------------< com.erp:erp-parent >-------------------------
+[INFO] Building erp-parent 1.0.0                                          [1/7]
+[INFO]   from pom.xml
+[INFO] --------------------------------[ pom ]---------------------------------
+[WARNING] org.springframework.boot/maven-metadata.xml failed to transfer from http://0.0.0.0/ during a previous attempt. This failure was cached in the local repository and resolution will not be reattempted until the update interval of maven-default-http-blocker has elapsed or updates are forced. Original error: Could not transfer metadata org.springframework.boot/maven-metadata.xml from/to maven-default-http-blocker (http://0.0.0.0/): Blocked mirror for repositories: [aliyun-http (http://maven.aliyun.com/repository/public, default, releases)]
+[WARNING] org.apache.maven.plugins/maven-metadata.xml failed to transfer from http://0.0.0.0/ during a previous attempt. This failure was cached in the local repository and resolution will not be reattempted until the update interval of maven-default-http-blocker has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.maven.plugins/maven-metadata.xml from/to maven-default-http-blocker (http://0.0.0.0/): Blocked mirror for repositories: [aliyun-http (http://maven.aliyun.com/repository/public, default, releases)]
+[WARNING] org.codehaus.mojo/maven-metadata.xml failed to transfer from http://0.0.0.0/ during a previous attempt. This failure was cached in the local repository and resolution will not be reattempted until the update interval of maven-default-http-blocker has elapsed or updates are forced. Original error: Could not transfer metadata org.codehaus.mojo/maven-metadata.xml from/to maven-default-http-blocker (http://0.0.0.0/): Blocked mirror for repositories: [aliyun-http (http://maven.aliyun.com/repository/public, default, releases)]
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary for erp-parent 1.0.0:
+[INFO] 
+[INFO] erp-parent ......................................... FAILURE [  0.006 s]
+[INFO] erp-common ......................................... SKIPPED
+[INFO] erp-gateway ........................................ SKIPPED
+[INFO] erp-auth ........................................... SKIPPED
+[INFO] erp-system ......................................... SKIPPED
+[INFO] erp-business ....................................... SKIPPED
+[INFO] erp-modules ........................................ SKIPPED
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  0.493 s
+[INFO] Finished at: 2026-03-07T18:06:04+08:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Unknown lifecycle phase "\". You must specify a valid lifecycle phase or a goal in the format <plugin-prefix>:<goal> or <plugin-group-id>:<plugin-artifact-id>[:<plugin-version>]:<goal>. Available lifecycle phases are: pre-clean, clean, post-clean, validate, initialize, generate-sources, process-sources, generate-resources, process-resources, compile, process-classes, generate-test-sources, process-test-sources, generate-test-resources, process-test-resources, test-compile, process-test-classes, test, prepare-package, package, pre-integration-test, integration-test, post-integration-test, verify, install, deploy, pre-site, site, post-site, site-deploy. -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/LifecyclePhaseNotFoundException

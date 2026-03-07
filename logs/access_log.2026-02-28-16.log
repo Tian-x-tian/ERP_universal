@@ -1,0 +1,4 @@
+127.0.0.1 - - [28/Feb/2026:16:42:31 +0800] "GET /nacos/v1/ns/operator/metrics HTTP/1.1" 200 25 115 Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.19045; zh-CN) PowerShell/7.5.4 -
+127.0.0.1 - - [28/Feb/2026:16:42:49 +0800] "POST /nacos/v1/cs/configs HTTP/1.1" 200 14 166 Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.19045; zh-CN) PowerShell/7.5.4 -
+127.0.0.1 - - [28/Feb/2026:16:43:54 +0800] "GET / HTTP/1.1" 404 431 9 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 -
+127.0.0.1 - - [28/Feb/2026:16:43:55 +0800] "GET /favicon.ico HTTP/1.1" 404 431 2 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 -

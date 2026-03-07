@@ -1,0 +1,8 @@
+Design an enterprise-grade MySQL database schema for the 'erp-system' module.
+Requirements:
+1. Multi-tenancy support using a 'tenant_id' column in all relevant tables.
+2. RBAC model: sys_user, sys_role, sys_menu, sys_user_role, sys_role_menu.
+3. Organization structure: sys_dept (with parent_id and tenant_id).
+4. Tenant management: sys_tenant.
+Please provide the complete DDL script as a markdown code block.
+exit
