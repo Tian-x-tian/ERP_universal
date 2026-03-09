@@ -25,6 +25,9 @@ public class SysDept implements Serializable {
     /** 租户编号 */
     private String tenantId;
 
+    /** 公司ID */
+    private Long companyId;
+
     /** 父部门id */
     private Long parentId;
 

@@ -3,19 +3,22 @@ package com.erp.system.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.erp.system.domain.SysMenu;
+import com.erp.system.domain.SysRole;
 import com.erp.system.domain.SysRoleMenu;
 import com.erp.system.domain.SysUserRole;
 import com.erp.system.mapper.SysMenuMapper;
 import com.erp.system.service.ISysMenuService;
 import com.erp.system.service.ISysRoleMenuService;
+import com.erp.system.service.ISysRoleService;
 import com.erp.system.service.ISysUserRoleService;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -25,12 +28,19 @@ import java.util.stream.Collectors;
 @Service
 public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> implements ISysMenuService {
 
+    private static final String ALL_PERMISSION = "*:*:*";
+    private static final String SUPER_ADMIN_ROLE_KEY = "admin";
+
     private final ISysUserRoleService userRoleService;
     private final ISysRoleMenuService roleMenuService;
+    private final ISysRoleService roleService;
 
-    public SysMenuServiceImpl(ISysUserRoleService userRoleService, ISysRoleMenuService roleMenuService) {
+    public SysMenuServiceImpl(ISysUserRoleService userRoleService,
+            ISysRoleMenuService roleMenuService,
+            ISysRoleService roleService) {
         this.userRoleService = userRoleService;
         this.roleMenuService = roleMenuService;
+        this.roleService = roleService;
     }
 
     /**
@@ -49,6 +59,15 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
         if (roleIds.isEmpty()) {
             return Collections.emptySet();
         }
+        Set<String> roleKeys = roleService.listByIds(roleIds).stream()
+                .map(SysRole::getRoleKey)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toSet());
+        if (roleKeys.contains(SUPER_ADMIN_ROLE_KEY)) {
+            Set<String> allPermissionSet = new HashSet<>();
+            allPermissionSet.add(ALL_PERMISSION);
+            return allPermissionSet;
+        }
 
         List<Long> menuIds = roleMenuService
                 .list(new LambdaQueryWrapper<SysRoleMenu>().in(SysRoleMenu::getRoleId, roleIds))
@@ -62,7 +81,7 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
 
         return listByIds(menuIds).stream()
                 .map(SysMenu::getPerms)
-                .filter(Objects::nonNull)
+                .filter(StringUtils::hasText)
                 .collect(Collectors.toSet());
     }
 
@@ -94,6 +113,10 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
         }
 
         List<SysMenu> menus = listByIds(menuIds).stream()
+                // 按钮型权限不参与路由树组装，避免前端路由异常。
+                .filter(menu -> !"F".equals(menu.getMenuType()))
+                .filter(menu -> !"1".equals(menu.getStatus()))
+                .filter(menu -> !"1".equals(menu.getVisible()))
                 .sorted(Comparator.comparing(SysMenu::getOrderNum, Comparator.nullsLast(Integer::compareTo)))
                 .collect(Collectors.toList());
         return buildMenuTree(menus, 0L);

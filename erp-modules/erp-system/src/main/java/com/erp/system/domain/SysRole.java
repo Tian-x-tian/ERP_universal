@@ -28,6 +28,10 @@ public class SysRole implements Serializable {
     @TableField(exist = false)
     private List<Long> menuIds;
 
+    /** 部门ID组（用于自定义数据权限） */
+    @TableField(exist = false)
+    private List<Long> deptIds;
+
     /** 角色名称 */
     private String roleName;
 

@@ -9,8 +9,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.erp.system.domain.SysUserRole;
+import com.erp.system.domain.SysUserPost;
 import com.erp.system.service.ISysUserRoleService;
+import com.erp.system.service.ISysUserPostService;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,15 +25,55 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     private final PasswordEncoder passwordEncoder;
     private final ISysUserRoleService userRoleService;
+    private final ISysUserPostService userPostService;
 
-    public SysUserServiceImpl(PasswordEncoder passwordEncoder, ISysUserRoleService userRoleService) {
+    public SysUserServiceImpl(PasswordEncoder passwordEncoder,
+            ISysUserRoleService userRoleService,
+            ISysUserPostService userPostService) {
         this.passwordEncoder = passwordEncoder;
         this.userRoleService = userRoleService;
+        this.userPostService = userPostService;
     }
 
     @Override
     public SysUser selectUserByUserName(String userName) {
         return getOne(new LambdaQueryWrapper<SysUser>().eq(SysUser::getUserName, userName));
+    }
+
+    /**
+     * 更新当前用户个人资料。
+     *
+     * @param profile 包含 userId 与可更新资料字段的用户对象
+     * @return 更新是否成功
+     */
+    @Override
+    @Transactional
+    public boolean updateProfileByUserId(SysUser profile) {
+        if (profile == null || profile.getUserId() == null) {
+            return false;
+        }
+        profile.setUpdateTime(new Date());
+        return baseMapper.updateById(profile) > 0;
+    }
+
+    /**
+     * 更新当前用户密码。
+     *
+     * @param userId          用户ID
+     * @param encodedPassword 已加密的新密码
+     * @return 更新是否成功
+     */
+    @Override
+    @Transactional
+    public boolean updatePasswordByUserId(Long userId, String encodedPassword) {
+        if (userId == null) {
+            return false;
+        }
+        SysUser updateEntity = new SysUser();
+        updateEntity.setUserId(userId);
+        updateEntity.setPassword(encodedPassword);
+        updateEntity.setUpdateTime(new Date());
+        return baseMapper.updateById(updateEntity) > 0;
     }
 
     @Override
@@ -44,6 +87,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (success && entity.getRoleIds() != null && !entity.getRoleIds().isEmpty()) {
             insertUserRole(entity);
         }
+        if (success && entity.getPostIds() != null && !entity.getPostIds().isEmpty()) {
+            insertUserPost(entity);
+        }
         return success;
     }
 
@@ -52,9 +98,13 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     public boolean updateById(SysUser entity) {
         // 先删除原有关联
         userRoleService.remove(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, entity.getUserId()));
+        userPostService.remove(new LambdaQueryWrapper<SysUserPost>().eq(SysUserPost::getUserId, entity.getUserId()));
         // 插入新关联
         if (entity.getRoleIds() != null && !entity.getRoleIds().isEmpty()) {
             insertUserRole(entity);
+        }
+        if (entity.getPostIds() != null && !entity.getPostIds().isEmpty()) {
+            insertUserPost(entity);
         }
         return super.updateById(entity);
     }
@@ -70,5 +120,19 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             return ur;
         }).collect(Collectors.toList());
         userRoleService.saveBatch(list);
+    }
+
+    /**
+     * 新增用户岗位信息
+     */
+    private void insertUserPost(SysUser user) {
+        List<SysUserPost> list = user.getPostIds().stream().map(postId -> {
+            SysUserPost up = new SysUserPost();
+            up.setTenantId(user.getTenantId());
+            up.setUserId(user.getUserId());
+            up.setPostId(postId);
+            return up;
+        }).collect(Collectors.toList());
+        userPostService.saveBatch(list);
     }
 }

@@ -1,0 +1,58 @@
+package com.erp.system.domain;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
+
+import java.io.Serializable;
+import java.util.Date;
+
+/**
+ * 流程待办任务对象 sys_todo_task
+ */
+@Data
+@TableName("sys_todo_task")
+public class SysTodoTask implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+    /** 待办ID */
+    @TableId(type = IdType.AUTO)
+    private Long todoId;
+
+    /** 租户编号 */
+    private String tenantId;
+
+    /** 流程名称 */
+    private String processName;
+
+    /** 当前节点名称 */
+    private String nodeName;
+
+    /** 业务单号 */
+    private String businessNo;
+
+    /** 优先级（H高 M中 L低） */
+    private String priority;
+
+    /** 状态（0待处理 1处理中 2已完成） */
+    private String status;
+
+    /** 办理人用户ID */
+    private Long assigneeUserId;
+
+    /** 截止时间 */
+    private Date dueTime;
+
+    /** 签收时间 */
+    private Date claimTime;
+
+    /** 办结时间 */
+    private Date finishTime;
+
+    /** 创建时间 */
+    private Date createTime;
+
+    /** 备注 */
+    private String remark;
+}

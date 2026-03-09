@@ -3,6 +3,7 @@ package com.erp.system.controller;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.SysMenu;
 import com.erp.system.service.ISysMenuService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +24,7 @@ public class SysMenuController {
     /**
      * 查询菜单列表
      */
+    @PreAuthorize("@ss.hasPermi('system:menu:list')")
     @GetMapping("/list")
     public R<List<SysMenu>> list() {
         return R.success(menuService.list());
@@ -31,6 +33,7 @@ public class SysMenuController {
     /**
      * 获取菜单详细信息
      */
+    @PreAuthorize("@ss.hasPermi('system:menu:query')")
     @GetMapping("/{menuId}")
     public R<SysMenu> getInfo(@PathVariable("menuId") Long menuId) {
         return R.success(menuService.getById(menuId));
@@ -39,6 +42,7 @@ public class SysMenuController {
     /**
      * 新增菜单
      */
+    @PreAuthorize("@ss.hasPermi('system:menu:add')")
     @PostMapping
     public R<Boolean> add(@RequestBody SysMenu menu) {
         return R.success(menuService.save(menu));
@@ -47,6 +51,7 @@ public class SysMenuController {
     /**
      * 修改菜单
      */
+    @PreAuthorize("@ss.hasPermi('system:menu:edit')")
     @PutMapping
     public R<Boolean> edit(@RequestBody SysMenu menu) {
         return R.success(menuService.updateById(menu));
@@ -55,6 +60,7 @@ public class SysMenuController {
     /**
      * 删除菜单
      */
+    @PreAuthorize("@ss.hasPermi('system:menu:remove')")
     @DeleteMapping("/{menuId}")
     public R<Boolean> remove(@PathVariable("menuId") Long menuId) {
         return R.success(menuService.removeById(menuId));

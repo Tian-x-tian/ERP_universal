@@ -31,6 +31,10 @@ public class SysUser implements Serializable {
     @TableField(exist = false)
     private List<Long> roleIds;
 
+    /** 岗位ID组 */
+    @TableField(exist = false)
+    private List<Long> postIds;
+
     /** 用户账号 */
     private String userName;
 

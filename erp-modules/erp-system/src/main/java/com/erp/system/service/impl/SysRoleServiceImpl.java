@@ -3,8 +3,10 @@ package com.erp.system.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.erp.system.domain.SysRole;
+import com.erp.system.domain.SysRoleDept;
 import com.erp.system.domain.SysRoleMenu;
 import com.erp.system.mapper.SysRoleMapper;
+import com.erp.system.service.ISysRoleDeptService;
 import com.erp.system.service.ISysRoleMenuService;
 import com.erp.system.service.ISysRoleService;
 import org.springframework.stereotype.Service;
@@ -27,10 +29,14 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
 
     private final ISysRoleMenuService roleMenuService;
     private final ISysUserRoleService userRoleService;
+    private final ISysRoleDeptService roleDeptService;
 
-    public SysRoleServiceImpl(ISysRoleMenuService roleMenuService, ISysUserRoleService userRoleService) {
+    public SysRoleServiceImpl(ISysRoleMenuService roleMenuService,
+            ISysUserRoleService userRoleService,
+            ISysRoleDeptService roleDeptService) {
         this.roleMenuService = roleMenuService;
         this.userRoleService = userRoleService;
+        this.roleDeptService = roleDeptService;
     }
 
     @Override
@@ -54,6 +60,9 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
         if (success && entity.getMenuIds() != null && !entity.getMenuIds().isEmpty()) {
             insertRoleMenu(entity);
         }
+        if (success && "2".equals(entity.getDataScope()) && entity.getDeptIds() != null && !entity.getDeptIds().isEmpty()) {
+            insertRoleDept(entity);
+        }
         return success;
     }
 
@@ -62,9 +71,13 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
     public boolean updateById(SysRole entity) {
         // 删除旧关联
         roleMenuService.remove(new LambdaQueryWrapper<SysRoleMenu>().eq(SysRoleMenu::getRoleId, entity.getRoleId()));
+        roleDeptService.remove(new LambdaQueryWrapper<SysRoleDept>().eq(SysRoleDept::getRoleId, entity.getRoleId()));
         // 插入新关联
         if (entity.getMenuIds() != null && !entity.getMenuIds().isEmpty()) {
             insertRoleMenu(entity);
+        }
+        if ("2".equals(entity.getDataScope()) && entity.getDeptIds() != null && !entity.getDeptIds().isEmpty()) {
+            insertRoleDept(entity);
         }
         return super.updateById(entity);
     }
@@ -80,5 +93,19 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
             return rm;
         }).collect(Collectors.toList());
         roleMenuService.saveBatch(list);
+    }
+
+    /**
+     * 新增角色部门信息
+     */
+    private void insertRoleDept(SysRole role) {
+        List<SysRoleDept> list = role.getDeptIds().stream().map(deptId -> {
+            SysRoleDept rd = new SysRoleDept();
+            rd.setTenantId(role.getTenantId());
+            rd.setRoleId(role.getRoleId());
+            rd.setDeptId(deptId);
+            return rd;
+        }).collect(Collectors.toList());
+        roleDeptService.saveBatch(list);
     }
 }
