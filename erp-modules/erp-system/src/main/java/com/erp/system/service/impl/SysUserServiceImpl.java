@@ -25,8 +25,6 @@ import org.springframework.util.StringUtils;
 @Service
 public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements ISysUserService {
 
-    private static final String DEFAULT_TENANT_ID = "000000";
-
     private final PasswordEncoder passwordEncoder;
     private final ISysUserRoleService userRoleService;
     private final ISysUserPostService userPostService;
@@ -92,7 +90,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (entity == null) {
             return false;
         }
-        entity.setTenantId(resolveTenantId(entity.getTenantId(), null));
+        String tenantId = resolveTenantId(entity.getTenantId(), null);
+        if (!StringUtils.hasText(tenantId)) {
+            return false;
+        }
+        entity.setTenantId(tenantId);
         if (StringUtils.hasText(entity.getUserName())) {
             entity.setUserName(entity.getUserName().trim());
         }
@@ -124,7 +126,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (existedUser == null) {
             return false;
         }
-        entity.setTenantId(resolveTenantId(entity.getTenantId(), existedUser.getTenantId()));
+        String tenantId = resolveTenantId(entity.getTenantId(), existedUser.getTenantId());
+        if (!StringUtils.hasText(tenantId)) {
+            return false;
+        }
+        entity.setTenantId(tenantId);
         if (StringUtils.hasText(entity.getUserName())) {
             entity.setUserName(entity.getUserName().trim());
         }
@@ -149,7 +155,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * 新增用户角色信息
      */
     private void insertUserRole(SysUser user) {
-        String tenantId = StringUtils.hasText(user.getTenantId()) ? user.getTenantId() : "000000";
+        String tenantId = resolveTenantId(user.getTenantId(), null);
+        if (!StringUtils.hasText(tenantId)) {
+            return;
+        }
         List<SysUserRole> list = user.getRoleIds().stream().map(roleId -> {
             SysUserRole ur = new SysUserRole();
             ur.setTenantId(tenantId);
@@ -164,7 +173,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * 新增用户岗位信息
      */
     private void insertUserPost(SysUser user) {
-        String tenantId = StringUtils.hasText(user.getTenantId()) ? user.getTenantId() : "000000";
+        String tenantId = resolveTenantId(user.getTenantId(), null);
+        if (!StringUtils.hasText(tenantId)) {
+            return;
+        }
         List<SysUserPost> list = user.getPostIds().stream().map(postId -> {
             SysUserPost up = new SysUserPost();
             up.setTenantId(tenantId);
@@ -176,23 +188,41 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     /**
-     * 解析用户租户编号，优先使用入参，其次使用租户上下文，最后回退默认租户。
+     * 解析用户租户编号，优先使用租户上下文并校验请求值一致性。
      *
      * @param tenantId        请求中传入的租户编号
      * @param fallbackTenantId 已存在实体的租户编号
      * @return 租户编号
      */
     private String resolveTenantId(String tenantId, String fallbackTenantId) {
-        if (StringUtils.hasText(tenantId)) {
-            return tenantId.trim();
-        }
-        if (StringUtils.hasText(fallbackTenantId)) {
-            return fallbackTenantId.trim();
-        }
-        String contextTenantId = TenantContextHolder.getTenantId();
+        String contextTenantId = normalizeTenantId(TenantContextHolder.getTenantId());
+        String normalizedTenantId = normalizeTenantId(tenantId);
+        String normalizedFallbackTenantId = normalizeTenantId(fallbackTenantId);
         if (StringUtils.hasText(contextTenantId)) {
-            return contextTenantId.trim();
+            if (StringUtils.hasText(normalizedTenantId) && !contextTenantId.equals(normalizedTenantId)) {
+                return null;
+            }
+            if (StringUtils.hasText(normalizedFallbackTenantId) && !contextTenantId.equals(normalizedFallbackTenantId)) {
+                return null;
+            }
+            return contextTenantId;
         }
-        return DEFAULT_TENANT_ID;
+        if (StringUtils.hasText(normalizedTenantId)) {
+            return normalizedTenantId;
+        }
+        if (StringUtils.hasText(normalizedFallbackTenantId)) {
+            return normalizedFallbackTenantId;
+        }
+        return null;
+    }
+
+    /**
+     * 规范化租户编号。
+     *
+     * @param tenantId 原始租户编号
+     * @return 规范化租户编号
+     */
+    private String normalizeTenantId(String tenantId) {
+        return StringUtils.hasText(tenantId) ? tenantId.trim() : null;
     }
 }

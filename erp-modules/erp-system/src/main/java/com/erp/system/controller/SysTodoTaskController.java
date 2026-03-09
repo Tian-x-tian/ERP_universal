@@ -1,6 +1,7 @@
 package com.erp.system.controller;
 
 import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysTodoTask;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.ISysTodoTaskService;
@@ -38,7 +39,11 @@ public class SysTodoTaskController {
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:todo:list')")
     public R<List<SysTodoTask>> list(@RequestParam(value = "status", required = false) String status) {
-        return R.success(todoTaskService.selectByCurrentUser(resolveCurrentUserId(), status));
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        return R.success(todoTaskService.selectByCurrentUser(currentUserId, status));
     }
 
     /**
@@ -50,7 +55,11 @@ public class SysTodoTaskController {
     @PostMapping("/claim/{todoId}")
     @PreAuthorize("@ss.hasPermi('system:todo:handle')")
     public R<Boolean> claim(@PathVariable("todoId") Long todoId) {
-        boolean success = todoTaskService.claim(todoId, resolveCurrentUserId());
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        boolean success = todoTaskService.claim(todoId, currentUserId);
         return success ? R.success(true) : R.failed("待办签收失败");
     }
 
@@ -63,17 +72,20 @@ public class SysTodoTaskController {
     @PostMapping("/finish/{todoId}")
     @PreAuthorize("@ss.hasPermi('system:todo:handle')")
     public R<Boolean> finish(@PathVariable("todoId") Long todoId) {
-        boolean success = todoTaskService.finish(todoId, resolveCurrentUserId());
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        boolean success = todoTaskService.finish(todoId, currentUserId);
         return success ? R.success(true) : R.failed("待办办结失败");
     }
 
     /**
-     * 获取当前登录用户ID，解析失败时回退为默认管理员。
+     * 获取当前登录用户ID。
      *
-     * @return 当前用户ID
+     * @return 当前用户ID，未登录时返回 null
      */
     private Long resolveCurrentUserId() {
-        Long currentUserId = securityUserResolver.getCurrentUserId();
-        return currentUserId != null ? currentUserId : 1L;
+        return securityUserResolver.getCurrentUserId();
     }
 }

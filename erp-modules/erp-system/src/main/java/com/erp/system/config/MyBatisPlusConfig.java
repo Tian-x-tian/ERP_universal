@@ -6,31 +6,43 @@ import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerIntercept
 import com.erp.common.core.context.TenantContextHolder;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.StringValue;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
 
+import javax.sql.DataSource;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * MyBatis Plus 配置
  */
 @Configuration
 public class MyBatisPlusConfig {
+    private static final String TENANT_COLUMN_NAME = "tenant_id";
+
     /**
      * 无 tenant_id 字段的系统表。
-     * 这些表由业务逻辑自行控制访问范围，不由多租户插件自动拼接租户条件。
+     * 仅当表结构中确实不存在 tenant_id 时才允许忽略租户插件。
      */
-    private static final Set<String> IGNORE_TENANT_TABLES = new HashSet<>(Arrays.asList(
+    private static final Set<String> GLOBAL_TABLE_CANDIDATES = new HashSet<>(Arrays.asList(
             "sys_tenant",
-            "sys_user_role",
-            "sys_role_menu",
             "sys_menu",
             "sys_dict_type",
             "sys_dict_data",
             "sys_config"));
+
+    private final JdbcTemplate jdbcTemplate;
+    private final Map<String, Boolean> tenantColumnCache = new ConcurrentHashMap<>();
+
+    public MyBatisPlusConfig(DataSource dataSource) {
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
+    }
 
     /**
      * 新多租户插件配置
@@ -41,16 +53,16 @@ public class MyBatisPlusConfig {
         interceptor.addInnerInterceptor(new TenantLineInnerInterceptor(new TenantLineHandler() {
             @Override
             public Expression getTenantId() {
-                String tenantId = TenantContextHolder.getTenantId();
-                if (tenantId == null) {
-                    tenantId = "000000";
+                String tenantId = normalizeTenantId(TenantContextHolder.getTenantId());
+                if (!StringUtils.hasText(tenantId)) {
+                    throw new IllegalStateException("Tenant id is missing in current request context.");
                 }
                 return new StringValue(tenantId);
             }
 
             @Override
             public String getTenantIdColumn() {
-                return "tenant_id";
+                return TENANT_COLUMN_NAME;
             }
 
             @Override
@@ -58,9 +70,64 @@ public class MyBatisPlusConfig {
                 if (tableName == null) {
                     return false;
                 }
-                return IGNORE_TENANT_TABLES.contains(tableName.toLowerCase(Locale.ROOT));
+                String normalizedTableName = normalizeTableName(tableName);
+                if (!GLOBAL_TABLE_CANDIDATES.contains(normalizedTableName)) {
+                    return false;
+                }
+                return !hasTenantColumn(normalizedTableName);
             }
         }));
         return interceptor;
+    }
+
+    /**
+     * 判断数据表是否包含租户字段。
+     *
+     * @param tableName 表名
+     * @return true 表示存在 tenant_id 列
+     */
+    private boolean hasTenantColumn(String tableName) {
+        return tenantColumnCache.computeIfAbsent(tableName, this::queryTenantColumn);
+    }
+
+    /**
+     * 查询元数据确认租户字段是否存在。
+     *
+     * @param tableName 表名
+     * @return true 表示存在 tenant_id 列
+     */
+    private boolean queryTenantColumn(String tableName) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM information_schema.COLUMNS " +
+                        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                Integer.class,
+                tableName,
+                TENANT_COLUMN_NAME);
+        return count != null && count > 0;
+    }
+
+    /**
+     * 规范化表名，去除 schema 与引用符号差异。
+     *
+     * @param tableName 原始表名
+     * @return 规范化表名
+     */
+    private String normalizeTableName(String tableName) {
+        String normalized = tableName.replace("`", "").trim().toLowerCase(Locale.ROOT);
+        int separatorIndex = normalized.lastIndexOf('.');
+        if (separatorIndex >= 0 && separatorIndex < normalized.length() - 1) {
+            normalized = normalized.substring(separatorIndex + 1);
+        }
+        return normalized;
+    }
+
+    /**
+     * 规范化租户编号。
+     *
+     * @param tenantId 原始租户编号
+     * @return 规范化后的租户编号
+     */
+    private String normalizeTenantId(String tenantId) {
+        return StringUtils.hasText(tenantId) ? tenantId.trim() : null;
     }
 }

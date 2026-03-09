@@ -1,8 +1,10 @@
 package com.erp.system.controller;
 
 import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysMenu;
 import com.erp.system.service.ISysMenuService;
+import com.erp.system.support.TenantWriteGuard;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -45,6 +47,9 @@ public class SysMenuController {
     @PreAuthorize("@ss.hasPermi('system:menu:add')")
     @PostMapping
     public R<Boolean> add(@RequestBody SysMenu menu) {
+        if (!TenantWriteGuard.canWriteGlobalData()) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         return R.success(menuService.save(menu));
     }
 
@@ -54,6 +59,9 @@ public class SysMenuController {
     @PreAuthorize("@ss.hasPermi('system:menu:edit')")
     @PutMapping
     public R<Boolean> edit(@RequestBody SysMenu menu) {
+        if (!TenantWriteGuard.canWriteGlobalData()) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         return R.success(menuService.updateById(menu));
     }
 
@@ -63,6 +71,9 @@ public class SysMenuController {
     @PreAuthorize("@ss.hasPermi('system:menu:remove')")
     @DeleteMapping("/{menuId}")
     public R<Boolean> remove(@PathVariable("menuId") Long menuId) {
+        if (!TenantWriteGuard.canWriteGlobalData()) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         return R.success(menuService.removeById(menuId));
     }
 }

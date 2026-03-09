@@ -2,6 +2,7 @@ package com.erp.system.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysDept;
 import com.erp.system.domain.vo.DataPermissionScope;
 import com.erp.system.security.service.SecurityUserResolver;
@@ -40,7 +41,11 @@ public class SysDeptController {
     @PreAuthorize("@ss.hasPermi('system:dept:list')")
     @GetMapping("/list")
     public R<List<SysDept>> list(SysDept dept) {
-        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(resolveCurrentUserId());
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
         if (dataScope.isAllData()) {
             return R.success(normalizeDeptList(deptService.list()));
         }
@@ -58,7 +63,11 @@ public class SysDeptController {
     @PreAuthorize("@ss.hasPermi('system:dept:list')")
     @GetMapping("/tree")
     public R<List<SysDept>> tree() {
-        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(resolveCurrentUserId());
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
         if (dataScope.isAllData()) {
             List<SysDept> deptList = normalizeDeptList(deptService.list());
             return R.success(deptService.buildDeptTree(deptList));
@@ -77,6 +86,14 @@ public class SysDeptController {
     @PreAuthorize("@ss.hasPermi('system:dept:query')")
     @GetMapping("/{deptId}")
     public R<SysDept> getInfo(@PathVariable("deptId") Long deptId) {
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
+        if (!canAccessDept(dataScope, deptId)) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         return R.success(normalizeDept(deptService.getById(deptId)));
     }
 
@@ -125,13 +142,32 @@ public class SysDeptController {
     }
 
     /**
-     * 获取当前登录用户ID，解析失败时回退为默认管理员。
+     * 获取当前登录用户ID。
      *
-     * @return 当前用户ID
+     * @return 当前用户ID，未登录时返回 null
      */
     private Long resolveCurrentUserId() {
-        Long currentUserId = securityUserResolver.getCurrentUserId();
-        return currentUserId != null ? currentUserId : 1L;
+        return securityUserResolver.getCurrentUserId();
+    }
+
+    /**
+     * 校验目标部门是否在当前数据权限范围内。
+     *
+     * @param dataScope 数据权限范围
+     * @param deptId    部门ID
+     * @return true 表示允许访问
+     */
+    private boolean canAccessDept(DataPermissionScope dataScope, Long deptId) {
+        if (deptId == null) {
+            return false;
+        }
+        if (dataScope == null) {
+            return false;
+        }
+        if (dataScope.isAllData()) {
+            return true;
+        }
+        return dataScope.getDeptIds().contains(deptId);
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.erp.system.controller;
 
+import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.core.domain.R;
 import com.erp.common.utils.JwtUtils;
 import com.erp.system.domain.SysLoginLog;
@@ -7,23 +8,24 @@ import com.erp.system.domain.SysUser;
 import com.erp.system.domain.vo.LoginBody;
 import com.erp.system.service.ISysLoginLogService;
 import com.erp.system.service.ISysUserService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.util.StringUtils;
+
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Date;
-import com.erp.common.core.context.TenantContextHolder;
-import org.springframework.security.core.context.SecurityContextHolder;
-import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * 登录验证控制层
  */
 @RestController
 public class LoginController {
+    private static final String DEFAULT_LOG_TENANT_ID = "000000";
 
     private final ISysUserService userService;
     private final ISysLoginLogService loginLogService;
@@ -39,7 +41,7 @@ public class LoginController {
 
     /**
      * 登录方法
-     * 
+     *
      * @param loginBody 登录信息
      * @return 结果
      */
@@ -48,32 +50,46 @@ public class LoginController {
         String username = loginBody == null ? null : trim(loginBody.getUsername());
         String loginTenantId = resolveTenantId(request);
         String requestIp = resolveRequestIp(request);
+        if (!StringUtils.hasText(loginTenantId)) {
+            recordLogin(null, username, "1", "租户编号不能为空", requestIp);
+            return R.failed("租户编号不能为空");
+        }
         if (loginBody == null || !StringUtils.hasText(loginBody.getUsername())
                 || !StringUtils.hasText(loginBody.getPassword())) {
             recordLogin(loginTenantId, username, "1", "用户名或密码不能为空", requestIp);
             return R.failed("用户名或密码不能为空");
         }
 
-        SysUser user = userService.selectUserByUserName(username);
-        if (user == null || !passwordEncoder.matches(loginBody.getPassword(), user.getPassword())) {
-            recordLogin(loginTenantId, username, "1", "用户名或密码错误", requestIp);
-            return R.failed("用户名或密码错误");
+        try {
+            TenantContextHolder.setTenantId(loginTenantId);
+            SysUser user = userService.selectUserByUserName(username);
+            if (user == null || !passwordEncoder.matches(loginBody.getPassword(), user.getPassword())) {
+                recordLogin(loginTenantId, username, "1", "用户名或密码错误", requestIp);
+                return R.failed("用户名或密码错误");
+            }
+
+            if (!loginTenantId.equals(resolveTenantId(user.getTenantId()))) {
+                recordLogin(loginTenantId, user.getUserName(), "1", "租户与账号不匹配", requestIp);
+                return R.failed("租户与账号不匹配");
+            }
+
+            if (!"0".equals(user.getStatus())) {
+                recordLogin(user.getTenantId(), user.getUserName(), "1", "账号已停用", requestIp);
+                return R.failed("账号已停用");
+            }
+
+            String tenantId = resolveTenantId(user.getTenantId());
+            String token = JwtUtils.createToken(user.getUserName(), tenantId);
+            updateLoginInfo(user.getUserId(), requestIp);
+            recordLogin(tenantId, user.getUserName(), "0", "登录成功", requestIp);
+
+            Map<String, Object> ajax = new HashMap<>();
+            ajax.put("token", token);
+            ajax.put("tenantId", tenantId);
+            return R.success(ajax);
+        } finally {
+            TenantContextHolder.clear();
         }
-
-        if (!"0".equals(user.getStatus())) {
-            recordLogin(user.getTenantId(), user.getUserName(), "1", "账号已停用", requestIp);
-            return R.failed("账号已停用");
-        }
-
-        String tenantId = StringUtils.hasText(user.getTenantId()) ? user.getTenantId() : "DEFAULT";
-        String token = JwtUtils.createToken(user.getUserName(), tenantId);
-        updateLoginInfo(user.getUserId(), requestIp);
-        recordLogin(tenantId, user.getUserName(), "0", "登录成功", requestIp);
-
-        Map<String, Object> ajax = new HashMap<>();
-        ajax.put("token", token);
-        ajax.put("tenantId", tenantId);
-        return R.success(ajax);
     }
 
     /**
@@ -98,14 +114,27 @@ public class LoginController {
      * @param ip       登录IP
      */
     private void recordLogin(String tenantId, String userName, String status, String msg, String ip) {
+        String logTenantId = resolveTenantIdForLog(tenantId);
+        String contextTenantId = resolveTenantId(TenantContextHolder.getTenantId());
+        boolean contextInitialized = false;
+        if (!StringUtils.hasText(contextTenantId)) {
+            TenantContextHolder.setTenantId(logTenantId);
+            contextInitialized = true;
+        }
         SysLoginLog loginLog = new SysLoginLog();
-        loginLog.setTenantId(StringUtils.hasText(tenantId) ? tenantId : "000000");
+        loginLog.setTenantId(logTenantId);
         loginLog.setUserName(StringUtils.hasText(userName) ? userName : "anonymous");
         loginLog.setStatus(status);
         loginLog.setMsg(msg);
         loginLog.setIpaddr(ip);
         loginLog.setLoginTime(new Date());
-        loginLogService.save(loginLog);
+        try {
+            loginLogService.save(loginLog);
+        } finally {
+            if (contextInitialized) {
+                TenantContextHolder.clear();
+            }
+        }
     }
 
     /**
@@ -130,13 +159,34 @@ public class LoginController {
      */
     private String resolveTenantId(HttpServletRequest request) {
         if (request == null) {
-            return "000000";
+            return null;
         }
         String tenantId = request.getHeader("tenantId");
         if (!StringUtils.hasText(tenantId)) {
             tenantId = request.getHeader("Tenantid");
         }
-        return StringUtils.hasText(tenantId) ? tenantId.trim() : "000000";
+        return resolveTenantId(tenantId);
+    }
+
+    /**
+     * 规范化租户编号。
+     *
+     * @param tenantId 原始租户编号
+     * @return 规范后的租户编号
+     */
+    private String resolveTenantId(String tenantId) {
+        return StringUtils.hasText(tenantId) ? tenantId.trim() : null;
+    }
+
+    /**
+     * 规范化日志场景下的租户编号。
+     *
+     * @param tenantId 原始租户编号
+     * @return 日志租户编号
+     */
+    private String resolveTenantIdForLog(String tenantId) {
+        String resolvedTenantId = resolveTenantId(tenantId);
+        return StringUtils.hasText(resolvedTenantId) ? resolvedTenantId : DEFAULT_LOG_TENANT_ID;
     }
 
     /**

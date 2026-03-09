@@ -2,6 +2,7 @@ package com.erp.system.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysMenu;
 import com.erp.system.domain.SysPost;
 import com.erp.system.domain.SysUser;
@@ -72,13 +73,16 @@ public class SysUserController {
      */
     @GetMapping("/getInfo")
     public R<Map<String, Object>> getInfo() {
-        Long userId = resolveCurrentUserId();
-        SysUser user = sanitizeUser(userService.getById(userId));
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        SysUser user = sanitizeUser(userService.getById(currentUserId));
 
         Map<String, Object> ajax = new HashMap<>();
         ajax.put("user", user);
-        ajax.put("roles", roleService.selectRoleKeysByUserId(userId));
-        ajax.put("permissions", menuService.selectMenuPermsByUserId(userId));
+        ajax.put("roles", roleService.selectRoleKeysByUserId(currentUserId));
+        ajax.put("permissions", menuService.selectMenuPermsByUserId(currentUserId));
         return R.success(ajax);
     }
 
@@ -89,13 +93,16 @@ public class SysUserController {
      */
     @GetMapping("/profile")
     public R<Map<String, Object>> profile() {
-        Long userId = resolveCurrentUserId();
-        SysUser user = sanitizeUser(userService.getById(userId));
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        SysUser user = sanitizeUser(userService.getById(currentUserId));
 
         Map<String, Object> profileMap = new HashMap<>();
         profileMap.put("user", user);
-        profileMap.put("roleGroup", String.join(",", roleService.selectRoleKeysByUserId(userId)));
-        profileMap.put("postGroup", buildPostGroup(userId));
+        profileMap.put("roleGroup", String.join(",", roleService.selectRoleKeysByUserId(currentUserId)));
+        profileMap.put("postGroup", buildPostGroup(currentUserId));
         return R.success(profileMap);
     }
 
@@ -111,6 +118,9 @@ public class SysUserController {
             return R.failed("用户昵称不能为空");
         }
         Long userId = resolveCurrentUserId();
+        if (userId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
         SysUser updateEntity = new SysUser();
         updateEntity.setUserId(userId);
         updateEntity.setNickName(profileBody.getNickName().trim());
@@ -143,6 +153,9 @@ public class SysUserController {
             return R.failed("新密码长度不能小于6位");
         }
         Long userId = resolveCurrentUserId();
+        if (userId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
         SysUser currentUser = userService.getById(userId);
         if (currentUser == null) {
             return R.failed("当前用户不存在");
@@ -162,8 +175,11 @@ public class SysUserController {
      */
     @GetMapping("/getRouters")
     public R<List<SysMenu>> getRouters() {
-        Long userId = resolveCurrentUserId();
-        return R.success(menuService.selectMenuTreeByUserId(userId));
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        return R.success(menuService.selectMenuTreeByUserId(currentUserId));
     }
 
     /**
@@ -172,7 +188,11 @@ public class SysUserController {
     @PreAuthorize("@ss.hasPermi('system:user:list')")
     @GetMapping("/list")
     public R<List<SysUser>> list() {
-        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(resolveCurrentUserId());
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
         if (dataScope.isAllData()) {
             return R.success(userService.list());
         }
@@ -189,7 +209,15 @@ public class SysUserController {
     @PreAuthorize("@ss.hasPermi('system:user:query')")
     @GetMapping("/{userId}")
     public R<SysUser> getInfo(@PathVariable("userId") Long userId) {
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
         SysUser user = sanitizeUser(userService.getById(userId));
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
+        if (!canAccessUser(dataScope, user)) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         fillUserRelations(user);
         return R.success(user);
     }
@@ -222,13 +250,33 @@ public class SysUserController {
     }
 
     /**
-     * 获取当前登录用户ID，解析失败时回退为默认管理员。
+     * 获取当前登录用户ID。
      *
-     * @return 当前用户ID
+     * @return 当前用户ID，未登录时返回 null
      */
     private Long resolveCurrentUserId() {
-        Long currentUserId = securityUserResolver.getCurrentUserId();
-        return currentUserId != null ? currentUserId : 1L;
+        return securityUserResolver.getCurrentUserId();
+    }
+
+    /**
+     * 校验目标用户是否在当前数据权限范围内。
+     *
+     * @param dataScope 数据权限范围
+     * @param user      目标用户
+     * @return true 表示允许访问
+     */
+    private boolean canAccessUser(DataPermissionScope dataScope, SysUser user) {
+        if (user == null) {
+            return true;
+        }
+        if (dataScope == null) {
+            return false;
+        }
+        if (dataScope.isAllData()) {
+            return true;
+        }
+        Long deptId = user.getDeptId();
+        return deptId != null && dataScope.getDeptIds().contains(deptId);
     }
 
     /**

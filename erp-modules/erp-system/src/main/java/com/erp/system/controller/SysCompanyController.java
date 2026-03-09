@@ -2,7 +2,11 @@ package com.erp.system.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysCompany;
+import com.erp.system.domain.vo.DataPermissionScope;
+import com.erp.system.security.service.SecurityUserResolver;
+import com.erp.system.service.IDataPermissionService;
 import com.erp.system.service.ISysCompanyService;
 import com.erp.system.support.StatusFieldSupport;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,6 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Collections;
 
 /**
  * 公司管理控制层
@@ -23,19 +28,45 @@ import java.util.List;
 public class SysCompanyController {
 
     private final ISysCompanyService companyService;
+    private final IDataPermissionService dataPermissionService;
+    private final SecurityUserResolver securityUserResolver;
 
     @Operation(summary = "查询公司列表")
     @PreAuthorize("@ss.hasPermi('system:company:list')")
     @GetMapping("/list")
     public R<List<SysCompany>> list() {
-        return R.success(normalizeCompanyList(companyService.list()));
+        DataPermissionScope dataScope = resolveCompanyDataScope();
+        if (dataScope == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        if (dataScope.isAllData()) {
+            return R.success(normalizeCompanyList(companyService.list()));
+        }
+        if (dataScope.getCompanyIds().isEmpty()) {
+            return R.success(Collections.emptyList());
+        }
+        List<SysCompany> companyList = companyService.list(new LambdaQueryWrapper<SysCompany>()
+                .in(SysCompany::getCompanyId, dataScope.getCompanyIds()));
+        return R.success(normalizeCompanyList(companyList));
     }
 
     @Operation(summary = "查询公司树")
     @PreAuthorize("@ss.hasPermi('system:company:list')")
     @GetMapping("/tree")
     public R<List<SysCompany>> tree() {
-        List<SysCompany> companyList = normalizeCompanyList(companyService.list());
+        DataPermissionScope dataScope = resolveCompanyDataScope();
+        if (dataScope == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        List<SysCompany> companyList;
+        if (dataScope.isAllData()) {
+            companyList = normalizeCompanyList(companyService.list());
+        } else if (dataScope.getCompanyIds().isEmpty()) {
+            companyList = Collections.emptyList();
+        } else {
+            companyList = normalizeCompanyList(companyService.list(new LambdaQueryWrapper<SysCompany>()
+                    .in(SysCompany::getCompanyId, dataScope.getCompanyIds())));
+        }
         return R.success(companyService.buildCompanyTree(companyList));
     }
 
@@ -43,6 +74,13 @@ public class SysCompanyController {
     @PreAuthorize("@ss.hasPermi('system:company:query')")
     @GetMapping("/{companyId}")
     public R<SysCompany> getInfo(@PathVariable("companyId") Long companyId) {
+        DataPermissionScope dataScope = resolveCompanyDataScope();
+        if (dataScope == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        if (!dataScope.isAllData() && (companyId == null || !dataScope.getCompanyIds().contains(companyId))) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         return R.success(normalizeCompany(companyService.getById(companyId)));
     }
 
@@ -108,5 +146,18 @@ public class SysCompanyController {
             company.setStatus(StatusFieldSupport.normalizeBinaryStatus(company.getStatus()));
         }
         return company;
+    }
+
+    /**
+     * 解析当前用户可访问的公司数据范围。
+     *
+     * @return 数据权限范围，未登录时返回 null
+     */
+    private DataPermissionScope resolveCompanyDataScope() {
+        Long currentUserId = securityUserResolver.getCurrentUserId();
+        if (currentUserId == null) {
+            return null;
+        }
+        return dataPermissionService.resolveDataScope(currentUserId);
     }
 }

@@ -1,8 +1,10 @@
 package com.erp.system.controller;
 
 import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysDictData;
 import com.erp.system.service.ISysDictDataService;
+import com.erp.system.support.TenantWriteGuard;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +47,9 @@ public class SysDictDataController {
     @PreAuthorize("@ss.hasPermi('system:dict:add')")
     @PostMapping
     public R<Void> add(@RequestBody SysDictData dictData) {
+        if (!TenantWriteGuard.canWriteGlobalData()) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         dictDataService.save(dictData);
         return R.success();
     }
@@ -53,6 +58,9 @@ public class SysDictDataController {
     @PreAuthorize("@ss.hasPermi('system:dict:edit')")
     @PutMapping
     public R<Void> edit(@RequestBody SysDictData dictData) {
+        if (!TenantWriteGuard.canWriteGlobalData()) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         dictDataService.updateById(dictData);
         return R.success();
     }
@@ -61,6 +69,9 @@ public class SysDictDataController {
     @PreAuthorize("@ss.hasPermi('system:dict:remove')")
     @DeleteMapping("/{dictCodes}")
     public R<Void> remove(@PathVariable("dictCodes") List<Long> dictCodes) {
+        if (!TenantWriteGuard.canWriteGlobalData()) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         dictDataService.removeByIds(dictCodes);
         return R.success();
     }

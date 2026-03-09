@@ -2,6 +2,7 @@ package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.erp.common.core.context.TenantContextHolder;
 import com.erp.system.domain.SysRole;
 import com.erp.system.domain.SysRoleDept;
 import com.erp.system.domain.SysRoleMenu;
@@ -104,6 +105,10 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
         if (existedRole == null) {
             return false;
         }
+        String tenantId = resolveTenantId(role.getTenantId(), existedRole.getTenantId());
+        if (!StringUtils.hasText(tenantId)) {
+            return false;
+        }
         SysRole updateEntity = new SysRole();
         updateEntity.setRoleId(role.getRoleId());
         updateEntity.setDataScope(role.getDataScope());
@@ -118,7 +123,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
         if ("2".equals(role.getDataScope()) && role.getDeptIds() != null && !role.getDeptIds().isEmpty()) {
             SysRole roleForDept = new SysRole();
             roleForDept.setRoleId(role.getRoleId());
-            roleForDept.setTenantId(existedRole.getTenantId());
+            roleForDept.setTenantId(tenantId);
             roleForDept.setDeptIds(role.getDeptIds());
             insertRoleDept(roleForDept);
         }
@@ -128,6 +133,14 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
     @Override
     @Transactional
     public boolean save(SysRole entity) {
+        if (entity == null) {
+            return false;
+        }
+        String tenantId = resolveTenantId(entity.getTenantId(), null);
+        if (!StringUtils.hasText(tenantId)) {
+            return false;
+        }
+        entity.setTenantId(tenantId);
         boolean success = super.save(entity);
         if (success && entity.getMenuIds() != null && !entity.getMenuIds().isEmpty()) {
             insertRoleMenu(entity);
@@ -141,6 +154,18 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
     @Override
     @Transactional
     public boolean updateById(SysRole entity) {
+        if (entity == null || entity.getRoleId() == null) {
+            return false;
+        }
+        SysRole existedRole = getById(entity.getRoleId());
+        if (existedRole == null) {
+            return false;
+        }
+        String tenantId = resolveTenantId(entity.getTenantId(), existedRole.getTenantId());
+        if (!StringUtils.hasText(tenantId)) {
+            return false;
+        }
+        entity.setTenantId(tenantId);
         // 删除旧关联
         roleMenuService.remove(new LambdaQueryWrapper<SysRoleMenu>().eq(SysRoleMenu::getRoleId, entity.getRoleId()));
         roleDeptService.remove(new LambdaQueryWrapper<SysRoleDept>().eq(SysRoleDept::getRoleId, entity.getRoleId()));
@@ -158,7 +183,10 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
      * 新增角色菜单信息
      */
     private void insertRoleMenu(SysRole role) {
-        String tenantId = StringUtils.hasText(role.getTenantId()) ? role.getTenantId() : "000000";
+        String tenantId = resolveTenantId(role.getTenantId(), null);
+        if (!StringUtils.hasText(tenantId)) {
+            return;
+        }
         List<SysRoleMenu> list = role.getMenuIds().stream().map(menuId -> {
             SysRoleMenu rm = new SysRoleMenu();
             rm.setTenantId(tenantId);
@@ -173,7 +201,10 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
      * 新增角色部门信息
      */
     private void insertRoleDept(SysRole role) {
-        String tenantId = StringUtils.hasText(role.getTenantId()) ? role.getTenantId() : "000000";
+        String tenantId = resolveTenantId(role.getTenantId(), null);
+        if (!StringUtils.hasText(tenantId)) {
+            return;
+        }
         List<SysRoleDept> list = role.getDeptIds().stream().map(deptId -> {
             SysRoleDept rd = new SysRoleDept();
             rd.setTenantId(tenantId);
@@ -182,5 +213,44 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
             return rd;
         }).collect(Collectors.toList());
         roleDeptService.saveBatch(list);
+    }
+
+    /**
+     * 解析角色租户编号，优先租户上下文并校验请求值一致性。
+     *
+     * @param tenantId         当前租户编号
+     * @param fallbackTenantId 回退租户编号
+     * @return 租户编号
+     */
+    private String resolveTenantId(String tenantId, String fallbackTenantId) {
+        String contextTenantId = normalizeTenantId(TenantContextHolder.getTenantId());
+        String normalizedTenantId = normalizeTenantId(tenantId);
+        String normalizedFallbackTenantId = normalizeTenantId(fallbackTenantId);
+        if (StringUtils.hasText(contextTenantId)) {
+            if (StringUtils.hasText(normalizedTenantId) && !contextTenantId.equals(normalizedTenantId)) {
+                return null;
+            }
+            if (StringUtils.hasText(normalizedFallbackTenantId) && !contextTenantId.equals(normalizedFallbackTenantId)) {
+                return null;
+            }
+            return contextTenantId;
+        }
+        if (StringUtils.hasText(normalizedTenantId)) {
+            return normalizedTenantId;
+        }
+        if (StringUtils.hasText(normalizedFallbackTenantId)) {
+            return normalizedFallbackTenantId;
+        }
+        return null;
+    }
+
+    /**
+     * 规范化租户编号。
+     *
+     * @param tenantId 原始租户编号
+     * @return 规范化后的租户编号
+     */
+    private String normalizeTenantId(String tenantId) {
+        return StringUtils.hasText(tenantId) ? tenantId.trim() : null;
     }
 }

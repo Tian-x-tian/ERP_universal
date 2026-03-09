@@ -2,6 +2,7 @@ package com.erp.system.controller;
 
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysNotice;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.ISysNoticeService;
@@ -43,7 +44,11 @@ public class SysNoticeController {
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:todo:list')")
     public R<List<SysNotice>> list(@RequestParam(value = "noticeType", required = false) String noticeType) {
-        return R.success(noticeService.selectByCurrentUser(resolveCurrentUserId(), noticeType));
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        return R.success(noticeService.selectByCurrentUser(currentUserId, noticeType));
     }
 
     /**
@@ -55,7 +60,11 @@ public class SysNoticeController {
     @PostMapping("/read/{noticeId}")
     @PreAuthorize("@ss.hasPermi('system:todo:handle')")
     public R<Boolean> read(@PathVariable("noticeId") Long noticeId) {
-        boolean success = noticeService.markRead(noticeId, resolveCurrentUserId());
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        boolean success = noticeService.markRead(noticeId, currentUserId);
         return success ? R.success(true) : R.failed("消息标记已读失败");
     }
 
@@ -67,7 +76,11 @@ public class SysNoticeController {
     @PostMapping("/readAll")
     @PreAuthorize("@ss.hasPermi('system:todo:handle')")
     public R<Integer> readAll() {
-        return R.success(noticeService.markAllRead(resolveCurrentUserId()));
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        return R.success(noticeService.markAllRead(currentUserId));
     }
 
     /**
@@ -86,7 +99,11 @@ public class SysNoticeController {
             @RequestParam(value = "noticeType", required = false) String noticeType,
             @RequestParam(value = "receiverUserId", required = false) Long receiverUserId,
             @RequestParam(value = "status", required = false) String status) {
-        return R.success(noticeService.selectForManage(resolveTenantId(), title, noticeType, receiverUserId, status));
+        String tenantId = resolveTenantId();
+        if (!StringUtils.hasText(tenantId)) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        return R.success(noticeService.selectForManage(tenantId, title, noticeType, receiverUserId, status));
     }
 
     /**
@@ -113,7 +130,11 @@ public class SysNoticeController {
         if (notice == null || !StringUtils.hasText(notice.getTitle()) || notice.getReceiverUserId() == null) {
             return R.failed("标题和接收人不能为空");
         }
-        notice.setTenantId(resolveTenantId());
+        String tenantId = resolveTenantId();
+        if (!StringUtils.hasText(tenantId)) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        notice.setTenantId(tenantId);
         boolean success = noticeService.createNotice(notice);
         return success ? R.success(true) : R.failed("新增消息失败");
     }
@@ -147,13 +168,12 @@ public class SysNoticeController {
     }
 
     /**
-     * 获取当前登录用户ID，解析失败时回退为默认管理员。
+     * 获取当前登录用户ID。
      *
-     * @return 当前用户ID
+     * @return 当前用户ID，未登录时返回 null
      */
     private Long resolveCurrentUserId() {
-        Long currentUserId = securityUserResolver.getCurrentUserId();
-        return currentUserId != null ? currentUserId : 1L;
+        return securityUserResolver.getCurrentUserId();
     }
 
     /**
@@ -163,6 +183,6 @@ public class SysNoticeController {
      */
     private String resolveTenantId() {
         String tenantId = TenantContextHolder.getTenantId();
-        return StringUtils.hasText(tenantId) ? tenantId : "000000";
+        return StringUtils.hasText(tenantId) ? tenantId.trim() : null;
     }
 }

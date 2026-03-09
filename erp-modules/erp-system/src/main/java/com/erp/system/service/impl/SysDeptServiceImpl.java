@@ -2,6 +2,7 @@ package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.erp.common.core.context.TenantContextHolder;
 import com.erp.system.domain.SysDept;
 import com.erp.system.mapper.SysDeptMapper;
 import com.erp.system.service.ISysDeptService;
@@ -19,8 +20,6 @@ import java.util.List;
  */
 @Service
 public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> implements ISysDeptService {
-
-    private static final String DEFAULT_TENANT_ID = "000000";
 
     @Override
     public List<SysDept> buildDeptTree(List<SysDept> depts) {
@@ -47,7 +46,11 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
 
         if (parentId == 0L) {
             dept.setAncestors("0");
-            dept.setTenantId(resolveTenantId(dept.getTenantId(), null));
+            String tenantId = resolveTenantId(dept.getTenantId(), null);
+            if (!StringUtils.hasText(tenantId)) {
+                return false;
+            }
+            dept.setTenantId(tenantId);
             return save(dept);
         }
 
@@ -56,7 +59,11 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
             return false;
         }
         dept.setAncestors(normalizeAncestors(parentDept.getAncestors()) + "," + parentId);
-        dept.setTenantId(resolveTenantId(dept.getTenantId(), parentDept.getTenantId()));
+        String tenantId = resolveTenantId(dept.getTenantId(), parentDept.getTenantId());
+        if (!StringUtils.hasText(tenantId)) {
+            return false;
+        }
+        dept.setTenantId(tenantId);
 
         if (dept.getCompanyId() == null) {
             dept.setCompanyId(parentDept.getCompanyId());
@@ -102,7 +109,11 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
             if (dept.getCompanyId() == null) {
                 dept.setCompanyId(parentDept.getCompanyId());
             }
-            dept.setTenantId(resolveTenantId(dept.getTenantId(), parentDept.getTenantId()));
+            String tenantId = resolveTenantId(dept.getTenantId(), parentDept.getTenantId());
+            if (!StringUtils.hasText(tenantId)) {
+                return false;
+            }
+            dept.setTenantId(tenantId);
         }
 
         dept.setParentId(parentId);
@@ -113,7 +124,11 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
         if (dept.getCompanyId() == null) {
             dept.setCompanyId(existedDept.getCompanyId());
         }
-        dept.setTenantId(resolveTenantId(dept.getTenantId(), existedDept.getTenantId()));
+        String tenantId = resolveTenantId(dept.getTenantId(), existedDept.getTenantId());
+        if (!StringUtils.hasText(tenantId)) {
+            return false;
+        }
+        dept.setTenantId(tenantId);
         dept.setUpdateTime(new Date());
 
         boolean updated = super.updateById(dept);
@@ -189,19 +204,41 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
     }
 
     /**
-     * 解析租户编号，优先使用当前值，其次使用回退值，最后使用默认租户。
+     * 解析租户编号，优先使用租户上下文并校验请求值一致性。
      *
      * @param currentTenantId 当前租户编号
      * @param fallbackTenantId 回退租户编号
      * @return 最终租户编号
      */
     private String resolveTenantId(String currentTenantId, String fallbackTenantId) {
-        if (StringUtils.hasText(currentTenantId)) {
-            return currentTenantId.trim();
+        String contextTenantId = normalizeTenantId(TenantContextHolder.getTenantId());
+        String normalizedCurrentTenantId = normalizeTenantId(currentTenantId);
+        String normalizedFallbackTenantId = normalizeTenantId(fallbackTenantId);
+        if (StringUtils.hasText(contextTenantId)) {
+            if (StringUtils.hasText(normalizedCurrentTenantId) && !contextTenantId.equals(normalizedCurrentTenantId)) {
+                return null;
+            }
+            if (StringUtils.hasText(normalizedFallbackTenantId) && !contextTenantId.equals(normalizedFallbackTenantId)) {
+                return null;
+            }
+            return contextTenantId;
         }
-        if (StringUtils.hasText(fallbackTenantId)) {
-            return fallbackTenantId.trim();
+        if (StringUtils.hasText(normalizedCurrentTenantId)) {
+            return normalizedCurrentTenantId;
         }
-        return DEFAULT_TENANT_ID;
+        if (StringUtils.hasText(normalizedFallbackTenantId)) {
+            return normalizedFallbackTenantId;
+        }
+        return null;
+    }
+
+    /**
+     * 规范化租户编号。
+     *
+     * @param tenantId 原始租户编号
+     * @return 规范化租户编号
+     */
+    private String normalizeTenantId(String tenantId) {
+        return StringUtils.hasText(tenantId) ? tenantId.trim() : null;
     }
 }

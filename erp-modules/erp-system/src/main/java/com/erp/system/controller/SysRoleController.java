@@ -1,7 +1,11 @@
 package com.erp.system.controller;
 
 import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysRole;
+import com.erp.system.domain.vo.DataPermissionScope;
+import com.erp.system.security.service.SecurityUserResolver;
+import com.erp.system.service.IDataPermissionService;
 import com.erp.system.service.ISysRoleService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
@@ -17,9 +21,15 @@ import java.util.List;
 public class SysRoleController {
 
     private final ISysRoleService roleService;
+    private final IDataPermissionService dataPermissionService;
+    private final SecurityUserResolver securityUserResolver;
 
-    public SysRoleController(ISysRoleService roleService) {
+    public SysRoleController(ISysRoleService roleService,
+            IDataPermissionService dataPermissionService,
+            SecurityUserResolver securityUserResolver) {
         this.roleService = roleService;
+        this.dataPermissionService = dataPermissionService;
+        this.securityUserResolver = securityUserResolver;
     }
 
     /**
@@ -67,8 +77,52 @@ public class SysRoleController {
         if (role == null || role.getRoleId() == null || !StringUtils.hasText(role.getDataScope())) {
             return R.failed("角色ID和数据权限范围不能为空");
         }
+        Long currentUserId = securityUserResolver.getCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope currentScope = dataPermissionService.resolveDataScope(currentUserId);
+        R<Boolean> validationResult = validateRoleDataScope(role, currentScope);
+        if (validationResult != null) {
+            return validationResult;
+        }
         boolean success = roleService.updateDataScope(role);
         return success ? R.success(true) : R.failed("分配数据权限失败");
+    }
+
+    /**
+     * 校验角色数据权限分配是否超出当前用户可授权范围。
+     *
+     * @param role         角色数据权限参数
+     * @param currentScope 当前用户数据权限范围
+     * @return 校验失败返回失败结果，校验通过返回 null
+     */
+    private R<Boolean> validateRoleDataScope(SysRole role, DataPermissionScope currentScope) {
+        if (currentScope == null) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
+        if (currentScope.isAllData()) {
+            return null;
+        }
+        String dataScope = role.getDataScope();
+        if ("1".equals(dataScope)) {
+            return R.failed("当前账号不能分配全部数据权限");
+        }
+        if ("2".equals(dataScope)) {
+            if (role.getDeptIds() == null || role.getDeptIds().isEmpty()) {
+                return null;
+            }
+            boolean hasOutOfScopeDept = role.getDeptIds().stream()
+                    .anyMatch(deptId -> deptId == null || !currentScope.getDeptIds().contains(deptId));
+            if (hasOutOfScopeDept) {
+                return R.failed("包含超出当前账号数据范围的部门");
+            }
+            return null;
+        }
+        if ("3".equals(dataScope) || "4".equals(dataScope)) {
+            return null;
+        }
+        return R.failed("无效的数据权限范围");
     }
 
     /**

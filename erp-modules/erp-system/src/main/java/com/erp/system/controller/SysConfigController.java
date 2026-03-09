@@ -1,8 +1,10 @@
 package com.erp.system.controller;
 
 import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysConfig;
 import com.erp.system.service.ISysConfigService;
+import com.erp.system.support.TenantWriteGuard;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +48,9 @@ public class SysConfigController {
     @PreAuthorize("@ss.hasPermi('system:config:add')")
     @PostMapping
     public R<Void> add(@RequestBody SysConfig config) {
+        if (!TenantWriteGuard.canWriteGlobalData()) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         configService.save(config);
         return R.success();
     }
@@ -54,6 +59,9 @@ public class SysConfigController {
     @PreAuthorize("@ss.hasPermi('system:config:edit')")
     @PutMapping
     public R<Void> edit(@RequestBody SysConfig config) {
+        if (!TenantWriteGuard.canWriteGlobalData()) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         configService.updateById(config);
         return R.success();
     }
@@ -62,6 +70,9 @@ public class SysConfigController {
     @PreAuthorize("@ss.hasPermi('system:config:remove')")
     @DeleteMapping("/{configIds}")
     public R<Void> remove(@PathVariable("configIds") List<Integer> configIds) {
+        if (!TenantWriteGuard.canWriteGlobalData()) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         configService.removeByIds(configIds);
         return R.success();
     }
