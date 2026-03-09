@@ -299,7 +299,28 @@ CREATE TABLE `sys_audit_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审计日志表';
 
 -- ----------------------------
--- 16. 登录日志表 (sys_login_log)
+-- 16. 操作日志表 (sys_oper_log)
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_oper_log`;
+CREATE TABLE `sys_oper_log` (
+  `oper_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `operator` varchar(64) DEFAULT NULL COMMENT '操作人账号',
+  `request_method` varchar(16) DEFAULT NULL COMMENT '请求方法',
+  `request_uri` varchar(500) DEFAULT NULL COMMENT '请求URI',
+  `request_ip` varchar(64) DEFAULT NULL COMMENT '请求IP',
+  `request_params` text COMMENT '请求参数',
+  `response_code` int(11) DEFAULT NULL COMMENT '响应状态码',
+  `success_flag` char(1) DEFAULT '1' COMMENT '是否成功（1成功 0失败）',
+  `error_msg` varchar(500) DEFAULT NULL COMMENT '错误信息',
+  `cost_time` bigint(20) DEFAULT NULL COMMENT '耗时毫秒',
+  `operation_time` datetime DEFAULT NULL COMMENT '操作时间',
+  PRIMARY KEY (`oper_id`),
+  KEY `idx_oper_tenant_time` (`tenant_id`, `operation_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
+
+-- ----------------------------
+-- 17. 登录日志表 (sys_login_log)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_login_log`;
 CREATE TABLE `sys_login_log` (
@@ -315,7 +336,7 @@ CREATE TABLE `sys_login_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='登录日志表';
 
 -- ----------------------------
--- 17. 系统消息通知表 (sys_notice)
+-- 18. 系统消息通知表 (sys_notice)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_notice`;
 CREATE TABLE `sys_notice` (
@@ -335,7 +356,7 @@ CREATE TABLE `sys_notice` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统消息通知表';
 
 -- ----------------------------
--- 18. 流程待办任务表 (sys_todo_task)
+-- 19. 流程待办任务表 (sys_todo_task)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_todo_task`;
 CREATE TABLE `sys_todo_task` (
@@ -357,7 +378,7 @@ CREATE TABLE `sys_todo_task` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程待办任务表';
 
 -- ----------------------------
--- 19. 区域主数据表 (sys_region)
+-- 20. 区域主数据表 (sys_region)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_region`;
 CREATE TABLE `sys_region` (
@@ -378,7 +399,7 @@ CREATE TABLE `sys_region` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='区域主数据表';
 
 -- ----------------------------
--- 20. 编码规则表 (sys_code_rule)
+-- 21. 编码规则表 (sys_code_rule)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_code_rule`;
 CREATE TABLE `sys_code_rule` (
@@ -432,12 +453,90 @@ VALUES
   (9, '参数管理', 2, 7, '/system/config', '/views/system/config/index', 1, 'C', '0', '0', 'system:config:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (10, '公司管理', 2, 8, '/system/company', '/views/system/company/index', 1, 'C', '0', '0', 'system:company:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (11, '岗位管理', 2, 9, '/system/post', '/views/system/post/index', 1, 'C', '0', '0', 'system:post:list', NULL, 'system', NOW(), '系统初始化菜单'),
-  (12, '审计日志', 2, 10, '/system/audit-log', '/views/platform/audit-log/index', 1, 'C', '0', '0', 'system:audit:list', NULL, 'system', NOW(), '系统初始化菜单'),
-  (13, '登录日志', 2, 11, '/system/login-log', '/views/system/login-log/index', 1, 'C', '1', '0', 'system:loginLog:list', NULL, 'system', NOW(), '系统初始化菜单'),
-  (14, '区域主数据', 2, 12, '/system/region', '/views/system/region/index', 1, 'C', '1', '0', 'system:region:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (12, '通知管理', 2, 10, '/system/notice', '/views/system/notice/index', 1, 'C', '0', '0', 'system:notice:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (13, '审计日志', 2, 11, '/system/audit-log', '/views/platform/audit-log/index', 1, 'C', '0', '0', 'system:audit:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (14, '操作日志', 2, 12, '/system/oper-log', '/views/system/oper-log/index', 1, 'C', '0', '0', 'system:oper:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (20, '登录日志', 2, 13, '/system/login-log', '/views/system/login-log/index', 1, 'C', '0', '0', 'system:loginLog:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (21, '区域主数据', 2, 14, '/system/region', '/views/system/region/index', 1, 'C', '0', '0', 'system:region:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (15, '平台底座', 0, 3, '/platform', NULL, 1, 'M', '0', '0', NULL, NULL, 'system', NOW(), '系统初始化目录'),
-  (16, '消息待办中心', 15, 1, '/platform/todo-center', '/views/platform/todo-center/index', 1, 'C', '0', '0', 'system:todo:list', NULL, 'system', NOW(), '系统初始化菜单'),
-  (17, '编码规则', 15, 2, '/platform/code-rule', '/views/platform/code-rule/index', 1, 'C', '0', '0', 'system:codeRule:list', NULL, 'system', NOW(), '系统初始化菜单');
+  (16, '组织架构增强', 15, 1, '/platform/org', '/views/platform/org/index', 1, 'C', '0', '0', 'system:org:view', NULL, 'system', NOW(), '系统初始化菜单'),
+  (17, '数据权限', 15, 2, '/platform/data-scope', '/views/platform/data-scope/index', 1, 'C', '0', '0', 'system:dataScope:view', NULL, 'system', NOW(), '系统初始化菜单'),
+  (18, '消息待办中心', 15, 3, '/platform/todo-center', '/views/platform/todo-center/index', 1, 'C', '0', '0', 'system:todo:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (19, '编码规则', 15, 4, '/platform/code-rule', '/views/platform/code-rule/index', 1, 'C', '0', '0', 'system:codeRule:list', NULL, 'system', NOW(), '系统初始化菜单');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT button_perm.menu_name,
+       parent_menu.menu_id,
+       button_perm.order_num,
+       '',
+       NULL,
+       1,
+       'F',
+       '1',
+       '0',
+       button_perm.perms,
+       NULL,
+       'system',
+       NOW(),
+       '系统初始化按钮权限'
+FROM (
+  SELECT '/system/tenant' AS parent_path, '租户查询' AS menu_name, 1 AS order_num, 'system:tenant:query' AS perms
+  UNION ALL SELECT '/system/tenant', '租户新增', 2, 'system:tenant:add'
+  UNION ALL SELECT '/system/tenant', '租户修改', 3, 'system:tenant:edit'
+  UNION ALL SELECT '/system/tenant', '租户删除', 4, 'system:tenant:remove'
+  UNION ALL SELECT '/system/user', '用户查询', 1, 'system:user:query'
+  UNION ALL SELECT '/system/user', '用户新增', 2, 'system:user:add'
+  UNION ALL SELECT '/system/user', '用户修改', 3, 'system:user:edit'
+  UNION ALL SELECT '/system/user', '用户删除', 4, 'system:user:remove'
+  UNION ALL SELECT '/system/role', '角色查询', 1, 'system:role:query'
+  UNION ALL SELECT '/system/role', '角色新增', 2, 'system:role:add'
+  UNION ALL SELECT '/system/role', '角色修改', 3, 'system:role:edit'
+  UNION ALL SELECT '/system/role', '角色删除', 4, 'system:role:remove'
+  UNION ALL SELECT '/system/menu', '菜单查询', 1, 'system:menu:query'
+  UNION ALL SELECT '/system/menu', '菜单新增', 2, 'system:menu:add'
+  UNION ALL SELECT '/system/menu', '菜单修改', 3, 'system:menu:edit'
+  UNION ALL SELECT '/system/menu', '菜单删除', 4, 'system:menu:remove'
+  UNION ALL SELECT '/system/dept', '部门查询', 1, 'system:dept:query'
+  UNION ALL SELECT '/system/dept', '部门新增', 2, 'system:dept:add'
+  UNION ALL SELECT '/system/dept', '部门修改', 3, 'system:dept:edit'
+  UNION ALL SELECT '/system/dept', '部门删除', 4, 'system:dept:remove'
+  UNION ALL SELECT '/system/dict', '字典查询', 1, 'system:dict:query'
+  UNION ALL SELECT '/system/dict', '字典新增', 2, 'system:dict:add'
+  UNION ALL SELECT '/system/dict', '字典修改', 3, 'system:dict:edit'
+  UNION ALL SELECT '/system/dict', '字典删除', 4, 'system:dict:remove'
+  UNION ALL SELECT '/system/config', '参数查询', 1, 'system:config:query'
+  UNION ALL SELECT '/system/config', '参数新增', 2, 'system:config:add'
+  UNION ALL SELECT '/system/config', '参数修改', 3, 'system:config:edit'
+  UNION ALL SELECT '/system/config', '参数删除', 4, 'system:config:remove'
+  UNION ALL SELECT '/system/company', '公司查询', 1, 'system:company:query'
+  UNION ALL SELECT '/system/company', '公司新增', 2, 'system:company:add'
+  UNION ALL SELECT '/system/company', '公司修改', 3, 'system:company:edit'
+  UNION ALL SELECT '/system/company', '公司删除', 4, 'system:company:remove'
+  UNION ALL SELECT '/system/post', '岗位查询', 1, 'system:post:query'
+  UNION ALL SELECT '/system/post', '岗位新增', 2, 'system:post:add'
+  UNION ALL SELECT '/system/post', '岗位修改', 3, 'system:post:edit'
+  UNION ALL SELECT '/system/post', '岗位删除', 4, 'system:post:remove'
+  UNION ALL SELECT '/system/notice', '通知查询', 1, 'system:notice:query'
+  UNION ALL SELECT '/system/notice', '通知新增', 2, 'system:notice:add'
+  UNION ALL SELECT '/system/notice', '通知修改', 3, 'system:notice:edit'
+  UNION ALL SELECT '/system/notice', '通知删除', 4, 'system:notice:remove'
+  UNION ALL SELECT '/system/audit-log', '审计详情', 1, 'system:audit:query'
+  UNION ALL SELECT '/system/audit-log', '审计删除', 2, 'system:audit:remove'
+  UNION ALL SELECT '/system/oper-log', '操作日志详情', 1, 'system:oper:query'
+  UNION ALL SELECT '/system/oper-log', '操作日志删除', 2, 'system:oper:remove'
+  UNION ALL SELECT '/system/login-log', '登录日志删除', 1, 'system:loginLog:remove'
+  UNION ALL SELECT '/system/region', '区域查询', 1, 'system:region:query'
+  UNION ALL SELECT '/system/region', '区域新增', 2, 'system:region:add'
+  UNION ALL SELECT '/system/region', '区域修改', 3, 'system:region:edit'
+  UNION ALL SELECT '/system/region', '区域删除', 4, 'system:region:remove'
+  UNION ALL SELECT '/platform/todo-center', '待办处理', 1, 'system:todo:handle'
+  UNION ALL SELECT '/platform/code-rule', '编码规则查询', 1, 'system:codeRule:query'
+  UNION ALL SELECT '/platform/code-rule', '编码规则新增', 2, 'system:codeRule:add'
+  UNION ALL SELECT '/platform/code-rule', '编码规则修改', 3, 'system:codeRule:edit'
+  UNION ALL SELECT '/platform/code-rule', '编码规则删除', 4, 'system:codeRule:remove'
+  UNION ALL SELECT '/platform/code-rule', '编码规则生成', 5, 'system:codeRule:generate'
+) button_perm
+INNER JOIN `sys_menu` parent_menu ON parent_menu.path = button_perm.parent_path;
 
 INSERT INTO `sys_user_role` (`tenant_id`, `user_id`, `role_id`) VALUES ('000000', 1, 1);
 INSERT INTO `sys_user_post` (`tenant_id`, `user_id`, `post_id`) VALUES ('000000', 1, 1);

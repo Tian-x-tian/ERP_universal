@@ -6,6 +6,7 @@ import com.erp.system.domain.SysMenu;
 import com.erp.system.domain.SysPost;
 import com.erp.system.domain.SysUser;
 import com.erp.system.domain.SysUserPost;
+import com.erp.system.domain.SysUserRole;
 import com.erp.system.domain.vo.DataPermissionScope;
 import com.erp.system.domain.vo.UserPasswordUpdateBody;
 import com.erp.system.domain.vo.UserProfileUpdateBody;
@@ -13,6 +14,7 @@ import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IDataPermissionService;
 import com.erp.system.service.ISysPostService;
 import com.erp.system.service.ISysUserPostService;
+import com.erp.system.service.ISysUserRoleService;
 import com.erp.system.service.ISysUserService;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,6 +42,7 @@ public class SysUserController {
     private final ISysMenuService menuService;
     private final ISysPostService postService;
     private final ISysUserPostService userPostService;
+    private final ISysUserRoleService userRoleService;
     private final IDataPermissionService dataPermissionService;
     private final SecurityUserResolver securityUserResolver;
     private final PasswordEncoder passwordEncoder;
@@ -49,6 +52,7 @@ public class SysUserController {
             ISysMenuService menuService,
             ISysPostService postService,
             ISysUserPostService userPostService,
+            ISysUserRoleService userRoleService,
             IDataPermissionService dataPermissionService,
             SecurityUserResolver securityUserResolver,
             PasswordEncoder passwordEncoder) {
@@ -57,6 +61,7 @@ public class SysUserController {
         this.menuService = menuService;
         this.postService = postService;
         this.userPostService = userPostService;
+        this.userRoleService = userRoleService;
         this.dataPermissionService = dataPermissionService;
         this.securityUserResolver = securityUserResolver;
         this.passwordEncoder = passwordEncoder;
@@ -184,7 +189,9 @@ public class SysUserController {
     @PreAuthorize("@ss.hasPermi('system:user:query')")
     @GetMapping("/{userId}")
     public R<SysUser> getInfo(@PathVariable("userId") Long userId) {
-        return R.success(sanitizeUser(userService.getById(userId)));
+        SysUser user = sanitizeUser(userService.getById(userId));
+        fillUserRelations(user);
+        return R.success(user);
     }
 
     /**
@@ -256,5 +263,29 @@ public class SysUserController {
             user.setPassword(null);
         }
         return user;
+    }
+
+    /**
+     * 回填用户角色与岗位关联，供编辑页面回显。
+     *
+     * @param user 用户对象
+     */
+    private void fillUserRelations(SysUser user) {
+        if (user == null || user.getUserId() == null) {
+            return;
+        }
+        List<Long> roleIds = userRoleService
+                .list(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, user.getUserId()))
+                .stream()
+                .map(SysUserRole::getRoleId)
+                .collect(Collectors.toList());
+        user.setRoleIds(roleIds);
+
+        List<Long> postIds = userPostService
+                .list(new LambdaQueryWrapper<SysUserPost>().eq(SysUserPost::getUserId, user.getUserId()))
+                .stream()
+                .map(SysUserPost::getPostId)
+                .collect(Collectors.toList());
+        user.setPostIds(postIds);
     }
 }

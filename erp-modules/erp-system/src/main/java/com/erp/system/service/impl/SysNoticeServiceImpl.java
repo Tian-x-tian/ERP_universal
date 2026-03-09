@@ -74,4 +74,95 @@ public class SysNoticeServiceImpl extends ServiceImpl<SysNoticeMapper, SysNotice
                 .set(SysNotice::getReadTime, new Date());
         return baseMapper.update(null, updateWrapper);
     }
+
+    /**
+     * 按租户查询消息中心管理列表。
+     *
+     * @param tenantId       租户编号
+     * @param title          标题关键字
+     * @param noticeType     消息类型
+     * @param receiverUserId 接收人用户ID
+     * @param status         状态（0未读 1已读）
+     * @return 消息列表
+     */
+    @Override
+    public List<SysNotice> selectForManage(String tenantId, String title, String noticeType, Long receiverUserId, String status) {
+        LambdaQueryWrapper<SysNotice> queryWrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(tenantId)) {
+            queryWrapper.eq(SysNotice::getTenantId, tenantId.trim());
+        }
+        if (StringUtils.hasText(title)) {
+            queryWrapper.like(SysNotice::getTitle, title.trim());
+        }
+        if (StringUtils.hasText(noticeType)) {
+            queryWrapper.eq(SysNotice::getNoticeType, noticeType.trim());
+        }
+        if (receiverUserId != null) {
+            queryWrapper.eq(SysNotice::getReceiverUserId, receiverUserId);
+        }
+        if (StringUtils.hasText(status)) {
+            queryWrapper.eq(SysNotice::getStatus, status.trim());
+        }
+        queryWrapper.orderByDesc(SysNotice::getCreateTime);
+        return list(queryWrapper);
+    }
+
+    /**
+     * 新增消息通知。
+     *
+     * @param notice 消息对象
+     * @return 新增结果
+     */
+    @Override
+    public boolean createNotice(SysNotice notice) {
+        if (notice == null || !StringUtils.hasText(notice.getTitle()) || notice.getReceiverUserId() == null) {
+            return false;
+        }
+        notice.setTitle(notice.getTitle().trim());
+        notice.setNoticeType(StringUtils.hasText(notice.getNoticeType()) ? notice.getNoticeType().trim() : "系统公告");
+        notice.setStatus(StringUtils.hasText(notice.getStatus()) ? notice.getStatus() : "0");
+        if ("1".equals(notice.getStatus())) {
+            notice.setReadTime(new Date());
+        } else {
+            notice.setReadTime(null);
+        }
+        notice.setCreateTime(new Date());
+        return save(notice);
+    }
+
+    /**
+     * 修改消息通知。
+     *
+     * @param notice 消息对象
+     * @return 修改结果
+     */
+    @Override
+    public boolean updateNotice(SysNotice notice) {
+        if (notice == null || notice.getNoticeId() == null) {
+            return false;
+        }
+        SysNotice existedNotice = getById(notice.getNoticeId());
+        if (existedNotice == null) {
+            return false;
+        }
+        notice.setTenantId(existedNotice.getTenantId());
+        notice.setCreateTime(existedNotice.getCreateTime());
+        if (StringUtils.hasText(notice.getTitle())) {
+            notice.setTitle(notice.getTitle().trim());
+        }
+        if (StringUtils.hasText(notice.getNoticeType())) {
+            notice.setNoticeType(notice.getNoticeType().trim());
+        }
+        if (!StringUtils.hasText(notice.getStatus())) {
+            notice.setStatus(existedNotice.getStatus());
+            notice.setReadTime(existedNotice.getReadTime());
+        } else if ("1".equals(notice.getStatus())) {
+            if (notice.getReadTime() == null) {
+                notice.setReadTime(new Date());
+            }
+        } else {
+            notice.setReadTime(null);
+        }
+        return updateById(notice);
+    }
 }

@@ -1,12 +1,14 @@
 package com.erp.system.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
 /**
  * 公司信息对象 sys_company
@@ -19,6 +21,10 @@ public class SysCompany implements Serializable {
     /** 公司ID */
     @TableId(type = IdType.AUTO)
     private Long companyId;
+
+    /** 子公司节点 */
+    @TableField(exist = false)
+    private List<SysCompany> children;
 
     /** 租户编号 */
     private String tenantId;

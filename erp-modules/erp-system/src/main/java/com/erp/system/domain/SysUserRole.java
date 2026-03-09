@@ -12,6 +12,9 @@ import java.io.Serializable;
 public class SysUserRole implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    /** 租户编号 */
+    private String tenantId;
+
     /** 用户ID */
     private Long userId;
 

@@ -2,9 +2,9 @@ package com.erp.system.audit;
 
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.core.domain.R;
-import com.erp.system.domain.SysAuditLog;
+import com.erp.system.domain.SysOperLog;
 import com.erp.system.security.service.SecurityUserResolver;
-import com.erp.system.service.ISysAuditLogService;
+import com.erp.system.service.ISysOperLogService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletRequest;
@@ -23,26 +23,26 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 审计日志切面
+ * 操作日志切面
  */
 @Aspect
 @Component
-public class AuditLogAspect {
+public class OperationLogAspect {
 
-    private final ISysAuditLogService auditLogService;
+    private final ISysOperLogService operLogService;
     private final SecurityUserResolver securityUserResolver;
     private final ObjectMapper objectMapper;
 
-    public AuditLogAspect(ISysAuditLogService auditLogService,
+    public OperationLogAspect(ISysOperLogService operLogService,
             SecurityUserResolver securityUserResolver,
             ObjectMapper objectMapper) {
-        this.auditLogService = auditLogService;
+        this.operLogService = operLogService;
         this.securityUserResolver = securityUserResolver;
         this.objectMapper = objectMapper;
     }
 
     /**
-     * 记录控制层请求审计日志。
+     * 记录控制层写操作日志（POST/PUT/DELETE/PATCH）。
      *
      * @param joinPoint 切点
      * @return 方法执行结果
@@ -59,7 +59,7 @@ public class AuditLogAspect {
         }
 
         long startTime = System.currentTimeMillis();
-        SysAuditLog log = buildBaseLog(request, joinPoint.getArgs());
+        SysOperLog log = buildBaseLog(request, joinPoint.getArgs());
         try {
             Object result = joinPoint.proceed();
             fillSuccess(log, result, System.currentTimeMillis() - startTime);
@@ -68,39 +68,40 @@ public class AuditLogAspect {
             fillFailure(log, ex, System.currentTimeMillis() - startTime);
             throw ex;
         } finally {
-            auditLogService.save(log);
+            operLogService.save(log);
         }
     }
 
     /**
-     * 判断是否记录审计日志。
-     * 审计日志仅记录查询场景，写操作由操作日志切面单独采集。
+     * 判断当前请求是否需要记录操作日志。
      *
-     * @param request HTTP 请求
+     * @param request 请求对象
      * @return true 表示需要记录
      */
     private boolean needRecord(HttpServletRequest request) {
-        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+        String requestMethod = request.getMethod();
+        if ("GET".equalsIgnoreCase(requestMethod)) {
             return false;
         }
         String requestUri = request.getRequestURI();
         return !"/login".equals(requestUri)
                 && !"/logout".equals(requestUri)
+                && !requestUri.startsWith("/system/login/log")
+                && !requestUri.startsWith("/system/audit/log")
                 && !requestUri.startsWith("/system/oper/log");
     }
 
     /**
-     * 构建审计日志基础字段。
+     * 构建操作日志基础字段。
      *
      * @param request HTTP 请求
      * @param args    方法参数
-     * @return 审计日志对象
+     * @return 操作日志对象
      */
-    private SysAuditLog buildBaseLog(HttpServletRequest request, Object[] args) {
-        SysAuditLog log = new SysAuditLog();
+    private SysOperLog buildBaseLog(HttpServletRequest request, Object[] args) {
+        SysOperLog log = new SysOperLog();
         log.setTenantId(resolveTenantId(request));
         log.setOperator(securityUserResolver.getCurrentUsername());
-        log.setOperationType(request.getMethod());
         log.setRequestMethod(request.getMethod());
         log.setRequestUri(request.getRequestURI());
         log.setRequestIp(getClientIp(request));
@@ -112,11 +113,11 @@ public class AuditLogAspect {
     /**
      * 填充成功执行结果。
      *
-     * @param log      审计日志对象
+     * @param log      操作日志对象
      * @param result   方法结果
      * @param costTime 执行耗时
      */
-    private void fillSuccess(SysAuditLog log, Object result, long costTime) {
+    private void fillSuccess(SysOperLog log, Object result, long costTime) {
         log.setSuccessFlag("1");
         log.setCostTime(costTime);
         if (result instanceof R) {
@@ -129,11 +130,11 @@ public class AuditLogAspect {
     /**
      * 填充失败执行结果。
      *
-     * @param log      审计日志对象
-     * @param ex       异常信息
+     * @param log      操作日志对象
+     * @param ex       异常
      * @param costTime 执行耗时
      */
-    private void fillFailure(SysAuditLog log, Throwable ex, long costTime) {
+    private void fillFailure(SysOperLog log, Throwable ex, long costTime) {
         log.setSuccessFlag("0");
         log.setCostTime(costTime);
         log.setResponseCode(500);
@@ -208,7 +209,7 @@ public class AuditLogAspect {
      * 过滤不可序列化参数。
      *
      * @param args 原始参数
-     * @return 可序列化参数数组
+     * @return 可序列化参数
      */
     private Object[] filterSerializableArgs(Object[] args) {
         if (args == null || args.length == 0) {

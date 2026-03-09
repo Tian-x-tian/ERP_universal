@@ -5,12 +5,14 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.erp.system.domain.SysCodeRule;
 import com.erp.system.mapper.SysCodeRuleMapper;
 import com.erp.system.service.ISysCodeRuleService;
+import com.erp.system.support.StatusFieldSupport;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.Locale;
 
 /**
@@ -18,6 +20,35 @@ import java.util.Locale;
  */
 @Service
 public class SysCodeRuleServiceImpl extends ServiceImpl<SysCodeRuleMapper, SysCodeRule> implements ISysCodeRuleService {
+
+    /**
+     * 新增编码规则时规范状态字段和基础字段。
+     *
+     * @param entity 编码规则实体
+     * @return 新增结果
+     */
+    @Override
+    public boolean save(SysCodeRule entity) {
+        normalizeRule(entity, true, null);
+        return super.save(entity);
+    }
+
+    /**
+     * 修改编码规则时规范状态字段和更新时间。
+     *
+     * @param entity 编码规则实体
+     * @return 修改结果
+     */
+    @Override
+    public boolean updateById(SysCodeRule entity) {
+        String currentStatus = null;
+        if (entity != null && entity.getRuleId() != null) {
+            SysCodeRule existedRule = getById(entity.getRuleId());
+            currentStatus = existedRule == null ? null : existedRule.getStatus();
+        }
+        normalizeRule(entity, false, currentStatus);
+        return super.updateById(entity);
+    }
 
     /**
      * 预览编码样例。
@@ -28,7 +59,7 @@ public class SysCodeRuleServiceImpl extends ServiceImpl<SysCodeRuleMapper, SysCo
     @Override
     public String previewCode(String ruleCode) {
         SysCodeRule rule = getRuleByCode(ruleCode);
-        if (rule == null || !"0".equals(rule.getStatus())) {
+        if (rule == null || !StatusFieldSupport.isEnabled(rule.getStatus())) {
             return null;
         }
         long nextSeq = (rule.getCurrentSeq() == null ? 0L : rule.getCurrentSeq()) + 1L;
@@ -45,7 +76,7 @@ public class SysCodeRuleServiceImpl extends ServiceImpl<SysCodeRuleMapper, SysCo
     @Transactional
     public String nextCode(String ruleCode) {
         SysCodeRule rule = getRuleByCode(ruleCode);
-        if (rule == null || !"0".equals(rule.getStatus())) {
+        if (rule == null || !StatusFieldSupport.isEnabled(rule.getStatus())) {
             return null;
         }
         long nextSeq = (rule.getCurrentSeq() == null ? 0L : rule.getCurrentSeq()) + 1L;
@@ -94,6 +125,35 @@ public class SysCodeRuleServiceImpl extends ServiceImpl<SysCodeRuleMapper, SysCo
             return LocalDate.now().format(DateTimeFormatter.ofPattern(pattern));
         } catch (Exception ex) {
             return LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        }
+    }
+
+    /**
+     * 规范编码规则核心字段，避免状态为空导致前端无法判断启停。
+     *
+     * @param rule          规则对象
+     * @param isCreate      是否为新增操作
+     * @param currentStatus 当前已落库状态值（更新场景使用）
+     */
+    private void normalizeRule(SysCodeRule rule, boolean isCreate, String currentStatus) {
+        if (rule == null) {
+            return;
+        }
+        if (isCreate) {
+            rule.setStatus(StatusFieldSupport.normalizeBinaryStatus(rule.getStatus()));
+        } else {
+            rule.setStatus(StatusFieldSupport.normalizeBinaryStatusForUpdate(rule.getStatus(), currentStatus));
+        }
+        if (StringUtils.hasText(rule.getRuleCode())) {
+            rule.setRuleCode(rule.getRuleCode().trim());
+        }
+        if (StringUtils.hasText(rule.getRuleName())) {
+            rule.setRuleName(rule.getRuleName().trim());
+        }
+        if (isCreate) {
+            rule.setCreateTime(new Date());
+        } else {
+            rule.setUpdateTime(new Date());
         }
     }
 }

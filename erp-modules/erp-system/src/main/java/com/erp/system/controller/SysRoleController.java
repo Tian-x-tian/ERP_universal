@@ -4,6 +4,7 @@ import com.erp.common.core.domain.R;
 import com.erp.system.domain.SysRole;
 import com.erp.system.service.ISysRoleService;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -36,7 +37,7 @@ public class SysRoleController {
     @PreAuthorize("@ss.hasPermi('system:role:query')")
     @GetMapping("/{roleId}")
     public R<SysRole> getInfo(@PathVariable("roleId") Long roleId) {
-        return R.success(roleService.getById(roleId));
+        return R.success(roleService.getRoleWithPermissions(roleId));
     }
 
     /**
@@ -55,6 +56,19 @@ public class SysRoleController {
     @PutMapping
     public R<Boolean> edit(@RequestBody SysRole role) {
         return R.success(roleService.updateById(role));
+    }
+
+    /**
+     * 分配角色数据权限。
+     */
+    @PreAuthorize("@ss.hasPermi('system:role:edit')")
+    @PutMapping("/dataScope")
+    public R<Boolean> dataScope(@RequestBody SysRole role) {
+        if (role == null || role.getRoleId() == null || !StringUtils.hasText(role.getDataScope())) {
+            return R.failed("角色ID和数据权限范围不能为空");
+        }
+        boolean success = roleService.updateDataScope(role);
+        return success ? R.success(true) : R.failed("分配数据权限失败");
     }
 
     /**

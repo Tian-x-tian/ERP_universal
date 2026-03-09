@@ -40,6 +40,17 @@
             <groupId>com.erp</groupId>
             <artifactId>erp-common</artifactId>
         </dependency>
+        <!-- Unified entry dependencies -->
+        <dependency>
+            <groupId>com.erp</groupId>
+            <artifactId>erp-auth</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.erp</groupId>
+            <artifactId>erp-gateway</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>

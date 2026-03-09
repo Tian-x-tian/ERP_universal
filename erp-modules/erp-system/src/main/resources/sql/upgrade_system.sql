@@ -124,6 +124,23 @@ CREATE TABLE IF NOT EXISTS `sys_audit_log` (
   KEY `idx_audit_tenant_time` (`tenant_id`, `operation_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审计日志表';
 
+CREATE TABLE IF NOT EXISTS `sys_oper_log` (
+  `oper_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `operator` varchar(64) DEFAULT NULL COMMENT '操作人账号',
+  `request_method` varchar(16) DEFAULT NULL COMMENT '请求方法',
+  `request_uri` varchar(500) DEFAULT NULL COMMENT '请求URI',
+  `request_ip` varchar(64) DEFAULT NULL COMMENT '请求IP',
+  `request_params` text COMMENT '请求参数',
+  `response_code` int(11) DEFAULT NULL COMMENT '响应状态码',
+  `success_flag` char(1) DEFAULT '1' COMMENT '是否成功（1成功 0失败）',
+  `error_msg` varchar(500) DEFAULT NULL COMMENT '错误信息',
+  `cost_time` bigint(20) DEFAULT NULL COMMENT '耗时毫秒',
+  `operation_time` datetime DEFAULT NULL COMMENT '操作时间',
+  PRIMARY KEY (`oper_id`),
+  KEY `idx_oper_tenant_time` (`tenant_id`, `operation_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
+
 -- 4) 补齐审计日志菜单（系统管理）
 SET @audit_menu_id = (
     SELECT menu_id
@@ -240,7 +257,44 @@ CREATE TABLE IF NOT EXISTS `sys_code_rule` (
   UNIQUE KEY `idx_code_rule_tenant_code` (`tenant_id`, `rule_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='编码规则表';
 
--- 6) 初始化区域与编码规则基础数据
+-- 6) 回填状态字段，避免状态为空导致前端无法判断启停
+UPDATE `sys_tenant`
+SET `status` = '0'
+WHERE `status` IS NULL
+   OR TRIM(`status`) = ''
+   OR `status` NOT IN ('0', '1');
+
+UPDATE `sys_company`
+SET `status` = '0'
+WHERE `status` IS NULL
+   OR TRIM(`status`) = ''
+   OR `status` NOT IN ('0', '1');
+
+UPDATE `sys_dept`
+SET `status` = '0'
+WHERE `status` IS NULL
+   OR TRIM(`status`) = ''
+   OR `status` NOT IN ('0', '1');
+
+UPDATE `sys_post`
+SET `status` = '0'
+WHERE `status` IS NULL
+   OR TRIM(`status`) = ''
+   OR `status` NOT IN ('0', '1');
+
+UPDATE `sys_region`
+SET `status` = '0'
+WHERE `status` IS NULL
+   OR TRIM(`status`) = ''
+   OR `status` NOT IN ('0', '1');
+
+UPDATE `sys_code_rule`
+SET `status` = '0'
+WHERE `status` IS NULL
+   OR TRIM(`status`) = ''
+   OR `status` NOT IN ('0', '1');
+
+-- 7) 初始化区域与编码规则基础数据
 INSERT INTO `sys_region` (`region_id`, `tenant_id`, `region_code`, `region_name`, `parent_id`, `ancestors`, `region_level`, `order_num`, `status`, `create_time`)
 SELECT 1, '000000', 'CN', '中国', 0, '0', 1, 1, '0', NOW()
 WHERE NOT EXISTS (SELECT 1 FROM `sys_region` WHERE `region_id` = 1);
@@ -289,23 +343,74 @@ INSERT INTO `sys_todo_task` (`todo_id`, `tenant_id`, `process_name`, `node_name`
 SELECT 3, '000000', '合同归档', '档案确认', 'CT-20260306-021', 'L', '0', 1, DATE_ADD(NOW(), INTERVAL 3 DAY), NOW(), '待签收'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_todo_task` WHERE `todo_id` = 3);
 
--- 7) 补齐平台菜单与系统新增菜单
+-- 8) 补齐平台菜单与系统新增菜单
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT '登录日志', 2, 11, '/system/login-log', '/views/system/login-log/index', 1, 'C', '1', '0', 'system:loginLog:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+SELECT '通知管理', 2, 10, '/system/notice', '/views/system/notice/index', 1, 'C', '0', '0', 'system:notice:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/notice');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '审计日志', 2, 11, '/system/audit-log', '/views/platform/audit-log/index', 1, 'C', '0', '0', 'system:audit:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/audit-log');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '操作日志', 2, 12, '/system/oper-log', '/views/system/oper-log/index', 1, 'C', '0', '0', 'system:oper:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/oper-log');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '登录日志', 2, 13, '/system/login-log', '/views/system/login-log/index', 1, 'C', '0', '0', 'system:loginLog:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/login-log');
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT '区域主数据', 2, 12, '/system/region', '/views/system/region/index', 1, 'C', '1', '0', 'system:region:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+SELECT '区域主数据', 2, 14, '/system/region', '/views/system/region/index', 1, 'C', '0', '0', 'system:region:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/region');
+
+UPDATE sys_menu
+SET visible = '0'
+WHERE path IN ('/system/notice', '/system/audit-log', '/system/oper-log', '/system/login-log', '/system/region')
+  AND visible <> '0';
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
 SELECT '平台底座', 0, 3, '/platform', NULL, 1, 'M', '0', '0', NULL, NULL, 'system', NOW(), '升级脚本补齐目录'
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/platform');
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT '消息待办中心',
+SELECT '组织架构增强',
        (SELECT menu_id FROM sys_menu WHERE path = '/platform' LIMIT 1),
        1,
+       '/platform/org',
+       '/views/platform/org/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:org:view',
+       NULL,
+       'system',
+       NOW(),
+       '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/platform/org');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '数据权限',
+       (SELECT menu_id FROM sys_menu WHERE path = '/platform' LIMIT 1),
+       2,
+       '/platform/data-scope',
+       '/views/platform/data-scope/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:dataScope:view',
+       NULL,
+       'system',
+       NOW(),
+       '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/platform/data-scope');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '消息待办中心',
+       (SELECT menu_id FROM sys_menu WHERE path = '/platform' LIMIT 1),
+       3,
        '/platform/todo-center',
        '/views/platform/todo-center/index',
        1,
@@ -322,7 +427,7 @@ WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/platform/todo-center');
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
 SELECT '编码规则',
        (SELECT menu_id FROM sys_menu WHERE path = '/platform' LIMIT 1),
-       2,
+       4,
        '/platform/code-rule',
        '/views/platform/code-rule/index',
        1,
@@ -336,10 +441,123 @@ SELECT '编码规则',
        '升级脚本补齐菜单'
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/platform/code-rule');
 
+UPDATE sys_menu
+SET visible = '0'
+WHERE path IN ('/platform/org', '/platform/data-scope', '/platform/todo-center', '/platform/code-rule')
+  AND visible <> '0';
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT button_perm.menu_name,
+       parent_menu.menu_id,
+       button_perm.order_num,
+       '',
+       NULL,
+       1,
+       'F',
+       '1',
+       '0',
+       button_perm.perms,
+       NULL,
+       'system',
+       NOW(),
+       '升级脚本补齐按钮权限'
+FROM (
+  SELECT '/system/tenant' AS parent_path, '租户查询' AS menu_name, 1 AS order_num, 'system:tenant:query' AS perms
+  UNION ALL SELECT '/system/tenant', '租户新增', 2, 'system:tenant:add'
+  UNION ALL SELECT '/system/tenant', '租户修改', 3, 'system:tenant:edit'
+  UNION ALL SELECT '/system/tenant', '租户删除', 4, 'system:tenant:remove'
+  UNION ALL SELECT '/system/user', '用户查询', 1, 'system:user:query'
+  UNION ALL SELECT '/system/user', '用户新增', 2, 'system:user:add'
+  UNION ALL SELECT '/system/user', '用户修改', 3, 'system:user:edit'
+  UNION ALL SELECT '/system/user', '用户删除', 4, 'system:user:remove'
+  UNION ALL SELECT '/system/role', '角色查询', 1, 'system:role:query'
+  UNION ALL SELECT '/system/role', '角色新增', 2, 'system:role:add'
+  UNION ALL SELECT '/system/role', '角色修改', 3, 'system:role:edit'
+  UNION ALL SELECT '/system/role', '角色删除', 4, 'system:role:remove'
+  UNION ALL SELECT '/system/menu', '菜单查询', 1, 'system:menu:query'
+  UNION ALL SELECT '/system/menu', '菜单新增', 2, 'system:menu:add'
+  UNION ALL SELECT '/system/menu', '菜单修改', 3, 'system:menu:edit'
+  UNION ALL SELECT '/system/menu', '菜单删除', 4, 'system:menu:remove'
+  UNION ALL SELECT '/system/dept', '部门查询', 1, 'system:dept:query'
+  UNION ALL SELECT '/system/dept', '部门新增', 2, 'system:dept:add'
+  UNION ALL SELECT '/system/dept', '部门修改', 3, 'system:dept:edit'
+  UNION ALL SELECT '/system/dept', '部门删除', 4, 'system:dept:remove'
+  UNION ALL SELECT '/system/dict', '字典查询', 1, 'system:dict:query'
+  UNION ALL SELECT '/system/dict', '字典新增', 2, 'system:dict:add'
+  UNION ALL SELECT '/system/dict', '字典修改', 3, 'system:dict:edit'
+  UNION ALL SELECT '/system/dict', '字典删除', 4, 'system:dict:remove'
+  UNION ALL SELECT '/system/config', '参数查询', 1, 'system:config:query'
+  UNION ALL SELECT '/system/config', '参数新增', 2, 'system:config:add'
+  UNION ALL SELECT '/system/config', '参数修改', 3, 'system:config:edit'
+  UNION ALL SELECT '/system/config', '参数删除', 4, 'system:config:remove'
+  UNION ALL SELECT '/system/company', '公司查询', 1, 'system:company:query'
+  UNION ALL SELECT '/system/company', '公司新增', 2, 'system:company:add'
+  UNION ALL SELECT '/system/company', '公司修改', 3, 'system:company:edit'
+  UNION ALL SELECT '/system/company', '公司删除', 4, 'system:company:remove'
+  UNION ALL SELECT '/system/post', '岗位查询', 1, 'system:post:query'
+  UNION ALL SELECT '/system/post', '岗位新增', 2, 'system:post:add'
+  UNION ALL SELECT '/system/post', '岗位修改', 3, 'system:post:edit'
+  UNION ALL SELECT '/system/post', '岗位删除', 4, 'system:post:remove'
+  UNION ALL SELECT '/system/notice', '通知查询', 1, 'system:notice:query'
+  UNION ALL SELECT '/system/notice', '通知新增', 2, 'system:notice:add'
+  UNION ALL SELECT '/system/notice', '通知修改', 3, 'system:notice:edit'
+  UNION ALL SELECT '/system/notice', '通知删除', 4, 'system:notice:remove'
+  UNION ALL SELECT '/system/audit-log', '审计详情', 1, 'system:audit:query'
+  UNION ALL SELECT '/system/audit-log', '审计删除', 2, 'system:audit:remove'
+  UNION ALL SELECT '/system/oper-log', '操作日志详情', 1, 'system:oper:query'
+  UNION ALL SELECT '/system/oper-log', '操作日志删除', 2, 'system:oper:remove'
+  UNION ALL SELECT '/system/login-log', '登录日志删除', 1, 'system:loginLog:remove'
+  UNION ALL SELECT '/system/region', '区域查询', 1, 'system:region:query'
+  UNION ALL SELECT '/system/region', '区域新增', 2, 'system:region:add'
+  UNION ALL SELECT '/system/region', '区域修改', 3, 'system:region:edit'
+  UNION ALL SELECT '/system/region', '区域删除', 4, 'system:region:remove'
+  UNION ALL SELECT '/platform/todo-center', '待办处理', 1, 'system:todo:handle'
+  UNION ALL SELECT '/platform/code-rule', '编码规则查询', 1, 'system:codeRule:query'
+  UNION ALL SELECT '/platform/code-rule', '编码规则新增', 2, 'system:codeRule:add'
+  UNION ALL SELECT '/platform/code-rule', '编码规则修改', 3, 'system:codeRule:edit'
+  UNION ALL SELECT '/platform/code-rule', '编码规则删除', 4, 'system:codeRule:remove'
+  UNION ALL SELECT '/platform/code-rule', '编码规则生成', 5, 'system:codeRule:generate'
+) button_perm
+INNER JOIN sys_menu parent_menu ON parent_menu.path = button_perm.parent_path
+LEFT JOIN sys_menu existed_menu ON existed_menu.perms = button_perm.perms
+WHERE existed_menu.menu_id IS NULL;
+
 INSERT INTO sys_role_menu (role_id, menu_id)
 SELECT 1, m.menu_id
 FROM sys_menu m
-WHERE m.path IN ('/system/login-log', '/system/region', '/platform', '/platform/todo-center', '/platform/code-rule')
+WHERE m.path IN (
+  '/system/notice', '/system/audit-log', '/system/oper-log', '/system/login-log', '/system/region',
+  '/platform', '/platform/org', '/platform/data-scope', '/platform/todo-center', '/platform/code-rule'
+)
+  AND EXISTS (SELECT 1 FROM sys_role WHERE role_id = 1)
+  AND NOT EXISTS (
+      SELECT 1
+      FROM sys_role_menu rm
+      WHERE rm.role_id = 1
+        AND rm.menu_id = m.menu_id
+  );
+
+INSERT INTO sys_role_menu (role_id, menu_id)
+SELECT 1, m.menu_id
+FROM sys_menu m
+WHERE m.perms IN (
+  'system:tenant:query', 'system:tenant:add', 'system:tenant:edit', 'system:tenant:remove',
+  'system:user:query', 'system:user:add', 'system:user:edit', 'system:user:remove',
+  'system:role:query', 'system:role:add', 'system:role:edit', 'system:role:remove',
+  'system:menu:query', 'system:menu:add', 'system:menu:edit', 'system:menu:remove',
+  'system:dept:query', 'system:dept:add', 'system:dept:edit', 'system:dept:remove',
+  'system:dict:query', 'system:dict:add', 'system:dict:edit', 'system:dict:remove',
+  'system:config:query', 'system:config:add', 'system:config:edit', 'system:config:remove',
+  'system:company:query', 'system:company:add', 'system:company:edit', 'system:company:remove',
+  'system:post:query', 'system:post:add', 'system:post:edit', 'system:post:remove',
+  'system:notice:query', 'system:notice:add', 'system:notice:edit', 'system:notice:remove',
+  'system:audit:query', 'system:audit:remove',
+  'system:oper:query', 'system:oper:remove',
+  'system:loginLog:remove',
+  'system:region:query', 'system:region:add', 'system:region:edit', 'system:region:remove',
+  'system:todo:handle',
+  'system:codeRule:query', 'system:codeRule:add', 'system:codeRule:edit', 'system:codeRule:remove', 'system:codeRule:generate'
+)
   AND EXISTS (SELECT 1 FROM sys_role WHERE role_id = 1)
   AND NOT EXISTS (
       SELECT 1

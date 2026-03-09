@@ -3,6 +3,7 @@ package com.erp.system.controller;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.SysRegion;
 import com.erp.system.service.ISysRegionService;
+import com.erp.system.support.StatusFieldSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,7 +37,7 @@ public class SysRegionController {
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:region:list')")
     public R<List<SysRegion>> list() {
-        return R.success(regionService.list());
+        return R.success(normalizeRegionList(regionService.list()));
     }
 
     /**
@@ -47,7 +48,8 @@ public class SysRegionController {
     @GetMapping("/tree")
     @PreAuthorize("@ss.hasPermi('system:region:list')")
     public R<List<SysRegion>> tree() {
-        return R.success(regionService.buildRegionTree(regionService.list()));
+        List<SysRegion> regionList = normalizeRegionList(regionService.list());
+        return R.success(regionService.buildRegionTree(regionList));
     }
 
     /**
@@ -59,7 +61,7 @@ public class SysRegionController {
     @GetMapping("/{regionId}")
     @PreAuthorize("@ss.hasPermi('system:region:query')")
     public R<SysRegion> getInfo(@PathVariable("regionId") Long regionId) {
-        return R.success(regionService.getById(regionId));
+        return R.success(normalizeRegion(regionService.getById(regionId)));
     }
 
     /**
@@ -71,6 +73,10 @@ public class SysRegionController {
     @PostMapping
     @PreAuthorize("@ss.hasPermi('system:region:add')")
     public R<Boolean> add(@RequestBody SysRegion region) {
+        if (region == null) {
+            return R.failed("区域参数不能为空");
+        }
+        region.setStatus(StatusFieldSupport.normalizeBinaryStatus(region.getStatus()));
         return R.success(regionService.save(region));
     }
 
@@ -83,6 +89,9 @@ public class SysRegionController {
     @PutMapping
     @PreAuthorize("@ss.hasPermi('system:region:edit')")
     public R<Boolean> edit(@RequestBody SysRegion region) {
+        if (region == null || region.getRegionId() == null) {
+            return R.failed("区域ID不能为空");
+        }
         return R.success(regionService.updateById(region));
     }
 
@@ -96,5 +105,34 @@ public class SysRegionController {
     @PreAuthorize("@ss.hasPermi('system:region:remove')")
     public R<Boolean> remove(@PathVariable("regionId") Long regionId) {
         return R.success(regionService.removeById(regionId));
+    }
+
+    /**
+     * 规范区域列表中的状态字段，避免前端出现空白状态。
+     *
+     * @param regionList 区域列表
+     * @return 状态字段已规范化的区域列表
+     */
+    private List<SysRegion> normalizeRegionList(List<SysRegion> regionList) {
+        if (regionList == null || regionList.isEmpty()) {
+            return regionList;
+        }
+        for (SysRegion region : regionList) {
+            normalizeRegion(region);
+        }
+        return regionList;
+    }
+
+    /**
+     * 规范区域状态字段。
+     *
+     * @param region 区域对象
+     * @return 规范化后的区域对象
+     */
+    private SysRegion normalizeRegion(SysRegion region) {
+        if (region != null) {
+            region.setStatus(StatusFieldSupport.normalizeBinaryStatus(region.getStatus()));
+        }
+        return region;
     }
 }

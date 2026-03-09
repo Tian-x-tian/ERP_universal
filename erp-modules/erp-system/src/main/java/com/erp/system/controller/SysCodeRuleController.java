@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.SysCodeRule;
 import com.erp.system.service.ISysCodeRuleService;
+import com.erp.system.support.StatusFieldSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -50,7 +51,7 @@ public class SysCodeRuleController {
                     .like(SysCodeRule::getRuleName, key));
         }
         queryWrapper.orderByAsc(SysCodeRule::getRuleCode);
-        return R.success(codeRuleService.list(queryWrapper));
+        return R.success(normalizeRuleList(codeRuleService.list(queryWrapper)));
     }
 
     /**
@@ -62,7 +63,7 @@ public class SysCodeRuleController {
     @GetMapping("/{ruleId}")
     @PreAuthorize("@ss.hasPermi('system:codeRule:query')")
     public R<SysCodeRule> getInfo(@PathVariable("ruleId") Long ruleId) {
-        return R.success(codeRuleService.getById(ruleId));
+        return R.success(normalizeRule(codeRuleService.getById(ruleId)));
     }
 
     /**
@@ -74,6 +75,10 @@ public class SysCodeRuleController {
     @PostMapping
     @PreAuthorize("@ss.hasPermi('system:codeRule:add')")
     public R<Boolean> add(@RequestBody SysCodeRule rule) {
+        if (rule == null) {
+            return R.failed("编码规则参数不能为空");
+        }
+        rule.setStatus(StatusFieldSupport.normalizeBinaryStatus(rule.getStatus()));
         return R.success(codeRuleService.save(rule));
     }
 
@@ -86,6 +91,9 @@ public class SysCodeRuleController {
     @PutMapping
     @PreAuthorize("@ss.hasPermi('system:codeRule:edit')")
     public R<Boolean> edit(@RequestBody SysCodeRule rule) {
+        if (rule == null || rule.getRuleId() == null) {
+            return R.failed("规则ID不能为空");
+        }
         return R.success(codeRuleService.updateById(rule));
     }
 
@@ -135,5 +143,34 @@ public class SysCodeRuleController {
         Map<String, String> data = new HashMap<>();
         data.put("code", code);
         return R.success(data);
+    }
+
+    /**
+     * 规范规则列表中的状态字段，避免前端出现空白状态。
+     *
+     * @param ruleList 规则列表
+     * @return 状态字段已规范化的规则列表
+     */
+    private List<SysCodeRule> normalizeRuleList(List<SysCodeRule> ruleList) {
+        if (ruleList == null || ruleList.isEmpty()) {
+            return ruleList;
+        }
+        for (SysCodeRule rule : ruleList) {
+            normalizeRule(rule);
+        }
+        return ruleList;
+    }
+
+    /**
+     * 规范规则状态字段。
+     *
+     * @param rule 规则对象
+     * @return 规范化后的规则对象
+     */
+    private SysCodeRule normalizeRule(SysCodeRule rule) {
+        if (rule != null) {
+            rule.setStatus(StatusFieldSupport.normalizeBinaryStatus(rule.getStatus()));
+        }
+        return rule;
     }
 }

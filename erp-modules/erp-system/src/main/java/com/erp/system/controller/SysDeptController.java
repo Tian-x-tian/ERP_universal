@@ -7,7 +7,9 @@ import com.erp.system.domain.vo.DataPermissionScope;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IDataPermissionService;
 import com.erp.system.service.ISysDeptService;
+import com.erp.system.support.StatusFieldSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
@@ -40,13 +42,14 @@ public class SysDeptController {
     public R<List<SysDept>> list(SysDept dept) {
         DataPermissionScope dataScope = dataPermissionService.resolveDataScope(resolveCurrentUserId());
         if (dataScope.isAllData()) {
-            return R.success(deptService.list());
+            return R.success(normalizeDeptList(deptService.list()));
         }
         if (dataScope.getDeptIds().isEmpty()) {
             return R.success(Collections.emptyList());
         }
-        return R.success(deptService.list(new LambdaQueryWrapper<SysDept>()
-                .in(SysDept::getDeptId, dataScope.getDeptIds())));
+        List<SysDept> deptList = deptService.list(new LambdaQueryWrapper<SysDept>()
+                .in(SysDept::getDeptId, dataScope.getDeptIds()));
+        return R.success(normalizeDeptList(deptList));
     }
 
     /**
@@ -57,13 +60,14 @@ public class SysDeptController {
     public R<List<SysDept>> tree() {
         DataPermissionScope dataScope = dataPermissionService.resolveDataScope(resolveCurrentUserId());
         if (dataScope.isAllData()) {
-            return R.success(deptService.buildDeptTree(deptService.list()));
+            List<SysDept> deptList = normalizeDeptList(deptService.list());
+            return R.success(deptService.buildDeptTree(deptList));
         }
         if (dataScope.getDeptIds().isEmpty()) {
             return R.success(Collections.emptyList());
         }
-        List<SysDept> deptList = deptService.list(new LambdaQueryWrapper<SysDept>()
-                .in(SysDept::getDeptId, dataScope.getDeptIds()));
+        List<SysDept> deptList = normalizeDeptList(deptService.list(new LambdaQueryWrapper<SysDept>()
+                .in(SysDept::getDeptId, dataScope.getDeptIds())));
         return R.success(deptService.buildDeptTree(deptList));
     }
 
@@ -73,7 +77,7 @@ public class SysDeptController {
     @PreAuthorize("@ss.hasPermi('system:dept:query')")
     @GetMapping("/{deptId}")
     public R<SysDept> getInfo(@PathVariable("deptId") Long deptId) {
-        return R.success(deptService.getById(deptId));
+        return R.success(normalizeDept(deptService.getById(deptId)));
     }
 
     /**
@@ -82,7 +86,15 @@ public class SysDeptController {
     @PreAuthorize("@ss.hasPermi('system:dept:add')")
     @PostMapping
     public R<Boolean> add(@RequestBody SysDept dept) {
-        return R.success(deptService.save(dept));
+        if (dept == null || !StringUtils.hasText(dept.getDeptName())) {
+            return R.failed("部门名称不能为空");
+        }
+        if (dept.getParentId() == null) {
+            return R.failed("上级部门不能为空");
+        }
+        dept.setStatus(StatusFieldSupport.normalizeBinaryStatus(dept.getStatus()));
+        boolean success = deptService.createDept(dept);
+        return success ? R.success(true) : R.failed("新增部门失败，请检查上级部门是否存在");
     }
 
     /**
@@ -91,7 +103,11 @@ public class SysDeptController {
     @PreAuthorize("@ss.hasPermi('system:dept:edit')")
     @PutMapping
     public R<Boolean> edit(@RequestBody SysDept dept) {
-        return R.success(deptService.updateById(dept));
+        if (dept == null || dept.getDeptId() == null) {
+            return R.failed("部门ID不能为空");
+        }
+        boolean success = deptService.updateDept(dept);
+        return success ? R.success(true) : R.failed("修改部门失败，请检查上级部门配置");
     }
 
     /**
@@ -100,6 +116,11 @@ public class SysDeptController {
     @PreAuthorize("@ss.hasPermi('system:dept:remove')")
     @DeleteMapping("/{deptId}")
     public R<Boolean> remove(@PathVariable("deptId") Long deptId) {
+        long childCount = deptService.count(new LambdaQueryWrapper<SysDept>()
+                .eq(SysDept::getParentId, deptId));
+        if (childCount > 0) {
+            return R.failed("存在下级部门，不能直接删除");
+        }
         return R.success(deptService.removeById(deptId));
     }
 
@@ -111,5 +132,34 @@ public class SysDeptController {
     private Long resolveCurrentUserId() {
         Long currentUserId = securityUserResolver.getCurrentUserId();
         return currentUserId != null ? currentUserId : 1L;
+    }
+
+    /**
+     * 规范部门列表中的状态字段，避免前端出现空白状态。
+     *
+     * @param deptList 部门列表
+     * @return 状态字段已规范化的部门列表
+     */
+    private List<SysDept> normalizeDeptList(List<SysDept> deptList) {
+        if (deptList == null || deptList.isEmpty()) {
+            return deptList;
+        }
+        for (SysDept dept : deptList) {
+            normalizeDept(dept);
+        }
+        return deptList;
+    }
+
+    /**
+     * 规范部门状态字段。
+     *
+     * @param dept 部门对象
+     * @return 规范化后的部门对象
+     */
+    private SysDept normalizeDept(SysDept dept) {
+        if (dept != null) {
+            dept.setStatus(StatusFieldSupport.normalizeBinaryStatus(dept.getStatus()));
+        }
+        return dept;
     }
 }

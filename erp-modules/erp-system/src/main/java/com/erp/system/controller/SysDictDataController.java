@@ -22,7 +22,6 @@ public class SysDictDataController {
     private final ISysDictDataService dictDataService;
 
     @Operation(summary = "根据字典类型查询字典数据信息")
-    @PreAuthorize("@ss.hasAnyPermi('system:dict:list', 'system:dict:query')")
     @GetMapping("/type/{dictType}")
     public R<List<SysDictData>> dictType(@PathVariable("dictType") String dictType) {
         return R.success(dictDataService.selectDictDataByType(dictType));
