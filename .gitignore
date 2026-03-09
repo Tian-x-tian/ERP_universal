@@ -1,0 +1,22 @@
+# Frontend repo
+erp-ui/
+
+# Java
+target/
+*.class
+*.jar
+*.war
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+logs/
+work/
+
+# OS
+.DS_Store
+Thumbs.db
