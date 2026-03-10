@@ -348,6 +348,10 @@ CREATE TABLE `sys_notice` (
   `business_no` varchar(64) DEFAULT NULL COMMENT '关联业务单号',
   `content` text COMMENT '消息内容',
   `receiver_user_id` bigint(20) NOT NULL COMMENT '接收人用户ID',
+  `delivery_channel` varchar(16) DEFAULT 'IN_APP' COMMENT '送达渠道（IN_APP/SMS/WECOM）',
+  `delivery_status` char(1) DEFAULT '2' COMMENT '送达状态（0待发送 1发送中 2已送达 3失败）',
+  `delivery_time` datetime DEFAULT NULL COMMENT '送达时间',
+  `external_message_id` varchar(100) DEFAULT NULL COMMENT '外部消息ID',
   `status` char(1) DEFAULT '0' COMMENT '状态（0未读 1已读）',
   `read_time` datetime DEFAULT NULL COMMENT '已读时间',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
@@ -389,6 +393,7 @@ CREATE TABLE `sys_wf_definition` (
   `category` varchar(64) DEFAULT 'custom' COMMENT '流程分类',
   `version` int(11) NOT NULL DEFAULT 1 COMMENT '版本号',
   `status` char(1) DEFAULT '0' COMMENT '状态（0草稿 1已发布 2停用）',
+  `published_slot` tinyint(1) GENERATED ALWAYS AS (CASE WHEN `status` = '1' THEN 1 ELSE NULL END) STORED COMMENT '已发布唯一槽位',
   `form_schema` longtext COMMENT '表单结构JSON',
   `model_content` longtext COMMENT '流程设计JSON',
   `publish_by` varchar(64) DEFAULT NULL COMMENT '发布人',
@@ -400,6 +405,7 @@ CREATE TABLE `sys_wf_definition` (
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   PRIMARY KEY (`definition_id`),
   UNIQUE KEY `idx_wf_def_key_ver` (`tenant_id`, `process_key`, `version`),
+  UNIQUE KEY `uk_wf_def_publish_slot` (`tenant_id`, `process_key`, `published_slot`),
   KEY `idx_wf_def_status` (`tenant_id`, `status`, `category`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程定义表';
 
@@ -411,12 +417,15 @@ CREATE TABLE `sys_wf_instance` (
   `instance_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '流程实例ID',
   `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
   `definition_id` bigint(20) NOT NULL COMMENT '流程定义ID',
+  `definition_version` int(11) DEFAULT NULL COMMENT '发起时流程定义版本号',
   `process_key` varchar(64) NOT NULL COMMENT '流程标识',
   `process_name` varchar(128) NOT NULL COMMENT '流程名称',
   `category` varchar(64) DEFAULT 'custom' COMMENT '流程分类',
   `business_no` varchar(64) NOT NULL COMMENT '业务单号',
   `business_type` varchar(64) DEFAULT NULL COMMENT '业务类型',
   `form_data` longtext COMMENT '表单数据JSON',
+  `form_schema_snapshot` longtext COMMENT '发起时表单结构快照JSON',
+  `model_content_snapshot` longtext COMMENT '发起时流程模型快照JSON',
   `current_node` varchar(128) DEFAULT NULL COMMENT '当前节点',
   `initiator_user_id` bigint(20) NOT NULL COMMENT '发起人用户ID',
   `initiator_user_name` varchar(64) DEFAULT NULL COMMENT '发起人账号',
@@ -651,6 +660,13 @@ FROM (
   UNION ALL SELECT '/platform/workflow', '流程发起', 6, 'system:workflow:start'
   UNION ALL SELECT '/platform/workflow', '流程处理', 7, 'system:workflow:handle'
   UNION ALL SELECT '/platform/workflow', '流程设计', 8, 'system:workflow:design'
+  UNION ALL SELECT '/platform/workflow', '流程撤回', 9, 'system:workflow:withdraw'
+  UNION ALL SELECT '/platform/workflow', '表单查询', 10, 'system:workflow:form'
+  UNION ALL SELECT '/platform/workflow', '节点退回', 11, 'system:workflow:return'
+  UNION ALL SELECT '/platform/workflow', '任务加签', 12, 'system:workflow:addSign'
+  UNION ALL SELECT '/platform/workflow', '任务减签', 13, 'system:workflow:removeSign'
+  UNION ALL SELECT '/platform/workflow', '任务委派', 14, 'system:workflow:delegate'
+  UNION ALL SELECT '/platform/workflow', '任务催办', 15, 'system:workflow:remind'
 ) button_perm
 INNER JOIN `sys_menu` parent_menu ON parent_menu.path = button_perm.parent_path;
 
@@ -686,12 +702,12 @@ VALUES
 
 INSERT INTO `sys_wf_definition` (`definition_id`, `tenant_id`, `process_key`, `process_name`, `category`, `version`, `status`, `form_schema`, `model_content`, `publish_by`, `publish_time`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`)
 VALUES
-  (1, '000000', 'purchase_apply', '采购审批流程', 'purchaseApprove', 1, '1', '{"fields":[{"name":"amount","label":"金额"}]}', '{"nodes":[{"id":"NODE_1","name":"部门负责人审批"}]}', 'system', NOW(), '系统初始化流程定义', 'system', NOW(), 'system', NOW()),
+  (1, '000000', 'purchase_apply', '采购审批流程', 'purchase', 1, '1', '{"fields":[{"name":"amount","label":"金额"}]}', '{"nodes":[{"id":"NODE_1","name":"部门负责人审批"}]}', 'system', NOW(), '系统初始化流程定义', 'system', NOW(), 'system', NOW()),
   (2, '000000', 'expense_apply', '报销审批流程', 'expense', 1, '0', '{"fields":[{"name":"feeType","label":"费用类型"},{"name":"total","label":"合计金额"}]}', '{"nodes":[{"id":"NODE_1","name":"部门负责人审批"},{"id":"NODE_2","name":"财务复核"}]}', NULL, NULL, '系统初始化流程定义', 'system', NOW(), 'system', NOW());
 
-INSERT INTO `sys_wf_instance` (`instance_id`, `tenant_id`, `definition_id`, `process_key`, `process_name`, `category`, `business_no`, `business_type`, `form_data`, `current_node`, `initiator_user_id`, `initiator_user_name`, `initiator_nick_name`, `status`, `start_time`, `last_action`, `last_action_user_id`, `last_action_user_name`, `last_action_time`, `remark`)
+INSERT INTO `sys_wf_instance` (`instance_id`, `tenant_id`, `definition_id`, `definition_version`, `process_key`, `process_name`, `category`, `business_no`, `business_type`, `form_data`, `form_schema_snapshot`, `model_content_snapshot`, `current_node`, `initiator_user_id`, `initiator_user_name`, `initiator_nick_name`, `status`, `start_time`, `last_action`, `last_action_user_id`, `last_action_user_name`, `last_action_time`, `remark`)
 VALUES
-  (1, '000000', 1, 'purchase_apply', '采购审批流程', 'purchaseApprove', 'PO-20260309-001', '采购申请', '{"amount":12000,"reason":"办公设备采购"}', '部门负责人审批', 1, 'admin', '系统管理员', '0', NOW(), 'START', 1, 'admin', NOW(), '系统初始化流程实例');
+  (1, '000000', 1, 1, 'purchase_apply', '采购审批流程', 'purchase', 'PO-20260309-001', '采购申请', '{"amount":12000,"reason":"办公设备采购"}', '{"fields":[{"name":"amount","label":"金额"}]}', '{"nodes":[{"id":"NODE_1","name":"部门负责人审批"}]}', '部门负责人审批', 1, 'admin', '系统管理员', '0', NOW(), 'START', 1, 'admin', NOW(), '系统初始化流程实例');
 
 INSERT INTO `sys_notice` (`notice_id`, `tenant_id`, `title`, `notice_type`, `source`, `business_no`, `content`, `receiver_user_id`, `status`, `create_time`)
 VALUES

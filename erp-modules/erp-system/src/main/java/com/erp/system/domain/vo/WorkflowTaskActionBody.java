@@ -13,5 +13,7 @@ public class WorkflowTaskActionBody implements Serializable {
 
     /** 审批意见 */
     private String actionComment;
-}
 
+    /** 动作提交表单JSON（用于节点必填校验与表单留痕） */
+    private String formData;
+}

@@ -41,6 +41,18 @@ public class SysNotice implements Serializable {
     /** 接收人用户ID */
     private Long receiverUserId;
 
+    /** 送达渠道（IN_APP/SMS/WECOM） */
+    private String deliveryChannel;
+
+    /** 送达状态（0待发送 1发送中 2已送达 3失败） */
+    private String deliveryStatus;
+
+    /** 送达时间 */
+    private Date deliveryTime;
+
+    /** 外部消息ID（短信/企业微信回执） */
+    private String externalMessageId;
+
     /** 状态（0未读 1已读） */
     private String status;
 

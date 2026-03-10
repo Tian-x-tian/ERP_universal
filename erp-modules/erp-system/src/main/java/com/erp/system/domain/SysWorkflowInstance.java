@@ -26,6 +26,9 @@ public class SysWorkflowInstance implements Serializable {
     /** 流程定义ID */
     private Long definitionId;
 
+    /** 发起时流程定义版本号 */
+    private Integer definitionVersion;
+
     /** 流程标识 */
     private String processKey;
 
@@ -43,6 +46,12 @@ public class SysWorkflowInstance implements Serializable {
 
     /** 发起表单数据JSON */
     private String formData;
+
+    /** 发起时表单结构快照JSON */
+    private String formSchemaSnapshot;
+
+    /** 发起时流程模型快照JSON */
+    private String modelContentSnapshot;
 
     /** 当前节点名称 */
     private String currentNode;
@@ -80,4 +89,3 @@ public class SysWorkflowInstance implements Serializable {
     /** 备注 */
     private String remark;
 }
-

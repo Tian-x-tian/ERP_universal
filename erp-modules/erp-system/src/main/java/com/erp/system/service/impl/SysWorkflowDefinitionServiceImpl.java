@@ -4,15 +4,22 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.erp.system.domain.SysWorkflowDefinition;
+import com.erp.system.domain.SysWorkflowInstance;
 import com.erp.system.mapper.SysWorkflowDefinitionMapper;
+import com.erp.system.mapper.SysWorkflowInstanceMapper;
 import com.erp.system.service.ISysWorkflowDefinitionService;
 import com.erp.system.support.TenantWriteGuard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 流程定义服务实现
@@ -24,6 +31,16 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
     private static final String STATUS_DRAFT = "0";
     private static final String STATUS_PUBLISHED = "1";
     private static final String STATUS_DISABLED = "2";
+
+    private static final Set<String> CATEGORY_SET = new HashSet<>(Arrays.asList(
+            "purchaseReq", "purchase", "expense", "contract", "seal", "onboard", "offboard", "transfer", "custom",
+            "purchaseApprove", "stamp", "inventoryTransfer"));
+
+    private final SysWorkflowInstanceMapper workflowInstanceMapper;
+
+    public SysWorkflowDefinitionServiceImpl(SysWorkflowInstanceMapper workflowInstanceMapper) {
+        this.workflowInstanceMapper = workflowInstanceMapper;
+    }
 
     /**
      * 查询流程定义列表。
@@ -44,12 +61,19 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
             queryWrapper.like(SysWorkflowDefinition::getProcessKey, processKey.trim());
         }
         if (StringUtils.hasText(category)) {
-            queryWrapper.eq(SysWorkflowDefinition::getCategory, category.trim());
+            List<String> categoryCandidates = resolveCategoryCandidates(normalizeCategory(category));
+            if (categoryCandidates.size() == 1) {
+                queryWrapper.eq(SysWorkflowDefinition::getCategory, categoryCandidates.get(0));
+            } else {
+                queryWrapper.in(SysWorkflowDefinition::getCategory, categoryCandidates);
+            }
         }
         if (StringUtils.hasText(status)) {
             queryWrapper.eq(SysWorkflowDefinition::getStatus, normalizeStatus(status, STATUS_DRAFT));
         }
-        queryWrapper.orderByDesc(SysWorkflowDefinition::getUpdateTime)
+        queryWrapper.orderByAsc(SysWorkflowDefinition::getProcessKey)
+                .orderByDesc(SysWorkflowDefinition::getVersion)
+                .orderByDesc(SysWorkflowDefinition::getUpdateTime)
                 .orderByDesc(SysWorkflowDefinition::getCreateTime);
         return list(queryWrapper);
     }
@@ -64,7 +88,7 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean createDefinition(SysWorkflowDefinition definition, String operator) {
-        if (!isValidDefinition(definition)) {
+        if (!isValidDefinition(definition) || !StringUtils.hasText(operator)) {
             return false;
         }
         String processKey = definition.getProcessKey().trim();
@@ -77,7 +101,7 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
         definition.setProcessKey(processKey);
         definition.setProcessName(processName);
         definition.setCategory(normalizeCategory(definition.getCategory()));
-        definition.setVersion(definition.getVersion() != null && definition.getVersion() > 0 ? definition.getVersion() : nextVersion);
+        definition.setVersion(resolveVersion(definition.getVersion(), nextVersion));
         definition.setStatus(normalizeStatus(definition.getStatus(), STATUS_DRAFT));
         definition.setCreateBy(operator);
         definition.setCreateTime(now);
@@ -114,6 +138,16 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
         }
         SysWorkflowDefinition existed = getById(definition.getDefinitionId());
         if (existed == null) {
+            return false;
+        }
+        if (!STATUS_DRAFT.equals(existed.getStatus())) {
+            return false;
+        }
+        if (hasEffectiveInstances(existed.getDefinitionId())) {
+            return false;
+        }
+        if (StringUtils.hasText(definition.getProcessKey())
+                && !existed.getProcessKey().equals(definition.getProcessKey().trim())) {
             return false;
         }
 
@@ -155,7 +189,7 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
                 .set(SysWorkflowDefinition::getStatus, STATUS_DISABLED)
                 .set(SysWorkflowDefinition::getUpdateBy, operator)
                 .set(SysWorkflowDefinition::getUpdateTime, now);
-        update(disableOtherWrapper);
+        baseMapper.update(null, disableOtherWrapper);
 
         SysWorkflowDefinition updateEntity = new SysWorkflowDefinition();
         updateEntity.setDefinitionId(definitionId);
@@ -164,7 +198,20 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
         updateEntity.setPublishTime(now);
         updateEntity.setUpdateBy(operator);
         updateEntity.setUpdateTime(now);
-        return updateById(updateEntity);
+        if (!updateById(updateEntity)) {
+            return false;
+        }
+
+        // 防御性兜底：再次确保同一 processKey 下仅保留一个已发布版本。
+        LambdaUpdateWrapper<SysWorkflowDefinition> cleanupWrapper = new LambdaUpdateWrapper<>();
+        cleanupWrapper.eq(SysWorkflowDefinition::getProcessKey, definition.getProcessKey())
+                .eq(SysWorkflowDefinition::getStatus, STATUS_PUBLISHED)
+                .ne(SysWorkflowDefinition::getDefinitionId, definitionId)
+                .set(SysWorkflowDefinition::getStatus, STATUS_DISABLED)
+                .set(SysWorkflowDefinition::getUpdateBy, operator)
+                .set(SysWorkflowDefinition::getUpdateTime, now);
+        baseMapper.update(null, cleanupWrapper);
+        return true;
     }
 
     /**
@@ -175,8 +222,13 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
      * @return 停用结果
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean disableDefinition(Long definitionId, String operator) {
         if (definitionId == null || !StringUtils.hasText(operator)) {
+            return false;
+        }
+        SysWorkflowDefinition existed = getById(definitionId);
+        if (existed == null) {
             return false;
         }
         SysWorkflowDefinition updateEntity = new SysWorkflowDefinition();
@@ -185,6 +237,93 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
         updateEntity.setUpdateBy(operator);
         updateEntity.setUpdateTime(new Date());
         return updateById(updateEntity);
+    }
+
+    /**
+     * 按流程标识查询版本历史。
+     *
+     * @param processKey 流程标识
+     * @return 版本历史列表（按版本倒序）
+     */
+    @Override
+    public List<SysWorkflowDefinition> selectHistoryByProcessKey(String processKey) {
+        if (!StringUtils.hasText(processKey)) {
+            return Collections.emptyList();
+        }
+        return list(new LambdaQueryWrapper<SysWorkflowDefinition>()
+                .eq(SysWorkflowDefinition::getProcessKey, processKey.trim())
+                .orderByDesc(SysWorkflowDefinition::getVersion)
+                .orderByDesc(SysWorkflowDefinition::getUpdateTime)
+                .orderByDesc(SysWorkflowDefinition::getCreateTime));
+    }
+
+    /**
+     * 从已有流程定义创建新版本草稿。
+     *
+     * @param definitionId 来源流程定义ID
+     * @param operator     操作人账号
+     * @return 新版本草稿，创建失败返回 null
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public SysWorkflowDefinition createNewVersion(Long definitionId, String operator) {
+        if (definitionId == null || !StringUtils.hasText(operator)) {
+            return null;
+        }
+        SysWorkflowDefinition source = getById(definitionId);
+        if (source == null || !StringUtils.hasText(source.getProcessKey())) {
+            return null;
+        }
+        SysWorkflowDefinition draft = new SysWorkflowDefinition();
+        Date now = new Date();
+        draft.setTenantId(source.getTenantId());
+        draft.setProcessKey(source.getProcessKey());
+        draft.setProcessName(source.getProcessName());
+        draft.setCategory(normalizeCategory(source.getCategory()));
+        draft.setVersion(resolveNextVersion(source.getProcessKey()));
+        draft.setStatus(STATUS_DRAFT);
+        draft.setFormSchema(source.getFormSchema());
+        draft.setModelContent(source.getModelContent());
+        draft.setRemark(source.getRemark());
+        draft.setCreateBy(operator);
+        draft.setCreateTime(now);
+        draft.setUpdateBy(operator);
+        draft.setUpdateTime(now);
+        if (!save(draft)) {
+            return null;
+        }
+        return draft;
+    }
+
+    /**
+     * 删除流程定义（受保护删除）。
+     *
+     * @param definitionIds 流程定义ID集合
+     * @param operator      操作人账号
+     * @return 删除结果
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean removeDefinitions(List<Long> definitionIds, String operator) {
+        if (definitionIds == null || definitionIds.isEmpty() || !StringUtils.hasText(operator)) {
+            return false;
+        }
+        List<SysWorkflowDefinition> targetDefinitions = listByIds(definitionIds);
+        if (targetDefinitions.size() != definitionIds.size()) {
+            return false;
+        }
+        for (SysWorkflowDefinition definition : targetDefinitions) {
+            if (definition == null || definition.getDefinitionId() == null) {
+                return false;
+            }
+            if (STATUS_PUBLISHED.equals(definition.getStatus())) {
+                return false;
+            }
+            if (hasEffectiveInstances(definition.getDefinitionId())) {
+                return false;
+            }
+        }
+        return baseMapper.deleteBatchIds(definitionIds) > 0;
     }
 
     /**
@@ -218,6 +357,21 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
     }
 
     /**
+     * 校验流程定义是否已产生生效实例。
+     *
+     * @param definitionId 流程定义ID
+     * @return true 表示存在已生效实例
+     */
+    private boolean hasEffectiveInstances(Long definitionId) {
+        if (definitionId == null) {
+            return false;
+        }
+        Long count = workflowInstanceMapper.selectCount(new LambdaQueryWrapper<SysWorkflowInstance>()
+                .eq(SysWorkflowInstance::getDefinitionId, definitionId));
+        return count != null && count > 0;
+    }
+
+    /**
      * 计算流程标识的下一个版本号。
      *
      * @param processKey 流程标识
@@ -233,13 +387,67 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
     }
 
     /**
+     * 解析流程版本号。
+     *
+     * @param version     原始版本号
+     * @param nextVersion 建议版本号
+     * @return 规范化版本号
+     */
+    private Integer resolveVersion(Integer version, int nextVersion) {
+        if (version == null || version <= 0) {
+            return nextVersion;
+        }
+        return version;
+    }
+
+    /**
      * 规范化流程分类值。
      *
      * @param category 原始流程分类
      * @return 规范化后的流程分类
      */
     private String normalizeCategory(String category) {
-        return StringUtils.hasText(category) ? category.trim() : "custom";
+        if (!StringUtils.hasText(category)) {
+            return "custom";
+        }
+        String normalized = category.trim();
+        if ("purchaseApprove".equals(normalized)) {
+            return "purchase";
+        }
+        if ("inventoryTransfer".equals(normalized)) {
+            return "transfer";
+        }
+        if ("stamp".equals(normalized)) {
+            return "seal";
+        }
+        if (CATEGORY_SET.contains(normalized)) {
+            return normalized;
+        }
+        return "custom";
+    }
+
+    /**
+     * 根据分类编码生成兼容查询候选列表。
+     *
+     * @param category 规范化分类编码
+     * @return 候选分类集合
+     */
+    private List<String> resolveCategoryCandidates(String category) {
+        if (!StringUtils.hasText(category)) {
+            return Collections.singletonList("custom");
+        }
+        if ("purchase".equals(category)) {
+            return Arrays.asList("purchase", "purchaseApprove");
+        }
+        if ("transfer".equals(category)) {
+            return Arrays.asList("transfer", "inventoryTransfer");
+        }
+        if ("seal".equals(category)) {
+            return Arrays.asList("seal", "stamp");
+        }
+        List<String> single = new ArrayList<>(1);
+        single.add(category);
+        return single;
     }
 
     /**
@@ -270,4 +478,3 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
         return StringUtils.hasText(tenantId) ? tenantId : "000000";
     }
 }
-

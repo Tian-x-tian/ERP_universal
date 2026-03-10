@@ -58,6 +58,32 @@ public interface ISysWorkflowDefinitionService extends IService<SysWorkflowDefin
     boolean disableDefinition(Long definitionId, String operator);
 
     /**
+     * 按流程标识查询版本历史。
+     *
+     * @param processKey 流程标识
+     * @return 版本历史列表（按版本倒序）
+     */
+    List<SysWorkflowDefinition> selectHistoryByProcessKey(String processKey);
+
+    /**
+     * 从已有流程定义创建新版本草稿。
+     *
+     * @param definitionId 来源流程定义ID
+     * @param operator     操作人账号
+     * @return 新版本草稿，创建失败返回 null
+     */
+    SysWorkflowDefinition createNewVersion(Long definitionId, String operator);
+
+    /**
+     * 删除流程定义（受保护删除）。
+     *
+     * @param definitionIds 流程定义ID集合
+     * @param operator      操作人账号
+     * @return 删除结果
+     */
+    boolean removeDefinitions(List<Long> definitionIds, String operator);
+
+    /**
      * 按流程标识查询最新发布版本。
      *
      * @param processKey 流程标识
@@ -65,4 +91,3 @@ public interface ISysWorkflowDefinitionService extends IService<SysWorkflowDefin
      */
     SysWorkflowDefinition selectLatestPublishedByProcessKey(String processKey);
 }
-

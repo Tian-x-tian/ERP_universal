@@ -17,7 +17,7 @@ public interface ISysNoticeService extends IService<SysNotice> {
      * @param noticeType 消息类型
      * @return 消息列表
      */
-    List<SysNotice> selectByCurrentUser(Long userId, String noticeType);
+    List<SysNotice> selectByCurrentUser(Long userId, String noticeType, String status, String deliveryChannel, String deliveryStatus);
 
     /**
      * 标记单条消息已读。
@@ -46,7 +46,15 @@ public interface ISysNoticeService extends IService<SysNotice> {
      * @param status         状态（0未读 1已读）
      * @return 消息列表
      */
-    List<SysNotice> selectForManage(String tenantId, String title, String noticeType, Long receiverUserId, String status);
+    List<SysNotice> selectForManage(String tenantId,
+                                    String title,
+                                    String noticeType,
+                                    Long receiverUserId,
+                                    String status,
+                                    String deliveryChannel,
+                                    String deliveryStatus,
+                                    String source,
+                                    String businessNo);
 
     /**
      * 新增消息通知。

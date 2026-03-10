@@ -9,6 +9,9 @@ import com.erp.system.domain.SysWorkflowTask;
 import com.erp.system.domain.vo.WorkflowInstanceDetailVO;
 import com.erp.system.domain.vo.WorkflowStartBody;
 import com.erp.system.domain.vo.WorkflowTaskActionBody;
+import com.erp.system.domain.vo.WorkflowTaskFormVO;
+import com.erp.system.domain.vo.WorkflowTaskRemindBody;
+import com.erp.system.domain.vo.WorkflowTaskReturnBody;
 import com.erp.system.domain.vo.WorkflowTaskTransferBody;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.ISysUserService;
@@ -151,6 +154,38 @@ public class SysWorkflowController {
     }
 
     /**
+     * 查询流程定义版本历史。
+     *
+     * @param processKey 流程标识
+     * @return 版本历史列表
+     */
+    @GetMapping("/definition/history/{processKey}")
+    @PreAuthorize("@ss.hasPermi('system:workflow:query')")
+    public R<List<SysWorkflowDefinition>> definitionHistory(@PathVariable("processKey") String processKey) {
+        return R.success(workflowDefinitionService.selectHistoryByProcessKey(processKey));
+    }
+
+    /**
+     * 从已有流程定义创建新版本草稿。
+     *
+     * @param definitionId 来源流程定义ID
+     * @return 新版本草稿
+     */
+    @PostMapping("/definition/version/{definitionId}")
+    @PreAuthorize("@ss.hasPermi('system:workflow:edit')")
+    public R<SysWorkflowDefinition> createDefinitionVersion(@PathVariable("definitionId") Long definitionId) {
+        String operator = resolveCurrentUsername();
+        if (!StringUtils.hasText(operator)) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        SysWorkflowDefinition newVersion = workflowDefinitionService.createNewVersion(definitionId, operator);
+        if (newVersion == null) {
+            return R.failed("创建新版本失败，请确认流程定义存在且具备可复制数据");
+        }
+        return R.success(newVersion);
+    }
+
+    /**
      * 删除流程定义。
      *
      * @param definitionIds 流程定义ID集合
@@ -159,7 +194,12 @@ public class SysWorkflowController {
     @DeleteMapping("/definition/{definitionIds}")
     @PreAuthorize("@ss.hasPermi('system:workflow:remove')")
     public R<Boolean> removeDefinition(@PathVariable("definitionIds") List<Long> definitionIds) {
-        return R.success(workflowDefinitionService.removeByIds(definitionIds));
+        String operator = resolveCurrentUsername();
+        if (!StringUtils.hasText(operator)) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        boolean success = workflowDefinitionService.removeDefinitions(definitionIds, operator);
+        return success ? R.success(true) : R.failed("流程定义删除失败，已发布版本或已产生实例的版本不可删除");
     }
 
     /**
@@ -213,6 +253,29 @@ public class SysWorkflowController {
     }
 
     /**
+     * 撤回流程实例。
+     *
+     * @param instanceId  流程实例ID
+     * @param actionBody  撤回参数
+     * @return 撤回结果
+     */
+    @PostMapping("/instance/withdraw/{instanceId}")
+    @PreAuthorize("@ss.hasPermi('system:workflow:withdraw')")
+    public R<Boolean> withdrawInstance(@PathVariable("instanceId") Long instanceId, @RequestBody(required = false) WorkflowTaskActionBody actionBody) {
+        CurrentUser currentUser = resolveCurrentUser();
+        if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        boolean success = workflowEngineService.withdrawInstance(
+                instanceId,
+                actionBody,
+                currentUser.userId,
+                currentUser.userName,
+                currentUser.nickName);
+        return success ? R.success(true) : R.failed("流程撤回失败");
+    }
+
+    /**
      * 查询当前用户流程任务列表。
      *
      * @param status 状态
@@ -226,6 +289,26 @@ public class SysWorkflowController {
             return R.failed(ResultCode.UNAUTHORIZED);
         }
         return R.success(workflowEngineService.selectMyTaskList(currentUserId, status));
+    }
+
+    /**
+     * 查询任务节点动态表单。
+     *
+     * @param taskId 任务ID
+     * @return 动态表单
+     */
+    @GetMapping("/task/form/{taskId}")
+    @PreAuthorize("@ss.hasPermi('system:workflow:form')")
+    public R<WorkflowTaskFormVO> taskForm(@PathVariable("taskId") Long taskId) {
+        Long currentUserId = securityUserResolver.getCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        WorkflowTaskFormVO formVO = workflowEngineService.selectTaskForm(taskId, currentUserId);
+        if (formVO == null) {
+            return R.failed("任务表单不存在或无权限查看");
+        }
+        return R.success(formVO);
     }
 
     /**
@@ -283,6 +366,96 @@ public class SysWorkflowController {
     }
 
     /**
+     * 退回流程任务到指定节点。
+     *
+     * @param taskId      任务ID
+     * @param returnBody  退回参数
+     * @return 处理结果
+     */
+    @PostMapping("/task/return/{taskId}")
+    @PreAuthorize("@ss.hasPermi('system:workflow:return')")
+    public R<Boolean> returnTask(@PathVariable("taskId") Long taskId, @RequestBody WorkflowTaskReturnBody returnBody) {
+        CurrentUser currentUser = resolveCurrentUser();
+        if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        boolean success = workflowEngineService.returnTask(taskId, returnBody, currentUser.userId, currentUser.userName, currentUser.nickName);
+        return success ? R.success(true) : R.failed("任务退回失败");
+    }
+
+    /**
+     * 加签。
+     *
+     * @param taskId       任务ID
+     * @param transferBody 加签参数
+     * @return 处理结果
+     */
+    @PostMapping("/task/addSign/{taskId}")
+    @PreAuthorize("@ss.hasPermi('system:workflow:addSign')")
+    public R<Boolean> addSign(@PathVariable("taskId") Long taskId, @RequestBody WorkflowTaskTransferBody transferBody) {
+        CurrentUser currentUser = resolveCurrentUser();
+        if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        boolean success = workflowEngineService.addSign(taskId, transferBody, currentUser.userId, currentUser.userName, currentUser.nickName);
+        return success ? R.success(true) : R.failed("任务加签失败");
+    }
+
+    /**
+     * 减签。
+     *
+     * @param taskId       任务ID
+     * @param transferBody 减签参数
+     * @return 处理结果
+     */
+    @PostMapping("/task/removeSign/{taskId}")
+    @PreAuthorize("@ss.hasPermi('system:workflow:removeSign')")
+    public R<Boolean> removeSign(@PathVariable("taskId") Long taskId, @RequestBody WorkflowTaskTransferBody transferBody) {
+        CurrentUser currentUser = resolveCurrentUser();
+        if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        boolean success = workflowEngineService.removeSign(taskId, transferBody, currentUser.userId, currentUser.userName, currentUser.nickName);
+        return success ? R.success(true) : R.failed("任务减签失败");
+    }
+
+    /**
+     * 委派任务。
+     *
+     * @param taskId       任务ID
+     * @param transferBody 委派参数
+     * @return 处理结果
+     */
+    @PostMapping("/task/delegate/{taskId}")
+    @PreAuthorize("@ss.hasPermi('system:workflow:delegate')")
+    public R<Boolean> delegateTask(@PathVariable("taskId") Long taskId, @RequestBody WorkflowTaskTransferBody transferBody) {
+        CurrentUser currentUser = resolveCurrentUser();
+        if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        boolean success = workflowEngineService.delegateTask(taskId, transferBody, currentUser.userId, currentUser.userName, currentUser.nickName);
+        return success ? R.success(true) : R.failed("任务委派失败");
+    }
+
+    /**
+     * 催办任务。
+     *
+     * @param taskId      任务ID
+     * @param remindBody  催办参数
+     * @return 处理结果
+     */
+    @PostMapping("/task/remind/{taskId}")
+    @PreAuthorize("@ss.hasPermi('system:workflow:remind')")
+    public R<Boolean> remindTask(@PathVariable("taskId") Long taskId, @RequestBody(required = false) WorkflowTaskRemindBody remindBody) {
+        CurrentUser currentUser = resolveCurrentUser();
+        if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        boolean success = workflowEngineService.remindTask(taskId, remindBody, currentUser.userId, currentUser.userName, currentUser.nickName);
+        return success ? R.success(true) : R.failed("任务催办失败");
+    }
+
+    /**
      * 解析当前登录用户名。
      *
      * @return 当前用户名
@@ -330,4 +503,3 @@ public class SysWorkflowController {
         }
     }
 }
-

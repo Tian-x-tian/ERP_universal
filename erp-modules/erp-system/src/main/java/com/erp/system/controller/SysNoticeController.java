@@ -43,12 +43,15 @@ public class SysNoticeController {
      */
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:todo:list')")
-    public R<List<SysNotice>> list(@RequestParam(value = "noticeType", required = false) String noticeType) {
+    public R<List<SysNotice>> list(@RequestParam(value = "noticeType", required = false) String noticeType,
+                                   @RequestParam(value = "status", required = false) String status,
+                                   @RequestParam(value = "deliveryChannel", required = false) String deliveryChannel,
+                                   @RequestParam(value = "deliveryStatus", required = false) String deliveryStatus) {
         Long currentUserId = resolveCurrentUserId();
         if (currentUserId == null) {
             return R.failed(ResultCode.UNAUTHORIZED);
         }
-        return R.success(noticeService.selectByCurrentUser(currentUserId, noticeType));
+        return R.success(noticeService.selectByCurrentUser(currentUserId, noticeType, status, deliveryChannel, deliveryStatus));
     }
 
     /**
@@ -98,12 +101,17 @@ public class SysNoticeController {
             @RequestParam(value = "title", required = false) String title,
             @RequestParam(value = "noticeType", required = false) String noticeType,
             @RequestParam(value = "receiverUserId", required = false) Long receiverUserId,
-            @RequestParam(value = "status", required = false) String status) {
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "deliveryChannel", required = false) String deliveryChannel,
+            @RequestParam(value = "deliveryStatus", required = false) String deliveryStatus,
+            @RequestParam(value = "source", required = false) String source,
+            @RequestParam(value = "businessNo", required = false) String businessNo) {
         String tenantId = resolveTenantId();
         if (!StringUtils.hasText(tenantId)) {
             return R.failed(ResultCode.UNAUTHORIZED);
         }
-        return R.success(noticeService.selectForManage(tenantId, title, noticeType, receiverUserId, status));
+        return R.success(noticeService.selectForManage(tenantId, title, noticeType, receiverUserId, status,
+                deliveryChannel, deliveryStatus, source, businessNo));
     }
 
     /**

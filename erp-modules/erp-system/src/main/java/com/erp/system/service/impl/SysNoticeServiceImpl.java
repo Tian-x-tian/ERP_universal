@@ -18,6 +18,14 @@ import java.util.List;
 @Service
 public class SysNoticeServiceImpl extends ServiceImpl<SysNoticeMapper, SysNotice> implements ISysNoticeService {
 
+    private static final String STATUS_UNREAD = "0";
+    private static final String STATUS_READ = "1";
+    private static final String DELIVERY_PENDING = "0";
+    private static final String DELIVERY_PROCESSING = "1";
+    private static final String DELIVERY_SUCCESS = "2";
+    private static final String DELIVERY_FAILED = "3";
+    private static final String CHANNEL_IN_APP = "IN_APP";
+
     /**
      * 查询当前用户消息列表。
      *
@@ -26,11 +34,20 @@ public class SysNoticeServiceImpl extends ServiceImpl<SysNoticeMapper, SysNotice
      * @return 消息列表
      */
     @Override
-    public List<SysNotice> selectByCurrentUser(Long userId, String noticeType) {
+    public List<SysNotice> selectByCurrentUser(Long userId, String noticeType, String status, String deliveryChannel, String deliveryStatus) {
         LambdaQueryWrapper<SysNotice> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(SysNotice::getReceiverUserId, userId);
         if (StringUtils.hasText(noticeType)) {
             queryWrapper.eq(SysNotice::getNoticeType, noticeType.trim());
+        }
+        if (StringUtils.hasText(status)) {
+            queryWrapper.eq(SysNotice::getStatus, status.trim());
+        }
+        if (StringUtils.hasText(deliveryChannel)) {
+            queryWrapper.eq(SysNotice::getDeliveryChannel, deliveryChannel.trim().toUpperCase());
+        }
+        if (StringUtils.hasText(deliveryStatus)) {
+            queryWrapper.eq(SysNotice::getDeliveryStatus, deliveryStatus.trim());
         }
         queryWrapper.orderByDesc(SysNotice::getCreateTime);
         return list(queryWrapper);
@@ -86,7 +103,15 @@ public class SysNoticeServiceImpl extends ServiceImpl<SysNoticeMapper, SysNotice
      * @return 消息列表
      */
     @Override
-    public List<SysNotice> selectForManage(String tenantId, String title, String noticeType, Long receiverUserId, String status) {
+    public List<SysNotice> selectForManage(String tenantId,
+                                           String title,
+                                           String noticeType,
+                                           Long receiverUserId,
+                                           String status,
+                                           String deliveryChannel,
+                                           String deliveryStatus,
+                                           String source,
+                                           String businessNo) {
         LambdaQueryWrapper<SysNotice> queryWrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(tenantId)) {
             queryWrapper.eq(SysNotice::getTenantId, tenantId.trim());
@@ -102,6 +127,18 @@ public class SysNoticeServiceImpl extends ServiceImpl<SysNoticeMapper, SysNotice
         }
         if (StringUtils.hasText(status)) {
             queryWrapper.eq(SysNotice::getStatus, status.trim());
+        }
+        if (StringUtils.hasText(deliveryChannel)) {
+            queryWrapper.eq(SysNotice::getDeliveryChannel, deliveryChannel.trim().toUpperCase());
+        }
+        if (StringUtils.hasText(deliveryStatus)) {
+            queryWrapper.eq(SysNotice::getDeliveryStatus, deliveryStatus.trim());
+        }
+        if (StringUtils.hasText(source)) {
+            queryWrapper.like(SysNotice::getSource, source.trim());
+        }
+        if (StringUtils.hasText(businessNo)) {
+            queryWrapper.like(SysNotice::getBusinessNo, businessNo.trim());
         }
         queryWrapper.orderByDesc(SysNotice::getCreateTime);
         return list(queryWrapper);
@@ -120,8 +157,15 @@ public class SysNoticeServiceImpl extends ServiceImpl<SysNoticeMapper, SysNotice
         }
         notice.setTitle(notice.getTitle().trim());
         notice.setNoticeType(StringUtils.hasText(notice.getNoticeType()) ? notice.getNoticeType().trim() : "系统公告");
-        notice.setStatus(StringUtils.hasText(notice.getStatus()) ? notice.getStatus() : "0");
-        if ("1".equals(notice.getStatus())) {
+        notice.setDeliveryChannel(normalizeDeliveryChannel(notice.getDeliveryChannel()));
+        notice.setDeliveryStatus(normalizeCreateDeliveryStatus(notice.getDeliveryChannel(), notice.getDeliveryStatus()));
+        if (notice.getDeliveryTime() == null && DELIVERY_SUCCESS.equals(notice.getDeliveryStatus())) {
+            notice.setDeliveryTime(new Date());
+        } else if (!DELIVERY_SUCCESS.equals(notice.getDeliveryStatus())) {
+            notice.setDeliveryTime(null);
+        }
+        notice.setStatus(StringUtils.hasText(notice.getStatus()) ? notice.getStatus().trim() : STATUS_UNREAD);
+        if (STATUS_READ.equals(notice.getStatus())) {
             notice.setReadTime(new Date());
         } else {
             notice.setReadTime(null);
@@ -153,10 +197,33 @@ public class SysNoticeServiceImpl extends ServiceImpl<SysNoticeMapper, SysNotice
         if (StringUtils.hasText(notice.getNoticeType())) {
             notice.setNoticeType(notice.getNoticeType().trim());
         }
+        if (!StringUtils.hasText(notice.getDeliveryChannel())) {
+            notice.setDeliveryChannel(existedNotice.getDeliveryChannel());
+        } else {
+            notice.setDeliveryChannel(normalizeDeliveryChannel(notice.getDeliveryChannel()));
+        }
+        if (!StringUtils.hasText(notice.getDeliveryStatus())) {
+            notice.setDeliveryStatus(existedNotice.getDeliveryStatus());
+        } else {
+            notice.setDeliveryStatus(notice.getDeliveryStatus().trim());
+        }
+        if (notice.getDeliveryTime() == null) {
+            if (DELIVERY_SUCCESS.equals(notice.getDeliveryStatus()) && !DELIVERY_SUCCESS.equals(existedNotice.getDeliveryStatus())) {
+                notice.setDeliveryTime(new Date());
+            } else {
+                notice.setDeliveryTime(existedNotice.getDeliveryTime());
+            }
+        }
+        if (!DELIVERY_SUCCESS.equals(notice.getDeliveryStatus()) && existedNotice.getDeliveryTime() == null) {
+            notice.setDeliveryTime(existedNotice.getDeliveryTime());
+        }
+        if (!StringUtils.hasText(notice.getExternalMessageId())) {
+            notice.setExternalMessageId(existedNotice.getExternalMessageId());
+        }
         if (!StringUtils.hasText(notice.getStatus())) {
             notice.setStatus(existedNotice.getStatus());
             notice.setReadTime(existedNotice.getReadTime());
-        } else if ("1".equals(notice.getStatus())) {
+        } else if (STATUS_READ.equals(notice.getStatus())) {
             if (notice.getReadTime() == null) {
                 notice.setReadTime(new Date());
             }
@@ -164,5 +231,29 @@ public class SysNoticeServiceImpl extends ServiceImpl<SysNoticeMapper, SysNotice
             notice.setReadTime(null);
         }
         return updateById(notice);
+    }
+
+    /**
+     * 标准化送达渠道。
+     *
+     * @param deliveryChannel 原始渠道
+     * @return 规范渠道
+     */
+    private String normalizeDeliveryChannel(String deliveryChannel) {
+        return StringUtils.hasText(deliveryChannel) ? deliveryChannel.trim().toUpperCase() : CHANNEL_IN_APP;
+    }
+
+    /**
+     * 根据渠道计算新消息默认送达状态。
+     *
+     * @param deliveryChannel 原始渠道
+     * @param deliveryStatus  原始送达状态
+     * @return 送达状态
+     */
+    private String normalizeCreateDeliveryStatus(String deliveryChannel, String deliveryStatus) {
+        if (StringUtils.hasText(deliveryStatus)) {
+            return deliveryStatus.trim();
+        }
+        return CHANNEL_IN_APP.equals(normalizeDeliveryChannel(deliveryChannel)) ? DELIVERY_SUCCESS : DELIVERY_PENDING;
     }
 }

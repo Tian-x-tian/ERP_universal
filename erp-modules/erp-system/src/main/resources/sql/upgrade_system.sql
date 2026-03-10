@@ -198,12 +198,73 @@ CREATE TABLE IF NOT EXISTS `sys_notice` (
   `business_no` varchar(64) DEFAULT NULL COMMENT '关联业务单号',
   `content` text COMMENT '消息内容',
   `receiver_user_id` bigint(20) NOT NULL COMMENT '接收人用户ID',
+  `delivery_channel` varchar(16) DEFAULT 'IN_APP' COMMENT '送达渠道（IN_APP/SMS/WECOM）',
+  `delivery_status` char(1) DEFAULT '2' COMMENT '送达状态（0待发送 1发送中 2已送达 3失败）',
+  `delivery_time` datetime DEFAULT NULL COMMENT '送达时间',
+  `external_message_id` varchar(100) DEFAULT NULL COMMENT '外部消息ID',
   `status` char(1) DEFAULT '0' COMMENT '状态（0未读 1已读）',
   `read_time` datetime DEFAULT NULL COMMENT '已读时间',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   PRIMARY KEY (`notice_id`),
   KEY `idx_notice_receiver` (`tenant_id`, `receiver_user_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统消息通知表';
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_notice` ADD COLUMN `delivery_channel` varchar(16) DEFAULT ''IN_APP'' COMMENT ''送达渠道（IN_APP/SMS/WECOM）''',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_notice'
+      AND COLUMN_NAME = 'delivery_channel'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_notice` ADD COLUMN `delivery_status` char(1) DEFAULT ''2'' COMMENT ''送达状态（0待发送 1发送中 2已送达 3失败）''',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_notice'
+      AND COLUMN_NAME = 'delivery_status'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_notice` ADD COLUMN `delivery_time` datetime DEFAULT NULL COMMENT ''送达时间''',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_notice'
+      AND COLUMN_NAME = 'delivery_time'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_notice` ADD COLUMN `external_message_id` varchar(100) DEFAULT NULL COMMENT ''外部消息ID''',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_notice'
+      AND COLUMN_NAME = 'external_message_id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE `sys_notice`
+SET `delivery_channel` = IFNULL(NULLIF(`delivery_channel`, ''), 'IN_APP'),
+    `delivery_status` = IFNULL(NULLIF(`delivery_status`, ''), '2'),
+    `delivery_time` = IFNULL(`delivery_time`, `create_time`);
 
 CREATE TABLE IF NOT EXISTS `sys_todo_task` (
   `todo_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '待办ID',
@@ -231,6 +292,7 @@ CREATE TABLE IF NOT EXISTS `sys_wf_definition` (
   `category` varchar(64) DEFAULT 'custom' COMMENT '流程分类',
   `version` int(11) NOT NULL DEFAULT 1 COMMENT '版本号',
   `status` char(1) DEFAULT '0' COMMENT '状态（0草稿 1已发布 2停用）',
+  `published_slot` tinyint(1) GENERATED ALWAYS AS (CASE WHEN `status` = '1' THEN 1 ELSE NULL END) STORED COMMENT '已发布唯一槽位',
   `form_schema` longtext COMMENT '表单结构JSON',
   `model_content` longtext COMMENT '流程设计JSON',
   `publish_by` varchar(64) DEFAULT NULL COMMENT '发布人',
@@ -242,6 +304,7 @@ CREATE TABLE IF NOT EXISTS `sys_wf_definition` (
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   PRIMARY KEY (`definition_id`),
   UNIQUE KEY `idx_wf_def_key_ver` (`tenant_id`, `process_key`, `version`),
+  UNIQUE KEY `uk_wf_def_publish_slot` (`tenant_id`, `process_key`, `published_slot`),
   KEY `idx_wf_def_status` (`tenant_id`, `status`, `category`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程定义表';
 
@@ -249,12 +312,15 @@ CREATE TABLE IF NOT EXISTS `sys_wf_instance` (
   `instance_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '流程实例ID',
   `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
   `definition_id` bigint(20) NOT NULL COMMENT '流程定义ID',
+  `definition_version` int(11) DEFAULT NULL COMMENT '发起时流程定义版本号',
   `process_key` varchar(64) NOT NULL COMMENT '流程标识',
   `process_name` varchar(128) NOT NULL COMMENT '流程名称',
   `category` varchar(64) DEFAULT 'custom' COMMENT '流程分类',
   `business_no` varchar(64) NOT NULL COMMENT '业务单号',
   `business_type` varchar(64) DEFAULT NULL COMMENT '业务类型',
   `form_data` longtext COMMENT '表单数据JSON',
+  `form_schema_snapshot` longtext COMMENT '发起时表单结构快照JSON',
+  `model_content_snapshot` longtext COMMENT '发起时流程模型快照JSON',
   `current_node` varchar(128) DEFAULT NULL COMMENT '当前节点',
   `initiator_user_id` bigint(20) NOT NULL COMMENT '发起人用户ID',
   `initiator_user_name` varchar(64) DEFAULT NULL COMMENT '发起人账号',
@@ -271,6 +337,99 @@ CREATE TABLE IF NOT EXISTS `sys_wf_instance` (
   KEY `idx_wf_inst_status` (`tenant_id`, `status`, `start_time`),
   KEY `idx_wf_inst_business` (`tenant_id`, `business_no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程实例表';
+
+-- 5.1) 补齐流程定义“单流程单发布版本”约束与实例快照字段
+UPDATE `sys_wf_definition` d
+INNER JOIN (
+    SELECT tenant_id, process_key, MAX(version) AS keep_version
+    FROM sys_wf_definition
+    WHERE status = '1'
+    GROUP BY tenant_id, process_key
+) latest ON latest.tenant_id = d.tenant_id
+        AND latest.process_key = d.process_key
+SET d.status = '2',
+    d.update_by = 'system',
+    d.update_time = NOW()
+WHERE d.status = '1'
+  AND d.version <> latest.keep_version;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_wf_definition` ADD COLUMN `published_slot` tinyint(1) GENERATED ALWAYS AS (CASE WHEN `status` = ''1'' THEN 1 ELSE NULL END) STORED COMMENT ''已发布唯一槽位''',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_wf_definition'
+      AND COLUMN_NAME = 'published_slot'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_wf_definition` ADD UNIQUE KEY `uk_wf_def_publish_slot` (`tenant_id`, `process_key`, `published_slot`)',
+              'SELECT 1')
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_wf_definition'
+      AND INDEX_NAME = 'uk_wf_def_publish_slot'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_wf_instance` ADD COLUMN `definition_version` int(11) DEFAULT NULL COMMENT ''发起时流程定义版本号''',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_wf_instance'
+      AND COLUMN_NAME = 'definition_version'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_wf_instance` ADD COLUMN `form_schema_snapshot` longtext COMMENT ''发起时表单结构快照JSON''',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_wf_instance'
+      AND COLUMN_NAME = 'form_schema_snapshot'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_wf_instance` ADD COLUMN `model_content_snapshot` longtext COMMENT ''发起时流程模型快照JSON''',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_wf_instance'
+      AND COLUMN_NAME = 'model_content_snapshot'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE `sys_wf_instance` i
+LEFT JOIN `sys_wf_definition` d
+       ON d.definition_id = i.definition_id
+      AND d.tenant_id = i.tenant_id
+SET i.definition_version = IFNULL(i.definition_version, d.version),
+    i.form_schema_snapshot = IF(i.form_schema_snapshot IS NULL OR i.form_schema_snapshot = '', d.form_schema, i.form_schema_snapshot),
+    i.model_content_snapshot = IF(i.model_content_snapshot IS NULL OR i.model_content_snapshot = '', d.model_content, i.model_content_snapshot)
+WHERE i.definition_version IS NULL
+   OR i.form_schema_snapshot IS NULL
+   OR i.form_schema_snapshot = ''
+   OR i.model_content_snapshot IS NULL
+   OR i.model_content_snapshot = '';
 
 CREATE TABLE IF NOT EXISTS `sys_wf_task` (
   `task_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '流程任务ID',
@@ -411,7 +570,7 @@ SELECT 3, '000000', 'ATTACH', '附件编码', 'AT', 'yyyyMM', 4, 16, '0', NOW()
 WHERE NOT EXISTS (SELECT 1 FROM `sys_code_rule` WHERE `rule_id` = 3);
 
 INSERT INTO `sys_wf_definition` (`definition_id`, `tenant_id`, `process_key`, `process_name`, `category`, `version`, `status`, `form_schema`, `model_content`, `publish_by`, `publish_time`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`)
-SELECT 1, '000000', 'purchase_apply', '采购审批流程', 'purchaseApprove', 1, '1',
+SELECT 1, '000000', 'purchase_apply', '采购审批流程', 'purchase', 1, '1',
        '{"fields":[{"name":"amount","label":"金额"}]}',
        '{"nodes":[{"id":"NODE_1","name":"部门负责人审批"}]}',
        'system', NOW(), '升级脚本补齐流程定义', 'system', NOW(), 'system', NOW()
@@ -424,9 +583,12 @@ SELECT 2, '000000', 'expense_apply', '报销审批流程', 'expense', 1, '0',
        '升级脚本补齐流程定义', 'system', NOW(), 'system', NOW()
 WHERE NOT EXISTS (SELECT 1 FROM `sys_wf_definition` WHERE `definition_id` = 2);
 
-INSERT INTO `sys_wf_instance` (`instance_id`, `tenant_id`, `definition_id`, `process_key`, `process_name`, `category`, `business_no`, `business_type`, `form_data`, `current_node`, `initiator_user_id`, `initiator_user_name`, `initiator_nick_name`, `status`, `start_time`, `last_action`, `last_action_user_id`, `last_action_user_name`, `last_action_time`, `remark`)
-SELECT 1, '000000', 1, 'purchase_apply', '采购审批流程', 'purchaseApprove', 'PO-20260309-001', '采购申请',
-       '{"amount":12000,"reason":"办公设备采购"}', '部门负责人审批', 1, 'admin', '系统管理员', '0', NOW(),
+INSERT INTO `sys_wf_instance` (`instance_id`, `tenant_id`, `definition_id`, `definition_version`, `process_key`, `process_name`, `category`, `business_no`, `business_type`, `form_data`, `form_schema_snapshot`, `model_content_snapshot`, `current_node`, `initiator_user_id`, `initiator_user_name`, `initiator_nick_name`, `status`, `start_time`, `last_action`, `last_action_user_id`, `last_action_user_name`, `last_action_time`, `remark`)
+SELECT 1, '000000', 1, 1, 'purchase_apply', '采购审批流程', 'purchase', 'PO-20260309-001', '采购申请',
+       '{"amount":12000,"reason":"办公设备采购"}',
+       '{"fields":[{"name":"amount","label":"金额"}]}',
+       '{"nodes":[{"id":"NODE_1","name":"部门负责人审批"}]}',
+       '部门负责人审批', 1, 'admin', '系统管理员', '0', NOW(),
        'START', 1, 'admin', NOW(), '升级脚本补齐流程实例'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_wf_instance` WHERE `instance_id` = 1);
 
@@ -665,6 +827,13 @@ FROM (
   UNION ALL SELECT '/platform/workflow', '流程发起', 6, 'system:workflow:start'
   UNION ALL SELECT '/platform/workflow', '流程处理', 7, 'system:workflow:handle'
   UNION ALL SELECT '/platform/workflow', '流程设计', 8, 'system:workflow:design'
+  UNION ALL SELECT '/platform/workflow', '流程撤回', 9, 'system:workflow:withdraw'
+  UNION ALL SELECT '/platform/workflow', '表单查询', 10, 'system:workflow:form'
+  UNION ALL SELECT '/platform/workflow', '节点退回', 11, 'system:workflow:return'
+  UNION ALL SELECT '/platform/workflow', '任务加签', 12, 'system:workflow:addSign'
+  UNION ALL SELECT '/platform/workflow', '任务减签', 13, 'system:workflow:removeSign'
+  UNION ALL SELECT '/platform/workflow', '任务委派', 14, 'system:workflow:delegate'
+  UNION ALL SELECT '/platform/workflow', '任务催办', 15, 'system:workflow:remind'
 ) button_perm
 INNER JOIN sys_menu parent_menu ON parent_menu.path = button_perm.parent_path
 LEFT JOIN sys_menu existed_menu ON existed_menu.perms = button_perm.perms
@@ -706,7 +875,9 @@ WHERE m.perms IN (
   'system:todo:handle',
   'system:codeRule:query', 'system:codeRule:add', 'system:codeRule:edit', 'system:codeRule:remove', 'system:codeRule:generate',
   'system:workflow:query', 'system:workflow:add', 'system:workflow:edit', 'system:workflow:remove',
-  'system:workflow:publish', 'system:workflow:start', 'system:workflow:handle', 'system:workflow:design'
+  'system:workflow:publish', 'system:workflow:start', 'system:workflow:handle', 'system:workflow:design',
+  'system:workflow:withdraw', 'system:workflow:form', 'system:workflow:return',
+  'system:workflow:addSign', 'system:workflow:removeSign', 'system:workflow:delegate', 'system:workflow:remind'
 )
   AND EXISTS (SELECT 1 FROM sys_role WHERE role_id = 1)
   AND NOT EXISTS (
