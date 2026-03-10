@@ -1,21 +1,42 @@
 # Frontend repo
 erp-ui/
 
-# Java
+# Java build output
 target/
+**/target/
+out/
+build/
 *.class
 *.jar
 *.war
+*.ear
+*.jfr
+*.hprof
 
 # IDE
 .idea/
 .vscode/
 *.iml
 
-# Logs
+# Logs and runtime files
 *.log
+*.out
+*.pid
+*.seed
+hs_err_pid*
+replay_pid*
 logs/
 work/
+.agent/
+
+# Temp files
+*.tmp
+*.temp
+*.bak
+*.swp
+
+# Keep SQL scripts in version control
+!**/*.sql
 
 # OS
 .DS_Store
