@@ -37,7 +37,7 @@ public final class ApiHttpStatusResolver {
             return HttpStatus.CONFLICT;
         }
         if (code == ResultCode.VALIDATE_FAILED.getCode()) {
-            return HttpStatus.UNPROCESSABLE_ENTITY;
+            return HttpStatus.BAD_REQUEST;
         }
         if (code == ResultCode.ERROR.getCode()) {
             return HttpStatus.INTERNAL_SERVER_ERROR;

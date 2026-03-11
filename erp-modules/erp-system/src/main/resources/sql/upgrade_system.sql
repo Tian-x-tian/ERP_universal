@@ -935,3 +935,386 @@ WHERE m.perms IN (
       WHERE rm.role_id = 1
         AND rm.menu_id = m.menu_id
   );
+
+-- 9) MDM 主数据表与基础字典
+CREATE TABLE IF NOT EXISTS `mdm_org` (
+  `org_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '组织ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `org_code` varchar(64) NOT NULL COMMENT '组织编码',
+  `org_name` varchar(128) NOT NULL COMMENT '组织名称',
+  `org_type` varchar(32) DEFAULT NULL COMMENT '组织类型',
+  `parent_id` bigint(20) DEFAULT 0 COMMENT '父组织ID',
+  `ancestors` varchar(255) DEFAULT '0' COMMENT '祖级列表',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`org_id`),
+  UNIQUE KEY `idx_mdm_org_tenant_code` (`tenant_id`, `org_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM组织主数据表';
+
+CREATE TABLE IF NOT EXISTS `mdm_cost_center` (
+  `cc_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '成本中心ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `cc_code` varchar(64) NOT NULL COMMENT '成本中心编码',
+  `cc_name` varchar(128) NOT NULL COMMENT '成本中心名称',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `parent_id` bigint(20) DEFAULT 0 COMMENT '父级成本中心ID',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`cc_id`),
+  UNIQUE KEY `idx_mdm_cc_tenant_code` (`tenant_id`, `cc_code`),
+  KEY `idx_mdm_cc_org` (`tenant_id`, `org_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM成本中心主数据表';
+
+CREATE TABLE IF NOT EXISTS `mdm_project` (
+  `project_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '项目ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `project_code` varchar(64) NOT NULL COMMENT '项目编码',
+  `project_name` varchar(128) NOT NULL COMMENT '项目名称',
+  `manager_emp_id` bigint(20) DEFAULT NULL COMMENT '项目经理员工ID',
+  `customer_id` bigint(20) DEFAULT NULL COMMENT '关联客户ID',
+  `org_id` bigint(20) DEFAULT NULL COMMENT '归属组织ID',
+  `start_date` date DEFAULT NULL COMMENT '开始日期',
+  `end_date` date DEFAULT NULL COMMENT '结束日期',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`project_id`),
+  UNIQUE KEY `idx_mdm_project_tenant_code` (`tenant_id`, `project_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM项目主数据表';
+
+CREATE TABLE IF NOT EXISTS `mdm_settle_method` (
+  `settle_method_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '结算方式ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `settle_code` varchar(64) NOT NULL COMMENT '结算方式编码',
+  `settle_name` varchar(128) NOT NULL COMMENT '结算方式名称',
+  `status` varchar(16) DEFAULT 'ACTIVE' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`settle_method_id`),
+  UNIQUE KEY `idx_mdm_settle_tenant_code` (`tenant_id`, `settle_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM结算方式字典';
+
+CREATE TABLE IF NOT EXISTS `mdm_tax_rate` (
+  `tax_rate_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '税率ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `tax_code` varchar(64) NOT NULL COMMENT '税率编码',
+  `tax_name` varchar(128) NOT NULL COMMENT '税率名称',
+  `tax_rate` decimal(8,4) NOT NULL COMMENT '税率值',
+  `effective_from` date DEFAULT NULL COMMENT '生效开始日期',
+  `effective_to` date DEFAULT NULL COMMENT '生效结束日期',
+  `status` varchar(16) DEFAULT 'ACTIVE' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`tax_rate_id`),
+  UNIQUE KEY `idx_mdm_tax_tenant_code` (`tenant_id`, `tax_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM税率字典';
+
+CREATE TABLE IF NOT EXISTS `mdm_currency` (
+  `currency_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '币种ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `currency_code` varchar(64) NOT NULL COMMENT '币种编码',
+  `currency_name` varchar(128) NOT NULL COMMENT '币种名称',
+  `symbol` varchar(16) DEFAULT NULL COMMENT '货币符号',
+  `precision_scale` int(4) DEFAULT 2 COMMENT '金额精度',
+  `effective_from` date DEFAULT NULL COMMENT '生效开始日期',
+  `effective_to` date DEFAULT NULL COMMENT '生效结束日期',
+  `status` varchar(16) DEFAULT 'ACTIVE' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`currency_id`),
+  UNIQUE KEY `idx_mdm_currency_tenant_code` (`tenant_id`, `currency_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM币种字典';
+
+CREATE TABLE IF NOT EXISTS `mdm_uom` (
+  `uom_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '单位ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `uom_code` varchar(64) NOT NULL COMMENT '单位编码',
+  `uom_name` varchar(128) NOT NULL COMMENT '单位名称',
+  `base_uom_code` varchar(64) DEFAULT NULL COMMENT '基准单位编码',
+  `convert_rate` decimal(18,6) DEFAULT NULL COMMENT '换算比率',
+  `status` varchar(16) DEFAULT 'ACTIVE' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`uom_id`),
+  UNIQUE KEY `idx_mdm_uom_tenant_code` (`tenant_id`, `uom_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM计量单位字典';
+
+CREATE TABLE IF NOT EXISTS `mdm_customer` (
+  `customer_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '客户ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `customer_code` varchar(64) NOT NULL COMMENT '客户编码',
+  `customer_name` varchar(128) NOT NULL COMMENT '客户名称',
+  `short_name` varchar(128) DEFAULT NULL COMMENT '客户简称',
+  `customer_type` varchar(32) DEFAULT NULL COMMENT '客户类型',
+  `tax_no` varchar(64) DEFAULT NULL COMMENT '税号',
+  `invoice_title` varchar(255) DEFAULT NULL COMMENT '发票抬头',
+  `default_currency` varchar(32) DEFAULT NULL COMMENT '默认币种编码',
+  `default_tax_rate` decimal(8,4) DEFAULT NULL COMMENT '默认税率',
+  `credit_limit` decimal(18,2) DEFAULT NULL COMMENT '信用额度',
+  `credit_days` int(11) DEFAULT NULL COMMENT '信用天数',
+  `contact_name` varchar(64) DEFAULT NULL COMMENT '联系人',
+  `contact_phone` varchar(32) DEFAULT NULL COMMENT '联系人电话',
+  `contact_email` varchar(128) DEFAULT NULL COMMENT '联系人邮箱',
+  `province` varchar(64) DEFAULT NULL COMMENT '省份',
+  `city` varchar(64) DEFAULT NULL COMMENT '城市',
+  `district` varchar(64) DEFAULT NULL COMMENT '区县',
+  `detail_address` varchar(255) DEFAULT NULL COMMENT '详细地址',
+  `settle_method_id` bigint(20) DEFAULT NULL COMMENT '结算方式ID',
+  `org_id` bigint(20) DEFAULT NULL COMMENT '归属组织ID',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`customer_id`),
+  UNIQUE KEY `idx_mdm_customer_tenant_code` (`tenant_id`, `customer_code`),
+  KEY `idx_mdm_customer_tenant_status` (`tenant_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM客户主数据表';
+
+CREATE TABLE IF NOT EXISTS `mdm_supplier` (
+  `supplier_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '供应商ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `supplier_code` varchar(64) NOT NULL COMMENT '供应商编码',
+  `supplier_name` varchar(128) NOT NULL COMMENT '供应商名称',
+  `short_name` varchar(128) DEFAULT NULL COMMENT '供应商简称',
+  `supply_category` varchar(32) DEFAULT NULL COMMENT '供应类别',
+  `tax_no` varchar(64) DEFAULT NULL COMMENT '税号',
+  `default_currency` varchar(32) DEFAULT NULL COMMENT '默认币种编码',
+  `default_tax_rate` decimal(8,4) DEFAULT NULL COMMENT '默认税率',
+  `lead_time_days` int(11) DEFAULT NULL COMMENT '供货提前期天数',
+  `quality_level` varchar(32) DEFAULT NULL COMMENT '质量等级',
+  `bank_account_info` varchar(255) DEFAULT NULL COMMENT '银行账号信息',
+  `contact_name` varchar(64) DEFAULT NULL COMMENT '联系人',
+  `contact_phone` varchar(32) DEFAULT NULL COMMENT '联系人电话',
+  `contact_email` varchar(128) DEFAULT NULL COMMENT '联系人邮箱',
+  `address` varchar(255) DEFAULT NULL COMMENT '地址',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`supplier_id`),
+  UNIQUE KEY `idx_mdm_supplier_tenant_code` (`tenant_id`, `supplier_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM供应商主数据表';
+
+CREATE TABLE IF NOT EXISTS `mdm_item` (
+  `item_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '物料ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `item_code` varchar(64) NOT NULL COMMENT '物料编码',
+  `item_name` varchar(128) NOT NULL COMMENT '物料名称',
+  `spec_model` varchar(128) DEFAULT NULL COMMENT '规格型号',
+  `brand` varchar(128) DEFAULT NULL COMMENT '品牌',
+  `item_type` varchar(32) DEFAULT NULL COMMENT '物料类型',
+  `category_id` bigint(20) DEFAULT NULL COMMENT '物料分类ID',
+  `unit_id` bigint(20) DEFAULT NULL COMMENT '主计量单位ID',
+  `unit_convert` varchar(255) DEFAULT NULL COMMENT '辅助单位换算',
+  `tax_rate_id` bigint(20) DEFAULT NULL COMMENT '税率ID',
+  `barcode` varchar(128) DEFAULT NULL COMMENT '条码',
+  `shelf_life_days` int(11) DEFAULT NULL COMMENT '保质期天数',
+  `batch_control` char(1) DEFAULT 'N' COMMENT '批次控制（Y/N）',
+  `serial_control` char(1) DEFAULT 'N' COMMENT '序列号控制（Y/N）',
+  `costing_method` varchar(32) DEFAULT NULL COMMENT '计价方式',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`item_id`),
+  UNIQUE KEY `idx_mdm_item_tenant_code` (`tenant_id`, `item_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM物料主数据表';
+
+CREATE TABLE IF NOT EXISTS `mdm_warehouse` (
+  `warehouse_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '仓库ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `wh_code` varchar(64) NOT NULL COMMENT '仓库编码',
+  `wh_name` varchar(128) NOT NULL COMMENT '仓库名称',
+  `wh_type` varchar(32) DEFAULT NULL COMMENT '仓库类型',
+  `org_id` bigint(20) DEFAULT NULL COMMENT '归属组织ID',
+  `address` varchar(255) DEFAULT NULL COMMENT '仓库地址',
+  `manager_emp_id` bigint(20) DEFAULT NULL COMMENT '仓库负责人员工ID',
+  `allow_negative_stock` char(1) DEFAULT 'N' COMMENT '允许负库存（Y/N）',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`warehouse_id`),
+  UNIQUE KEY `idx_mdm_wh_tenant_code` (`tenant_id`, `wh_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM仓库主数据表';
+
+CREATE TABLE IF NOT EXISTS `mdm_employee` (
+  `employee_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '员工ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `emp_code` varchar(64) NOT NULL COMMENT '员工编码',
+  `emp_name` varchar(128) NOT NULL COMMENT '员工名称',
+  `mobile` varchar(32) DEFAULT NULL COMMENT '手机号',
+  `email` varchar(128) DEFAULT NULL COMMENT '邮箱',
+  `org_id` bigint(20) DEFAULT NULL COMMENT '组织ID',
+  `dept_id` bigint(20) DEFAULT NULL COMMENT '部门ID',
+  `position` varchar(64) DEFAULT NULL COMMENT '岗位',
+  `user_id` bigint(20) DEFAULT NULL COMMENT '账号ID',
+  `cost_center_id` bigint(20) DEFAULT NULL COMMENT '成本中心ID',
+  `status` varchar(16) DEFAULT 'ACTIVE' COMMENT '状态（ACTIVE/LEAVE）',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`employee_id`),
+  UNIQUE KEY `idx_mdm_emp_tenant_code` (`tenant_id`, `emp_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM员工主数据表';
+
+CREATE TABLE IF NOT EXISTS `mdm_change_log` (
+  `log_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '变更日志ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `domain_type` varchar(32) NOT NULL COMMENT '主数据域类型',
+  `biz_id` bigint(20) NOT NULL COMMENT '业务主键ID',
+  `change_type` varchar(32) NOT NULL COMMENT '变更类型（CREATE/UPDATE/STATUS/DELETE）',
+  `before_json` longtext COMMENT '变更前快照',
+  `after_json` longtext COMMENT '变更后快照',
+  `operator` varchar(64) DEFAULT NULL COMMENT '操作人',
+  `trace_id` varchar(64) DEFAULT NULL COMMENT '链路ID',
+  `source` varchar(64) DEFAULT NULL COMMENT '变更来源',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  PRIMARY KEY (`log_id`),
+  KEY `idx_mdm_change_tenant_domain` (`tenant_id`, `domain_type`, `biz_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM变更日志表';
+
+CREATE TABLE IF NOT EXISTS `mdm_version` (
+  `version_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '版本记录ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `domain_type` varchar(32) NOT NULL COMMENT '主数据域类型',
+  `biz_id` bigint(20) NOT NULL COMMENT '业务主键ID',
+  `version_no` int(11) NOT NULL COMMENT '版本号',
+  `status` varchar(16) DEFAULT NULL COMMENT '版本状态',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `snapshot_json` longtext COMMENT '版本快照',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  PRIMARY KEY (`version_id`),
+  UNIQUE KEY `idx_mdm_version_unique` (`tenant_id`, `domain_type`, `biz_id`, `version_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM版本快照表';
+
+INSERT INTO mdm_settle_method (tenant_id, settle_code, settle_name, status, create_by, create_time)
+SELECT '000000', 'CASH', '现金', 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_settle_method WHERE tenant_id = '000000' AND settle_code = 'CASH');
+
+INSERT INTO mdm_settle_method (tenant_id, settle_code, settle_name, status, create_by, create_time)
+SELECT '000000', 'BANK', '转账', 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_settle_method WHERE tenant_id = '000000' AND settle_code = 'BANK');
+
+INSERT INTO mdm_settle_method (tenant_id, settle_code, settle_name, status, create_by, create_time)
+SELECT '000000', 'MONTHLY', '月结', 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_settle_method WHERE tenant_id = '000000' AND settle_code = 'MONTHLY');
+
+INSERT INTO mdm_settle_method (tenant_id, settle_code, settle_name, status, create_by, create_time)
+SELECT '000000', 'NOTE', '票据', 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_settle_method WHERE tenant_id = '000000' AND settle_code = 'NOTE');
+
+INSERT INTO mdm_tax_rate (tenant_id, tax_code, tax_name, tax_rate, status, create_by, create_time)
+SELECT '000000', 'TAX_0', '税率0%', 0.0000, 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_tax_rate WHERE tenant_id = '000000' AND tax_code = 'TAX_0');
+
+INSERT INTO mdm_tax_rate (tenant_id, tax_code, tax_name, tax_rate, status, create_by, create_time)
+SELECT '000000', 'TAX_1', '税率1%', 0.0100, 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_tax_rate WHERE tenant_id = '000000' AND tax_code = 'TAX_1');
+
+INSERT INTO mdm_tax_rate (tenant_id, tax_code, tax_name, tax_rate, status, create_by, create_time)
+SELECT '000000', 'TAX_3', '税率3%', 0.0300, 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_tax_rate WHERE tenant_id = '000000' AND tax_code = 'TAX_3');
+
+INSERT INTO mdm_tax_rate (tenant_id, tax_code, tax_name, tax_rate, status, create_by, create_time)
+SELECT '000000', 'TAX_6', '税率6%', 0.0600, 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_tax_rate WHERE tenant_id = '000000' AND tax_code = 'TAX_6');
+
+INSERT INTO mdm_tax_rate (tenant_id, tax_code, tax_name, tax_rate, status, create_by, create_time)
+SELECT '000000', 'TAX_9', '税率9%', 0.0900, 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_tax_rate WHERE tenant_id = '000000' AND tax_code = 'TAX_9');
+
+INSERT INTO mdm_tax_rate (tenant_id, tax_code, tax_name, tax_rate, status, create_by, create_time)
+SELECT '000000', 'TAX_13', '税率13%', 0.1300, 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_tax_rate WHERE tenant_id = '000000' AND tax_code = 'TAX_13');
+
+INSERT INTO mdm_currency (tenant_id, currency_code, currency_name, symbol, precision_scale, status, create_by, create_time)
+SELECT '000000', 'CNY', '人民币', '￥', 2, 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_currency WHERE tenant_id = '000000' AND currency_code = 'CNY');
+
+INSERT INTO mdm_currency (tenant_id, currency_code, currency_name, symbol, precision_scale, status, create_by, create_time)
+SELECT '000000', 'USD', '美元', '$', 2, 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_currency WHERE tenant_id = '000000' AND currency_code = 'USD');
+
+INSERT INTO mdm_currency (tenant_id, currency_code, currency_name, symbol, precision_scale, status, create_by, create_time)
+SELECT '000000', 'EUR', '欧元', '€', 2, 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_currency WHERE tenant_id = '000000' AND currency_code = 'EUR');
+
+INSERT INTO mdm_uom (tenant_id, uom_code, uom_name, status, create_by, create_time)
+SELECT '000000', 'PCS', '件', 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_uom WHERE tenant_id = '000000' AND uom_code = 'PCS');
+
+INSERT INTO mdm_uom (tenant_id, uom_code, uom_name, status, create_by, create_time)
+SELECT '000000', 'BOX', '箱', 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_uom WHERE tenant_id = '000000' AND uom_code = 'BOX');
+
+INSERT INTO mdm_uom (tenant_id, uom_code, uom_name, status, create_by, create_time)
+SELECT '000000', 'KG', '千克', 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_uom WHERE tenant_id = '000000' AND uom_code = 'KG');
+
+INSERT INTO mdm_uom (tenant_id, uom_code, uom_name, status, create_by, create_time)
+SELECT '000000', 'M', '米', 'ACTIVE', 'system', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM mdm_uom WHERE tenant_id = '000000' AND uom_code = 'M');

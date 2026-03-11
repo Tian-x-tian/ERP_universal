@@ -2,6 +2,7 @@ package com.erp.system.config;
 
 import com.erp.common.core.context.RequestTraceContextHolder;
 import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
@@ -58,6 +59,12 @@ public class UnifiedResponseBodyAdvice implements ResponseBodyAdvice<Object> {
             return body;
         }
         R<?> result = (R<?>) body;
+        if (result.getCode() == ResultCode.VALIDATE_FAILED.getCode()) {
+            result.setCode(ResultCode.PARAM_ERROR.getCode());
+            if (ResultCode.VALIDATE_FAILED.getMessage().equals(result.getMessage())) {
+                result.setMessage(ResultCode.PARAM_ERROR.getMessage());
+            }
+        }
         if (result.getTimestamp() == null || result.getTimestamp().isEmpty()) {
             result.setTimestamp(ISO_OFFSET_FORMATTER.format(OffsetDateTime.now(ZoneId.systemDefault())));
         }
