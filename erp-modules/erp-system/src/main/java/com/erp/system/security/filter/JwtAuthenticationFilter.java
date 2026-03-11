@@ -1,7 +1,10 @@
 package com.erp.system.security.filter;
 
 import com.erp.common.core.context.TenantContextHolder;
+import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import com.erp.common.utils.JwtUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,6 +26,12 @@ import java.util.ArrayList;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String LOGIN_URI_SUFFIX = "/login";
+    private static final String JSON_CONTENT_TYPE = "application/json; charset=UTF-8";
+    private final ObjectMapper objectMapper;
+
+    public JwtAuthenticationFilter(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -30,48 +39,43 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String tenantIdFromHeader = resolveTenantIdFromHeader(request);
         boolean loginRequest = isLoginRequest(request);
 
-        if (loginRequest && StringUtils.hasText(tenantIdFromHeader)) {
-            TenantContextHolder.setTenantId(tenantIdFromHeader);
-        }
+        try {
+            if (loginRequest && StringUtils.hasText(tenantIdFromHeader)) {
+                TenantContextHolder.setTenantId(tenantIdFromHeader);
+            }
 
-        if (!loginRequest) {
-            String token = parseJwt(request);
-            if (token != null) {
-                try {
-                    Claims claims = JwtUtils.parseToken(token);
-                    String userId = claims.getSubject();
-                    String tenantIdFromToken = toTenantId(claims.get("tenantId"));
+            if (!loginRequest) {
+                String token = parseJwt(request);
+                if (token != null) {
+                    try {
+                        Claims claims = JwtUtils.parseToken(token);
+                        String userId = claims.getSubject();
+                        String tenantIdFromToken = toTenantId(claims.get("tenantId"));
 
-                    if (StringUtils.hasText(tenantIdFromHeader) && StringUtils.hasText(tenantIdFromToken)
-                            && !tenantIdFromHeader.equals(tenantIdFromToken)) {
-                        TenantContextHolder.clear();
-                        SecurityContextHolder.clearContext();
-                        chain.doFilter(request, response);
+                        if (StringUtils.hasText(tenantIdFromHeader) && StringUtils.hasText(tenantIdFromToken)
+                                && !tenantIdFromHeader.equals(tenantIdFromToken)) {
+                            writeUnauthorized(response, "租户与令牌不匹配");
+                            return;
+                        }
+
+                        if (!StringUtils.hasText(tenantIdFromToken)) {
+                            writeUnauthorized(response, ResultCode.UNAUTHORIZED.getMessage());
+                            return;
+                        }
+                        TenantContextHolder.setTenantId(tenantIdFromToken);
+
+                        // 将用户信息存入 SecurityContext
+                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                userId, null, new ArrayList<>());
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    } catch (Exception e) {
+                        // Token 无效或过期时直接输出统一响应，避免部分场景漏套壳
+                        writeUnauthorized(response, "Token无效或已过期");
                         return;
                     }
-
-                    if (!StringUtils.hasText(tenantIdFromToken)) {
-                        TenantContextHolder.clear();
-                        SecurityContextHolder.clearContext();
-                        chain.doFilter(request, response);
-                        return;
-                    }
-                    TenantContextHolder.setTenantId(tenantIdFromToken);
-
-                    // 将用户信息存入 SecurityContext
-                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                            userId, null, new ArrayList<>());
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                } catch (Exception e) {
-                    // Token 无效或过期
-                    TenantContextHolder.clear();
-                    SecurityContextHolder.clearContext();
                 }
             }
-        }
-
-        try {
             chain.doFilter(request, response);
         } finally {
             SecurityContextHolder.clearContext();
@@ -133,5 +137,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return headerAuth.substring(7);
         }
         return null;
+    }
+
+    /**
+     * 输出未登录响应。
+     *
+     * @param response 响应对象
+     * @param message  提示信息
+     * @throws IOException IO 异常
+     */
+    private void writeUnauthorized(HttpServletResponse response, String message) throws IOException {
+        TenantContextHolder.clear();
+        SecurityContextHolder.clearContext();
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType(JSON_CONTENT_TYPE);
+        R<Void> body = R.failed(ResultCode.UNAUTHORIZED, message);
+        response.getWriter().write(objectMapper.writeValueAsString(body));
+        response.getWriter().flush();
     }
 }

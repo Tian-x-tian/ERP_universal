@@ -53,12 +53,12 @@ public class SecurityConfig {
                         .permitAll()
                         // 除上面外的所有请求全部需要鉴权认证
                         .anyRequest().authenticated())
-                // 统一异常返回 JSON，便于前端按 R.code 处理 401/403
+                // 统一异常返回 JSON，便于前端按业务码处理 40101/40301
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint((request, response, authException) ->
-                                writeJson(response, R.failed(ResultCode.UNAUTHORIZED)))
+                                writeJson(response, R.failed(ResultCode.UNAUTHORIZED), ResultCode.UNAUTHORIZED.getCode()))
                         .accessDeniedHandler((request, response, accessDeniedException) ->
-                                writeJson(response, R.failed(ResultCode.FORBIDDEN))))
+                                writeJson(response, R.failed(ResultCode.FORBIDDEN), ResultCode.FORBIDDEN.getCode())))
                 // 添加 JWT 过滤器
                 .addFilterBefore(jwtAuthenticationFilter,
                         org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
@@ -88,12 +88,13 @@ public class SecurityConfig {
      *
      * @param response 响应对象
      * @param body     响应体
+     * @param code     业务码
      * @throws IOException IO 异常
      */
-    private void writeJson(HttpServletResponse response, R<?> body) throws IOException {
+    private void writeJson(HttpServletResponse response, R<?> body, long code) throws IOException {
         response.setCharacterEncoding("UTF-8");
-        response.setContentType("application/json;charset=UTF-8");
-        response.setStatus(HttpServletResponse.SC_OK);
+        response.setContentType("application/json; charset=UTF-8");
+        response.setStatus(ApiHttpStatusResolver.resolve(code).value());
         ObjectMapper objectMapper = new ObjectMapper();
         response.getWriter().write(objectMapper.writeValueAsString(body));
     }
