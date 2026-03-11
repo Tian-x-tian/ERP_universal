@@ -268,6 +268,8 @@ SET `delivery_channel` = IFNULL(NULLIF(`delivery_channel`, ''), 'IN_APP'),
 
 CREATE TABLE IF NOT EXISTS `sys_todo_task` (
   `todo_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '待办ID',
+  `instance_id` bigint(20) DEFAULT NULL COMMENT '流程实例ID',
+  `task_id` bigint(20) DEFAULT NULL COMMENT '流程任务ID',
   `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
   `process_name` varchar(100) NOT NULL COMMENT '流程名称',
   `node_name` varchar(100) DEFAULT NULL COMMENT '当前节点',
@@ -281,8 +283,48 @@ CREATE TABLE IF NOT EXISTS `sys_todo_task` (
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `remark` varchar(500) DEFAULT NULL COMMENT '备注',
   PRIMARY KEY (`todo_id`),
-  KEY `idx_todo_assignee` (`tenant_id`, `assignee_user_id`, `status`)
+  KEY `idx_todo_assignee` (`tenant_id`, `assignee_user_id`, `status`),
+  KEY `idx_todo_workflow` (`tenant_id`, `instance_id`, `task_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程待办任务表';
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_todo_task` ADD COLUMN `instance_id` bigint(20) DEFAULT NULL COMMENT ''流程实例ID''',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_todo_task'
+      AND COLUMN_NAME = 'instance_id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_todo_task` ADD COLUMN `task_id` bigint(20) DEFAULT NULL COMMENT ''流程任务ID''',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_todo_task'
+      AND COLUMN_NAME = 'task_id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_todo_task` ADD KEY `idx_todo_workflow` (`tenant_id`, `instance_id`, `task_id`)',
+              'SELECT 1')
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_todo_task'
+      AND INDEX_NAME = 'idx_todo_workflow'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS `sys_wf_definition` (
   `definition_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '流程定义ID',
@@ -604,20 +646,20 @@ INSERT INTO `sys_notice` (`notice_id`, `tenant_id`, `title`, `notice_type`, `sou
 SELECT 3, '000000', '报表中心出现数据延迟预警', '预警提醒', '报表中心', NULL, '近30分钟内报表数据刷新延迟超过阈值。', 1, '0', NOW()
 WHERE NOT EXISTS (SELECT 1 FROM `sys_notice` WHERE `notice_id` = 3);
 
-INSERT INTO `sys_todo_task` (`todo_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
-SELECT 1, '000000', '请假审批', '部门负责人审批', 'LV-20260307-001', 'H', '0', 1, DATE_ADD(NOW(), INTERVAL 1 DAY), NOW(), '请及时处理'
+INSERT INTO `sys_todo_task` (`todo_id`, `instance_id`, `task_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
+SELECT 1, NULL, NULL, '000000', '请假审批', '部门负责人审批', 'LV-20260307-001', 'H', '0', 1, DATE_ADD(NOW(), INTERVAL 1 DAY), NOW(), '请及时处理'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_todo_task` WHERE `todo_id` = 1);
 
-INSERT INTO `sys_todo_task` (`todo_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
-SELECT 2, '000000', '采购申请', '财务复核', 'PO-20260307-018', 'M', '1', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), '处理中'
+INSERT INTO `sys_todo_task` (`todo_id`, `instance_id`, `task_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
+SELECT 2, NULL, NULL, '000000', '采购申请', '财务复核', 'PO-20260307-018', 'M', '1', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), '处理中'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_todo_task` WHERE `todo_id` = 2);
 
-INSERT INTO `sys_todo_task` (`todo_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
-SELECT 3, '000000', '合同归档', '档案确认', 'CT-20260306-021', 'L', '0', 1, DATE_ADD(NOW(), INTERVAL 3 DAY), NOW(), '待签收'
+INSERT INTO `sys_todo_task` (`todo_id`, `instance_id`, `task_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
+SELECT 3, NULL, NULL, '000000', '合同归档', '档案确认', 'CT-20260306-021', 'L', '0', 1, DATE_ADD(NOW(), INTERVAL 3 DAY), NOW(), '待签收'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_todo_task` WHERE `todo_id` = 3);
 
-INSERT INTO `sys_todo_task` (`todo_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
-SELECT 4, '000000', '采购审批流程', '部门负责人审批', 'PO-20260309-001', 'M', '0', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), '流程引擎初始化待办'
+INSERT INTO `sys_todo_task` (`todo_id`, `instance_id`, `task_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
+SELECT 4, 1, 1, '000000', '采购审批流程', '部门负责人审批', 'PO-20260309-001', 'M', '0', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), '流程引擎初始化待办'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_todo_task` WHERE `todo_id` = 4);
 
 INSERT INTO `sys_wf_task` (`task_id`, `tenant_id`, `instance_id`, `definition_id`, `node_key`, `node_name`, `candidate_user_ids`, `assignee_user_id`, `assignee_user_name`, `assignee_nick_name`, `status`, `todo_id`, `due_time`, `create_time`)
@@ -627,6 +669,13 @@ WHERE NOT EXISTS (SELECT 1 FROM `sys_wf_task` WHERE `task_id` = 1);
 INSERT INTO `sys_wf_task_action` (`action_id`, `tenant_id`, `instance_id`, `task_id`, `definition_id`, `node_name`, `action_type`, `action_user_id`, `action_user_name`, `action_nick_name`, `to_assignee_user_id`, `action_comment`, `action_time`)
 SELECT 1, '000000', 1, 1, 1, '部门负责人审批', 'START', 1, 'admin', '系统管理员', 1, '流程发起', NOW()
 WHERE NOT EXISTS (SELECT 1 FROM `sys_wf_task_action` WHERE `action_id` = 1);
+
+UPDATE `sys_todo_task` todo
+INNER JOIN `sys_wf_task` task ON task.todo_id = todo.todo_id
+SET todo.instance_id = IFNULL(todo.instance_id, task.instance_id),
+    todo.task_id = IFNULL(todo.task_id, task.task_id)
+WHERE todo.instance_id IS NULL
+   OR todo.task_id IS NULL;
 
 -- 8) 补齐平台菜单与系统新增菜单
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)

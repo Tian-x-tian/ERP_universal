@@ -1,11 +1,19 @@
 package com.erp.system.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysTodoTask;
+import com.erp.system.domain.SysUser;
+import com.erp.system.domain.SysWorkflowTask;
+import com.erp.system.domain.vo.WorkflowTaskActionBody;
+import com.erp.system.mapper.SysWorkflowTaskMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.ISysTodoTaskService;
+import com.erp.system.service.ISysUserService;
+import com.erp.system.service.ISysWorkflowEngineService;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,10 +31,20 @@ import java.util.List;
 public class SysTodoTaskController {
 
     private final ISysTodoTaskService todoTaskService;
+    private final ISysWorkflowEngineService workflowEngineService;
+    private final ISysUserService userService;
+    private final SysWorkflowTaskMapper workflowTaskMapper;
     private final SecurityUserResolver securityUserResolver;
 
-    public SysTodoTaskController(ISysTodoTaskService todoTaskService, SecurityUserResolver securityUserResolver) {
+    public SysTodoTaskController(ISysTodoTaskService todoTaskService,
+                                 ISysWorkflowEngineService workflowEngineService,
+                                 ISysUserService userService,
+                                 SysWorkflowTaskMapper workflowTaskMapper,
+                                 SecurityUserResolver securityUserResolver) {
         this.todoTaskService = todoTaskService;
+        this.workflowEngineService = workflowEngineService;
+        this.userService = userService;
+        this.workflowTaskMapper = workflowTaskMapper;
         this.securityUserResolver = securityUserResolver;
     }
 
@@ -39,11 +57,11 @@ public class SysTodoTaskController {
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:todo:list')")
     public R<List<SysTodoTask>> list(@RequestParam(value = "status", required = false) String status) {
-        Long currentUserId = resolveCurrentUserId();
-        if (currentUserId == null) {
+        CurrentUser currentUser = resolveCurrentUser();
+        if (currentUser.userId == null) {
             return R.failed(ResultCode.UNAUTHORIZED);
         }
-        return R.success(todoTaskService.selectByCurrentUser(currentUserId, status));
+        return R.success(todoTaskService.selectByCurrentUser(currentUser.userId, status));
     }
 
     /**
@@ -55,11 +73,18 @@ public class SysTodoTaskController {
     @PostMapping("/claim/{todoId}")
     @PreAuthorize("@ss.hasPermi('system:todo:handle')")
     public R<Boolean> claim(@PathVariable("todoId") Long todoId) {
-        Long currentUserId = resolveCurrentUserId();
-        if (currentUserId == null) {
+        CurrentUser currentUser = resolveCurrentUser();
+        if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
             return R.failed(ResultCode.UNAUTHORIZED);
         }
-        boolean success = todoTaskService.claim(todoId, currentUserId);
+        SysTodoTask todoTask = todoTaskService.getById(todoId);
+        if (todoTask == null || todoTask.getAssigneeUserId() == null || !currentUser.userId.equals(todoTask.getAssigneeUserId())) {
+            return R.failed("待办不存在或无权限签收");
+        }
+        Long workflowTaskId = resolveWorkflowTaskId(todoTask);
+        boolean success = workflowTaskId == null
+                ? todoTaskService.claim(todoId, currentUser.userId)
+                : workflowEngineService.claimTask(workflowTaskId, currentUser.userId, currentUser.userName, currentUser.nickName);
         return success ? R.success(true) : R.failed("待办签收失败");
     }
 
@@ -72,20 +97,90 @@ public class SysTodoTaskController {
     @PostMapping("/finish/{todoId}")
     @PreAuthorize("@ss.hasPermi('system:todo:handle')")
     public R<Boolean> finish(@PathVariable("todoId") Long todoId) {
-        Long currentUserId = resolveCurrentUserId();
-        if (currentUserId == null) {
+        CurrentUser currentUser = resolveCurrentUser();
+        if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
             return R.failed(ResultCode.UNAUTHORIZED);
         }
-        boolean success = todoTaskService.finish(todoId, currentUserId);
+        SysTodoTask todoTask = todoTaskService.getById(todoId);
+        if (todoTask == null || todoTask.getAssigneeUserId() == null || !currentUser.userId.equals(todoTask.getAssigneeUserId())) {
+            return R.failed("待办不存在或无权限办结");
+        }
+        Long workflowTaskId = resolveWorkflowTaskId(todoTask);
+        boolean success;
+        if (workflowTaskId == null) {
+            success = todoTaskService.finish(todoId, currentUser.userId);
+        } else {
+            WorkflowTaskActionBody actionBody = new WorkflowTaskActionBody();
+            actionBody.setActionComment("待办中心办结");
+            success = workflowEngineService.approveTask(workflowTaskId, actionBody, currentUser.userId, currentUser.userName, currentUser.nickName);
+        }
         return success ? R.success(true) : R.failed("待办办结失败");
     }
 
     /**
-     * 获取当前登录用户ID。
+     * 解析待办关联的流程任务ID，历史数据缺失回链时自动补链。
      *
-     * @return 当前用户ID，未登录时返回 null
+     * @param todoTask 待办任务
+     * @return 流程任务ID
      */
-    private Long resolveCurrentUserId() {
-        return securityUserResolver.getCurrentUserId();
+    private Long resolveWorkflowTaskId(SysTodoTask todoTask) {
+        if (todoTask == null || todoTask.getTodoId() == null) {
+            return null;
+        }
+        if (todoTask.getTaskId() != null) {
+            return todoTask.getTaskId();
+        }
+        SysWorkflowTask workflowTask = workflowTaskMapper.selectOne(new LambdaQueryWrapper<SysWorkflowTask>()
+                .eq(SysWorkflowTask::getTodoId, todoTask.getTodoId())
+                .orderByDesc(SysWorkflowTask::getTaskId)
+                .last("LIMIT 1"));
+        if (workflowTask == null || workflowTask.getTaskId() == null) {
+            return null;
+        }
+        SysTodoTask updateTodo = new SysTodoTask();
+        updateTodo.setTodoId(todoTask.getTodoId());
+        updateTodo.setInstanceId(workflowTask.getInstanceId());
+        updateTodo.setTaskId(workflowTask.getTaskId());
+        todoTaskService.updateById(updateTodo);
+        return workflowTask.getTaskId();
+    }
+
+    /**
+     * 获取当前登录用户上下文。
+     *
+     * @return 当前用户上下文
+     */
+    private CurrentUser resolveCurrentUser() {
+        String userName = securityUserResolver.getCurrentUsername();
+        if (!StringUtils.hasText(userName)) {
+            return new CurrentUser(null, null, null);
+        }
+        SysUser user = userService.selectUserByUserName(userName);
+        if (user == null) {
+            return new CurrentUser(null, userName, null);
+        }
+        return new CurrentUser(user.getUserId(), user.getUserName(), user.getNickName());
+    }
+
+    /**
+     * 当前登录用户结构对象。
+     */
+    private static final class CurrentUser {
+        private final Long userId;
+        private final String userName;
+        private final String nickName;
+
+        /**
+         * 构造当前登录用户结构对象。
+         *
+         * @param userId   用户ID
+         * @param userName 用户账号
+         * @param nickName 用户昵称
+         */
+        private CurrentUser(Long userId, String userName, String nickName) {
+            this.userId = userId;
+            this.userName = userName;
+            this.nickName = nickName;
+        }
     }
 }

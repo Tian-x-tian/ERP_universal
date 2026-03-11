@@ -87,6 +87,7 @@ class SysWorkflowDefinitionServiceImplTest {
         definition.setProcessKey("purchase_apply");
         definition.setProcessName("采购审批流程");
         definition.setCategory("purchase");
+        definition.setModelContent("{\"startNodeKey\":\"START_1\",\"nodes\":[{\"nodeKey\":\"START_1\",\"nodeType\":\"start\"},{\"nodeKey\":\"NODE_1\",\"nodeType\":\"approval\"}],\"edges\":[{\"from\":\"START_1\",\"to\":\"NODE_1\"}]}");
         when(workflowDefinitionMapper.selectOne(any(), anyBoolean())).thenReturn(null);
         when(workflowDefinitionMapper.selectCount(any())).thenReturn(0L);
         when(workflowDefinitionMapper.insert(any(SysWorkflowDefinition.class))).thenReturn(1);
@@ -95,6 +96,21 @@ class SysWorkflowDefinitionServiceImplTest {
 
         Assertions.assertTrue(success);
         Assertions.assertEquals(1, definition.getVersion());
+    }
+
+    /**
+     * 验证流程定义模型缺少审批节点时不允许新增。
+     */
+    @Test
+    void shouldRejectCreateDefinitionWhenModelInvalid() {
+        SysWorkflowDefinition definition = new SysWorkflowDefinition();
+        definition.setProcessKey("invalid_apply");
+        definition.setProcessName("无审批定义");
+        definition.setModelContent("{\"startNodeKey\":\"START_1\",\"nodes\":[{\"nodeKey\":\"START_1\",\"nodeType\":\"start\"},{\"nodeKey\":\"END_1\",\"nodeType\":\"end\"}],\"edges\":[{\"from\":\"START_1\",\"to\":\"END_1\"}]}");
+
+        boolean success = workflowDefinitionService.createDefinition(definition, "admin");
+
+        Assertions.assertFalse(success);
     }
 
     /**

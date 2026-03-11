@@ -4,8 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.system.domain.SysNotice;
+import com.erp.system.domain.SysDept;
 import com.erp.system.domain.SysTodoTask;
 import com.erp.system.domain.SysUser;
+import com.erp.system.domain.SysUserPost;
+import com.erp.system.domain.SysUserRole;
 import com.erp.system.domain.SysWorkflowDefinition;
 import com.erp.system.domain.SysWorkflowInstance;
 import com.erp.system.domain.SysWorkflowTask;
@@ -18,11 +21,15 @@ import com.erp.system.domain.vo.WorkflowTaskFormVO;
 import com.erp.system.domain.vo.WorkflowTaskRemindBody;
 import com.erp.system.domain.vo.WorkflowTaskReturnBody;
 import com.erp.system.domain.vo.WorkflowTaskTransferBody;
+import com.erp.system.domain.vo.WorkflowSlaScanResultVO;
 import com.erp.system.mapper.SysWorkflowInstanceMapper;
 import com.erp.system.mapper.SysWorkflowTaskActionMapper;
 import com.erp.system.mapper.SysWorkflowTaskMapper;
+import com.erp.system.service.ISysDeptService;
 import com.erp.system.service.ISysNoticeService;
 import com.erp.system.service.ISysTodoTaskService;
+import com.erp.system.service.ISysUserPostService;
+import com.erp.system.service.ISysUserRoleService;
 import com.erp.system.service.ISysUserService;
 import com.erp.system.service.ISysWorkflowDefinitionService;
 import com.erp.system.service.ISysWorkflowEngineService;
@@ -34,6 +41,7 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -66,6 +74,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
     private static final String TODO_STATUS_FINISHED = "2";
 
     private static final String ACTION_START = "START";
+    private static final String ACTION_CLAIM = "CLAIM";
     private static final String ACTION_APPROVE = "APPROVE";
     private static final String ACTION_REJECT = "REJECT";
     private static final String ACTION_TRANSFER = "TRANSFER";
@@ -76,6 +85,12 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
     private static final String ACTION_DELEGATE = "DELEGATE";
     private static final String ACTION_REMIND = "REMIND";
     private static final String ACTION_CC = "CC";
+    private static final String ACTION_TIMEOUT_REMIND = "TIMEOUT_REMIND";
+    private static final String ACTION_TIMEOUT_ESCALATE = "TIMEOUT_ESCALATE";
+    private static final String ACTION_TIMEOUT_TRANSFER = "TIMEOUT_TRANSFER";
+    private static final Long SYSTEM_ACTION_USER_ID = 0L;
+    private static final String SYSTEM_ACTION_USER_NAME = "system";
+    private static final String SYSTEM_ACTION_USER_NICK = "系统调度";
 
     private final SysWorkflowInstanceMapper workflowInstanceMapper;
     private final SysWorkflowTaskMapper workflowTaskMapper;
@@ -84,6 +99,9 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
     private final ISysTodoTaskService todoTaskService;
     private final ISysNoticeService noticeService;
     private final ISysUserService userService;
+    private final ISysDeptService deptService;
+    private final ISysUserRoleService userRoleService;
+    private final ISysUserPostService userPostService;
     private final ObjectMapper objectMapper;
 
     public SysWorkflowEngineServiceImpl(
@@ -93,7 +111,10 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             ISysWorkflowDefinitionService workflowDefinitionService,
             ISysTodoTaskService todoTaskService,
             ISysNoticeService noticeService,
-            ISysUserService userService) {
+            ISysUserService userService,
+            ISysDeptService deptService,
+            ISysUserRoleService userRoleService,
+            ISysUserPostService userPostService) {
         this.workflowInstanceMapper = workflowInstanceMapper;
         this.workflowTaskMapper = workflowTaskMapper;
         this.workflowTaskActionMapper = workflowTaskActionMapper;
@@ -101,6 +122,9 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         this.todoTaskService = todoTaskService;
         this.noticeService = noticeService;
         this.userService = userService;
+        this.deptService = deptService;
+        this.userRoleService = userRoleService;
+        this.userPostService = userPostService;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -171,18 +195,25 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
     public boolean startProcess(WorkflowStartBody startBody, Long initiatorUserId, String initiatorName, String initiatorNick) {
         if (startBody == null || initiatorUserId == null
                 || !StringUtils.hasText(initiatorName)
-                || !StringUtils.hasText(startBody.getProcessKey())
-                || !StringUtils.hasText(startBody.getBusinessNo())) {
+                || !StringUtils.hasText(startBody.getProcessKey())) {
             return false;
         }
-        SysWorkflowDefinition definition = workflowDefinitionService.selectLatestPublishedByProcessKey(startBody.getProcessKey());
+        String processKey = startBody.getProcessKey().trim();
+        SysWorkflowDefinition definition = workflowDefinitionService.selectLatestPublishedByProcessKey(processKey);
         if (definition == null) {
             return false;
         }
 
         Date now = new Date();
+        WorkflowModel model = parseWorkflowModel(definition.getModelContent());
+        if (!isRunnableStartModel(model)) {
+            return false;
+        }
         String tenantId = resolveTenantId();
         AssigneeInfo assigneeInfo = resolveAssignee(startBody, initiatorUserId, initiatorName, initiatorNick);
+        String businessNo = resolveBusinessNo(startBody, definition, now);
+        String businessType = resolveBusinessType(startBody.getBusinessType(), definition);
+        String formData = normalizeJsonText(startBody.getFormData(), "{}");
 
         SysWorkflowInstance instance = new SysWorkflowInstance();
         instance.setTenantId(tenantId);
@@ -191,9 +222,9 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         instance.setProcessKey(definition.getProcessKey());
         instance.setProcessName(definition.getProcessName());
         instance.setCategory(definition.getCategory());
-        instance.setBusinessNo(startBody.getBusinessNo().trim());
-        instance.setBusinessType(normalizeText(startBody.getBusinessType()));
-        instance.setFormData(normalizeJsonText(startBody.getFormData()));
+        instance.setBusinessNo(businessNo);
+        instance.setBusinessType(businessType);
+        instance.setFormData(formData);
         instance.setFormSchemaSnapshot(definition.getFormSchema());
         instance.setModelContentSnapshot(definition.getModelContent());
         instance.setCurrentNode(resolveNodeName(startBody.getNodeName()));
@@ -211,7 +242,6 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             return false;
         }
 
-        WorkflowModel model = parseWorkflowModel(instance.getModelContentSnapshot());
         RouteResult routeResult = activateByModel(model,
                 instance,
                 model.resolveStartNodeKey(),
@@ -220,27 +250,17 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
                 assigneeInfo,
                 initiateActionContext(initiatorUserId, initiatorName, initiatorNick));
 
-        SysWorkflowTask workflowTask;
         if (routeResult.createdTasks.isEmpty()) {
-            workflowTask = createTaskForAssignee(instance,
-                    "NODE_1",
-                    instance.getCurrentNode(),
-                    assigneeInfo,
-                    startBody.getDueTime(),
-                    now);
-            if (workflowTask == null) {
-                return false;
-            }
-        } else {
-            workflowTask = routeResult.createdTasks.get(0);
-            updateInstanceStatus(instance.getInstanceId(),
-                    INSTANCE_STATUS_RUNNING,
-                    joinNodeNames(routeResult.activeNodeNames),
-                    ACTION_START,
-                    initiatorUserId,
-                    initiatorName,
-                    now);
+            return false;
         }
+        SysWorkflowTask workflowTask = routeResult.createdTasks.get(0);
+        updateInstanceStatus(instance.getInstanceId(),
+                INSTANCE_STATUS_RUNNING,
+                joinNodeNames(routeResult.activeNodeNames),
+                ACTION_START,
+                initiatorUserId,
+                initiatorName,
+                now);
 
         if (!recordTaskAction(instance, workflowTask, ACTION_START, initiatorUserId, initiatorName, initiatorNick, null, null, "流程发起")) {
             return false;
@@ -268,6 +288,67 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         queryWrapper.orderByDesc(SysWorkflowTask::getCreateTime)
                 .orderByDesc(SysWorkflowTask::getTaskId);
         return workflowTaskMapper.selectList(queryWrapper);
+    }
+
+    /**
+     * 签收审批任务。
+     *
+     * @param taskId          任务ID
+     * @param actionUserId    操作人用户ID
+     * @param actionUserName  操作人账号
+     * @param actionUserNick  操作人昵称
+     * @return 签收结果
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean claimTask(Long taskId, Long actionUserId, String actionUserName, String actionUserNick) {
+        if (taskId == null || actionUserId == null || !StringUtils.hasText(actionUserName)) {
+            return false;
+        }
+        SysWorkflowTask task = workflowTaskMapper.selectById(taskId);
+        if (task == null || task.getAssigneeUserId() == null || !actionUserId.equals(task.getAssigneeUserId())) {
+            return false;
+        }
+        if (TASK_STATUS_PROCESSING.equals(task.getStatus())) {
+            return true;
+        }
+        if (!TASK_STATUS_PENDING.equals(task.getStatus())) {
+            return false;
+        }
+        SysWorkflowInstance instance = workflowInstanceMapper.selectById(task.getInstanceId());
+        if (instance == null) {
+            return false;
+        }
+        Date now = new Date();
+        SysWorkflowTask updateTask = new SysWorkflowTask();
+        updateTask.setTaskId(task.getTaskId());
+        updateTask.setStatus(TASK_STATUS_PROCESSING);
+        updateTask.setClaimTime(now);
+        if (workflowTaskMapper.updateById(updateTask) <= 0) {
+            return false;
+        }
+
+        if (task.getTodoId() != null) {
+            SysTodoTask updateTodo = new SysTodoTask();
+            updateTodo.setTodoId(task.getTodoId());
+            updateTodo.setStatus(TODO_STATUS_PROCESSING);
+            updateTodo.setClaimTime(now);
+            updateTodo.setRemark("待办中心签收");
+            todoTaskService.updateById(updateTodo);
+        }
+
+        if (!recordTaskAction(instance, task, ACTION_CLAIM, actionUserId, actionUserName, actionUserNick,
+                null, task.getAssigneeUserId(), "待办中心签收")) {
+            return false;
+        }
+        updateInstanceStatus(task.getInstanceId(),
+                INSTANCE_STATUS_RUNNING,
+                resolveRunningNodeName(task.getInstanceId(), task.getNodeName()),
+                ACTION_CLAIM,
+                actionUserId,
+                actionUserName,
+                now);
+        return true;
     }
 
     /**
@@ -788,6 +869,73 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
     }
 
     /**
+     * 执行流程任务 SLA 扫描。
+     *
+     * @return 扫描结果
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public WorkflowSlaScanResultVO scanTimeoutTasks() {
+        WorkflowSlaScanResultVO resultVO = new WorkflowSlaScanResultVO();
+        resultVO.setScanTime(new Date());
+        List<SysWorkflowTask> pendingTaskList = workflowTaskMapper.selectList(new LambdaQueryWrapper<SysWorkflowTask>()
+                .in(SysWorkflowTask::getStatus, TASK_STATUS_PENDING, TASK_STATUS_PROCESSING)
+                .isNotNull(SysWorkflowTask::getDueTime)
+                .orderByAsc(SysWorkflowTask::getDueTime)
+                .orderByAsc(SysWorkflowTask::getTaskId));
+        resultVO.setScannedCount(pendingTaskList.size());
+
+        Date now = new Date();
+        for (SysWorkflowTask task : pendingTaskList) {
+            if (task == null || task.getDueTime() == null) {
+                resultVO.setSkippedCount(resultVO.getSkippedCount() + 1);
+                continue;
+            }
+            SysWorkflowInstance instance = workflowInstanceMapper.selectById(task.getInstanceId());
+            if (instance == null) {
+                resultVO.setSkippedCount(resultVO.getSkippedCount() + 1);
+                continue;
+            }
+            WorkflowModel model = parseWorkflowModel(instance.getModelContentSnapshot());
+            WorkflowSlaConfig slaConfig = resolveEffectiveSlaConfig(model, task.getNodeKey());
+            if (slaConfig == null || !slaConfig.enabled) {
+                resultVO.setSkippedCount(resultVO.getSkippedCount() + 1);
+                continue;
+            }
+            if (shouldSendTimeoutWarning(task, slaConfig, now) && !hasTaskAction(task.getTaskId(), ACTION_TIMEOUT_REMIND)) {
+                sendTimeoutWarning(task, instance, slaConfig);
+                resultVO.setWarningCount(resultVO.getWarningCount() + 1);
+                resultVO.setRemindedCount(resultVO.getRemindedCount() + 1);
+            }
+            if (!now.after(task.getDueTime())) {
+                continue;
+            }
+            resultVO.setOverdueCount(resultVO.getOverdueCount() + 1);
+            boolean handoverCompleted = false;
+            if (slaConfig.actionSet.contains("ESCALATE") && !hasTaskAction(task.getTaskId(), ACTION_TIMEOUT_ESCALATE)) {
+                if (escalateTimeoutTask(task, instance, slaConfig, now)) {
+                    resultVO.setEscalatedCount(resultVO.getEscalatedCount() + 1);
+                    handoverCompleted = true;
+                } else {
+                    resultVO.setSkippedCount(resultVO.getSkippedCount() + 1);
+                }
+            }
+            if (handoverCompleted && slaConfig.actionSet.contains("TRANSFER")) {
+                resultVO.setSkippedCount(resultVO.getSkippedCount() + 1);
+                continue;
+            }
+            if (slaConfig.actionSet.contains("TRANSFER") && !hasTaskAction(task.getTaskId(), ACTION_TIMEOUT_TRANSFER)) {
+                if (autoTransferTimeoutTask(task, instance, slaConfig, now)) {
+                    resultVO.setTransferredCount(resultVO.getTransferredCount() + 1);
+                } else {
+                    resultVO.setSkippedCount(resultVO.getSkippedCount() + 1);
+                }
+            }
+        }
+        return resultVO;
+    }
+
+    /**
      * 校验当前任务是否允许被当前用户处理。
      *
      * @param task   流程任务
@@ -802,6 +950,306 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             return false;
         }
         return TASK_STATUS_PENDING.equals(task.getStatus()) || TASK_STATUS_PROCESSING.equals(task.getStatus());
+    }
+
+    /**
+     * 判断当前任务是否需要发送超时提醒。
+     *
+     * @param task      流程任务
+     * @param slaConfig SLA 配置
+     * @param now       当前时间
+     * @return true 表示需要提醒
+     */
+    private boolean shouldSendTimeoutWarning(SysWorkflowTask task, WorkflowSlaConfig slaConfig, Date now) {
+        if (task == null || task.getDueTime() == null || slaConfig == null || !slaConfig.enabled) {
+            return false;
+        }
+        long remindMillis = Math.max(0, slaConfig.reminderBeforeMinutes) * 60000L;
+        long warningTime = task.getDueTime().getTime() - remindMillis;
+        return now.getTime() >= warningTime;
+    }
+
+    /**
+     * 发送节点超时提醒。
+     *
+     * @param task      流程任务
+     * @param instance  流程实例
+     * @param slaConfig SLA 配置
+     */
+    private void sendTimeoutWarning(SysWorkflowTask task, SysWorkflowInstance instance, WorkflowSlaConfig slaConfig) {
+        if (task == null || instance == null || task.getAssigneeUserId() == null) {
+            return;
+        }
+        String message = "流程【" + instance.getProcessName() + "】节点【" + task.getNodeName() + "】即将或已经超时，请及时处理。";
+        pushNoticeToUser(instance.getTenantId(),
+                task.getAssigneeUserId(),
+                "超时提醒：" + instance.getProcessName(),
+                "预警提醒",
+                "流程引擎",
+                instance.getBusinessNo(),
+                message,
+                normalizeChannels(slaConfig.channels));
+        recordTaskAction(instance, task, ACTION_TIMEOUT_REMIND, SYSTEM_ACTION_USER_ID, SYSTEM_ACTION_USER_NAME,
+                SYSTEM_ACTION_USER_NICK, null, task.getAssigneeUserId(), message);
+        updateInstanceStatus(instance.getInstanceId(), INSTANCE_STATUS_RUNNING, task.getNodeName(), ACTION_TIMEOUT_REMIND,
+                SYSTEM_ACTION_USER_ID, SYSTEM_ACTION_USER_NAME, new Date());
+    }
+
+    /**
+     * 执行超时自动升级。
+     *
+     * @param task      流程任务
+     * @param instance  流程实例
+     * @param slaConfig SLA 配置
+     * @param now       当前时间
+     * @return true 表示执行成功
+     */
+    private boolean escalateTimeoutTask(SysWorkflowTask task,
+                                        SysWorkflowInstance instance,
+                                        WorkflowSlaConfig slaConfig,
+                                        Date now) {
+        if (task == null || instance == null || slaConfig == null) {
+            return false;
+        }
+        AssigneeInfo targetAssignee = resolveSlaTargetAssignee(slaConfig, true, instance);
+        if (targetAssignee == null || targetAssignee.userId == null) {
+            return false;
+        }
+        if (Objects.equals(task.getAssigneeUserId(), targetAssignee.userId)) {
+            return false;
+        }
+        SysWorkflowTask closeTask = new SysWorkflowTask();
+        closeTask.setTaskId(task.getTaskId());
+        closeTask.setStatus(TASK_STATUS_CANCELED);
+        closeTask.setActionComment("SLA 超时自动升级");
+        closeTask.setClaimTime(task.getClaimTime() == null ? now : task.getClaimTime());
+        closeTask.setFinishTime(now);
+        if (workflowTaskMapper.updateById(closeTask) <= 0) {
+            return false;
+        }
+        finishTodoTask(task.getTodoId(), SYSTEM_ACTION_USER_ID, "SLA 超时自动升级");
+
+        Date nextDueTime = resolveTransferredTaskDueTime(slaConfig, task.getDueTime(), now);
+        SysTodoTask newTodoTask = new SysTodoTask();
+        newTodoTask.setInstanceId(task.getInstanceId());
+        newTodoTask.setTenantId(instance.getTenantId());
+        newTodoTask.setProcessName(instance.getProcessName());
+        newTodoTask.setNodeName(task.getNodeName());
+        newTodoTask.setBusinessNo(instance.getBusinessNo());
+        newTodoTask.setPriority("H");
+        newTodoTask.setStatus(TODO_STATUS_PENDING);
+        newTodoTask.setAssigneeUserId(targetAssignee.userId);
+        newTodoTask.setDueTime(nextDueTime);
+        newTodoTask.setCreateTime(now);
+        newTodoTask.setRemark("系统按 SLA 自动升级");
+        if (!todoTaskService.save(newTodoTask)) {
+            return false;
+        }
+
+        SysWorkflowTask escalateTask = new SysWorkflowTask();
+        escalateTask.setTenantId(task.getTenantId());
+        escalateTask.setInstanceId(task.getInstanceId());
+        escalateTask.setDefinitionId(task.getDefinitionId());
+        escalateTask.setNodeKey(task.getNodeKey());
+        escalateTask.setNodeName(task.getNodeName());
+        escalateTask.setCandidateUserIds(String.valueOf(targetAssignee.userId));
+        escalateTask.setAssigneeUserId(targetAssignee.userId);
+        escalateTask.setAssigneeUserName(targetAssignee.userName);
+        escalateTask.setAssigneeNickName(targetAssignee.nickName);
+        escalateTask.setStatus(TASK_STATUS_PENDING);
+        escalateTask.setTodoId(newTodoTask.getTodoId());
+        escalateTask.setDueTime(nextDueTime);
+        escalateTask.setCreateTime(now);
+        if (workflowTaskMapper.insert(escalateTask) <= 0) {
+            return false;
+        }
+        bindTodoWorkflowLink(newTodoTask, escalateTask);
+        String message = "流程【" + instance.getProcessName() + "】节点【" + task.getNodeName() + "】已超时，已自动升级到您跟进。";
+        pushNoticeToUser(instance.getTenantId(),
+                targetAssignee.userId,
+                "超时升级：" + instance.getProcessName(),
+                "预警提醒",
+                "流程引擎",
+                instance.getBusinessNo(),
+                message,
+                normalizeChannels(slaConfig.channels));
+        recordTaskAction(instance, task, ACTION_TIMEOUT_ESCALATE, SYSTEM_ACTION_USER_ID, SYSTEM_ACTION_USER_NAME,
+                SYSTEM_ACTION_USER_NICK, task.getAssigneeUserId(), targetAssignee.userId, message);
+        updateInstanceStatus(instance.getInstanceId(), INSTANCE_STATUS_RUNNING, task.getNodeName(), ACTION_TIMEOUT_ESCALATE,
+                SYSTEM_ACTION_USER_ID, SYSTEM_ACTION_USER_NAME, new Date());
+        return true;
+    }
+
+    /**
+     * 执行超时自动转办。
+     *
+     * @param task      流程任务
+     * @param instance  流程实例
+     * @param slaConfig SLA 配置
+     * @param now       当前时间
+     * @return true 表示执行成功
+     */
+    private boolean autoTransferTimeoutTask(SysWorkflowTask task,
+                                            SysWorkflowInstance instance,
+                                            WorkflowSlaConfig slaConfig,
+                                            Date now) {
+        if (task == null || instance == null || slaConfig == null) {
+            return false;
+        }
+        AssigneeInfo targetAssignee = resolveSlaTargetAssignee(slaConfig, false, instance);
+        if (targetAssignee == null || targetAssignee.userId == null) {
+            return false;
+        }
+        if (Objects.equals(task.getAssigneeUserId(), targetAssignee.userId)) {
+            return false;
+        }
+
+        SysWorkflowTask updateTask = new SysWorkflowTask();
+        updateTask.setTaskId(task.getTaskId());
+        updateTask.setStatus(TASK_STATUS_TRANSFERRED);
+        updateTask.setActionComment("SLA 超时自动转办");
+        updateTask.setClaimTime(task.getClaimTime() == null ? now : task.getClaimTime());
+        updateTask.setFinishTime(now);
+        if (workflowTaskMapper.updateById(updateTask) <= 0) {
+            return false;
+        }
+        finishTodoTask(task.getTodoId(), SYSTEM_ACTION_USER_ID, "SLA 超时自动转办");
+
+        Date nextDueTime = resolveTransferredTaskDueTime(slaConfig, task.getDueTime(), now);
+        SysTodoTask newTodoTask = new SysTodoTask();
+        newTodoTask.setInstanceId(task.getInstanceId());
+        newTodoTask.setTenantId(instance.getTenantId());
+        newTodoTask.setProcessName(instance.getProcessName());
+        newTodoTask.setNodeName(task.getNodeName());
+        newTodoTask.setBusinessNo(instance.getBusinessNo());
+        newTodoTask.setPriority("H");
+        newTodoTask.setStatus(TODO_STATUS_PENDING);
+        newTodoTask.setAssigneeUserId(targetAssignee.userId);
+        newTodoTask.setDueTime(nextDueTime);
+        newTodoTask.setCreateTime(now);
+        newTodoTask.setRemark("系统按 SLA 自动转办");
+        if (!todoTaskService.save(newTodoTask)) {
+            return false;
+        }
+
+        SysWorkflowTask newTask = new SysWorkflowTask();
+        newTask.setTenantId(task.getTenantId());
+        newTask.setInstanceId(task.getInstanceId());
+        newTask.setDefinitionId(task.getDefinitionId());
+        newTask.setNodeKey(task.getNodeKey());
+        newTask.setNodeName(task.getNodeName());
+        newTask.setCandidateUserIds(String.valueOf(targetAssignee.userId));
+        newTask.setAssigneeUserId(targetAssignee.userId);
+        newTask.setAssigneeUserName(targetAssignee.userName);
+        newTask.setAssigneeNickName(targetAssignee.nickName);
+        newTask.setStatus(TASK_STATUS_PENDING);
+        newTask.setTodoId(newTodoTask.getTodoId());
+        newTask.setDueTime(nextDueTime);
+        newTask.setCreateTime(now);
+        if (workflowTaskMapper.insert(newTask) <= 0) {
+            return false;
+        }
+        bindTodoWorkflowLink(newTodoTask, newTask);
+        String message = "流程【" + instance.getProcessName() + "】节点【" + task.getNodeName() + "】因超时已自动转办给您。";
+        recordTaskAction(instance, task, ACTION_TIMEOUT_TRANSFER, SYSTEM_ACTION_USER_ID, SYSTEM_ACTION_USER_NAME,
+                SYSTEM_ACTION_USER_NICK, task.getAssigneeUserId(), targetAssignee.userId, message);
+        updateInstanceStatus(instance.getInstanceId(), INSTANCE_STATUS_RUNNING, task.getNodeName(), ACTION_TIMEOUT_TRANSFER,
+                SYSTEM_ACTION_USER_ID, SYSTEM_ACTION_USER_NAME, now);
+        pushNoticeToUser(instance.getTenantId(),
+                targetAssignee.userId,
+                "超时转办：" + instance.getProcessName(),
+                "预警提醒",
+                "流程引擎",
+                instance.getBusinessNo(),
+                message,
+                normalizeChannels(slaConfig.channels));
+        return true;
+    }
+
+    /**
+     * 计算转办后新的截止时间。
+     *
+     * @param slaConfig    SLA 配置
+     * @param previousDue  原截止时间
+     * @param now          当前时间
+     * @return 新截止时间
+     */
+    private Date resolveTransferredTaskDueTime(WorkflowSlaConfig slaConfig, Date previousDue, Date now) {
+        if (slaConfig != null && slaConfig.durationMinutes > 0) {
+            return new Date(now.getTime() + slaConfig.durationMinutes * 60000L);
+        }
+        return previousDue;
+    }
+
+    /**
+     * 判断任务是否已经存在指定动作记录。
+     *
+     * @param taskId      任务ID
+     * @param actionType  动作类型
+     * @return true 表示已存在
+     */
+    private boolean hasTaskAction(Long taskId, String actionType) {
+        if (taskId == null || !StringUtils.hasText(actionType)) {
+            return false;
+        }
+        return workflowTaskActionMapper.selectCount(new LambdaQueryWrapper<SysWorkflowTaskAction>()
+                .eq(SysWorkflowTaskAction::getTaskId, taskId)
+                .eq(SysWorkflowTaskAction::getActionType, actionType.trim())) > 0;
+    }
+
+    /**
+     * 解析节点生效的 SLA 配置。
+     *
+     * @param model   流程模型
+     * @param nodeKey 节点编码
+     * @return 生效配置
+     */
+    private WorkflowSlaConfig resolveEffectiveSlaConfig(WorkflowModel model, String nodeKey) {
+        if (model == null) {
+            return null;
+        }
+        WorkflowSlaConfig globalConfig = model.slaConfig == null ? new WorkflowSlaConfig() : model.slaConfig;
+        WorkflowNode node = model.nodeMap.get(nodeKey);
+        if (node == null || node.slaConfig == null) {
+            return globalConfig;
+        }
+        return mergeSlaConfig(globalConfig, node.slaConfig);
+    }
+
+    /**
+     * 合并流程级与节点级 SLA 配置。
+     *
+     * @param globalConfig 流程级配置
+     * @param nodeConfig   节点级配置
+     * @return 合并结果
+     */
+    private WorkflowSlaConfig mergeSlaConfig(WorkflowSlaConfig globalConfig, WorkflowSlaConfig nodeConfig) {
+        WorkflowSlaConfig mergedConfig = new WorkflowSlaConfig();
+        mergedConfig.enabled = nodeConfig.enabled || globalConfig.enabled;
+        mergedConfig.durationMinutes = nodeConfig.durationMinutes > 0 ? nodeConfig.durationMinutes : globalConfig.durationMinutes;
+        mergedConfig.reminderBeforeMinutes = nodeConfig.reminderBeforeMinutes > 0
+                ? nodeConfig.reminderBeforeMinutes : globalConfig.reminderBeforeMinutes;
+        mergedConfig.escalateTargetType = StringUtils.hasText(nodeConfig.escalateTargetType)
+                ? nodeConfig.escalateTargetType : globalConfig.escalateTargetType;
+        mergedConfig.escalateToUserId = nodeConfig.escalateToUserId != null ? nodeConfig.escalateToUserId : globalConfig.escalateToUserId;
+        mergedConfig.escalateDeptId = nodeConfig.escalateDeptId != null ? nodeConfig.escalateDeptId : globalConfig.escalateDeptId;
+        mergedConfig.escalateRoleIds.clear();
+        mergedConfig.escalateRoleIds.addAll(nodeConfig.escalateRoleIds.isEmpty() ? globalConfig.escalateRoleIds : nodeConfig.escalateRoleIds);
+        mergedConfig.escalatePostIds.clear();
+        mergedConfig.escalatePostIds.addAll(nodeConfig.escalatePostIds.isEmpty() ? globalConfig.escalatePostIds : nodeConfig.escalatePostIds);
+        mergedConfig.transferTargetType = StringUtils.hasText(nodeConfig.transferTargetType)
+                ? nodeConfig.transferTargetType : globalConfig.transferTargetType;
+        mergedConfig.transferToUserId = nodeConfig.transferToUserId != null ? nodeConfig.transferToUserId : globalConfig.transferToUserId;
+        mergedConfig.transferDeptId = nodeConfig.transferDeptId != null ? nodeConfig.transferDeptId : globalConfig.transferDeptId;
+        mergedConfig.transferRoleIds.clear();
+        mergedConfig.transferRoleIds.addAll(nodeConfig.transferRoleIds.isEmpty() ? globalConfig.transferRoleIds : nodeConfig.transferRoleIds);
+        mergedConfig.transferPostIds.clear();
+        mergedConfig.transferPostIds.addAll(nodeConfig.transferPostIds.isEmpty() ? globalConfig.transferPostIds : nodeConfig.transferPostIds);
+        mergedConfig.channels.clear();
+        mergedConfig.channels.addAll(nodeConfig.channels.isEmpty() ? globalConfig.channels : nodeConfig.channels);
+        mergedConfig.actionSet.clear();
+        mergedConfig.actionSet.addAll(nodeConfig.actionSet.isEmpty() ? globalConfig.actionSet : nodeConfig.actionSet);
+        return mergedConfig;
     }
 
     /**
@@ -861,6 +1309,23 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
     }
 
     /**
+     * 计算节点任务截止时间。
+     *
+     * @param model           流程模型
+     * @param nodeKey         节点编码
+     * @param fallbackDueTime 兜底截止时间
+     * @param createTime      创建时间
+     * @return 节点截止时间
+     */
+    private Date resolveTaskDueTime(WorkflowModel model, String nodeKey, Date fallbackDueTime, Date createTime) {
+        WorkflowSlaConfig slaConfig = resolveEffectiveSlaConfig(model, nodeKey);
+        if (slaConfig != null && slaConfig.enabled && slaConfig.durationMinutes > 0 && createTime != null) {
+            return new Date(createTime.getTime() + slaConfig.durationMinutes * 60000L);
+        }
+        return fallbackDueTime;
+    }
+
+    /**
      * 创建任务及待办。
      *
      * @param instance     流程实例
@@ -881,6 +1346,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             return null;
         }
         SysTodoTask todoTask = new SysTodoTask();
+        todoTask.setInstanceId(instance.getInstanceId());
         todoTask.setTenantId(instance.getTenantId());
         todoTask.setProcessName(instance.getProcessName());
         todoTask.setNodeName(nodeName);
@@ -911,6 +1377,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         if (workflowTaskMapper.insert(workflowTask) <= 0) {
             return null;
         }
+        bindTodoWorkflowLink(todoTask, workflowTask);
         pushNoticeToUser(instance.getTenantId(), assigneeInfo.userId,
                 "收到待审批任务：" + instance.getProcessName(),
                 "审批通知",
@@ -1008,7 +1475,9 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             }
             List<AssigneeInfo> assigneeList = resolveNodeAssignees(instance, node, fallbackAssignee, actionContext);
             for (AssigneeInfo assigneeInfo : assigneeList) {
-                SysWorkflowTask nextTask = createTaskForAssignee(instance, node.nodeKey, node.nodeName, assigneeInfo, dueTime, new Date());
+                Date createTime = new Date();
+                Date nodeDueTime = resolveTaskDueTime(model, node.nodeKey, dueTime, createTime);
+                SysWorkflowTask nextTask = createTaskForAssignee(instance, node.nodeKey, node.nodeName, assigneeInfo, nodeDueTime, createTime);
                 if (nextTask != null) {
                     result.createdTasks.add(nextTask);
                     result.activeNodeNames.add(node.nodeName);
@@ -1106,35 +1575,18 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
      * @return 审批人集合
      */
     private List<AssigneeInfo> resolveNodeAssignees(SysWorkflowInstance instance, WorkflowNode node, AssigneeInfo fallbackAssignee, ActionContext actionContext) {
-        LinkedHashSet<Long> userIds = new LinkedHashSet<>();
-        if (node.assigneeUserId != null) {
-            userIds.add(node.assigneeUserId);
+        if (node == null) {
+            return Collections.emptyList();
         }
-        userIds.addAll(node.candidateUserIds);
-        if (userIds.isEmpty() && StringUtils.hasText(node.assigneeType)) {
-            String assigneeType = node.assigneeType.trim().toUpperCase(Locale.ROOT);
-            if ("INITIATOR".equals(assigneeType) || "ORIGINATOR".equals(assigneeType)
-                    || "DIRECT_LEADER".equals(assigneeType) || "LEADER".equals(assigneeType)) {
-                userIds.add(instance.getInitiatorUserId());
-            }
-        }
-        if (userIds.isEmpty() && fallbackAssignee != null && fallbackAssignee.userId != null) {
-            userIds.add(fallbackAssignee.userId);
-        }
-        if (userIds.isEmpty() && actionContext != null && actionContext.userId != null) {
-            userIds.add(actionContext.userId);
-        }
-        if (userIds.isEmpty() && instance.getInitiatorUserId() != null) {
-            userIds.add(instance.getInitiatorUserId());
-        }
-        List<AssigneeInfo> assigneeList = new ArrayList<>();
-        for (Long userId : userIds) {
-            AssigneeInfo assigneeInfo = resolveExplicitAssignee(userId, null, null);
-            if (assigneeInfo != null) {
-                assigneeList.add(assigneeInfo);
-            }
-        }
-        return assigneeList;
+        return resolveParticipantAssigneeList(node.assigneeType,
+                node.assigneeUserId,
+                node.candidateUserIds,
+                node.assigneeRoleIds,
+                node.assigneePostIds,
+                node.assigneeDeptId,
+                instance,
+                fallbackAssignee,
+                actionContext);
     }
 
     /**
@@ -1212,6 +1664,25 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             return defaultValue;
         }
         return joinNodeNames(nodeNames);
+    }
+
+    /**
+     * 回填待办与流程任务的双向关联字段。
+     *
+     * @param todoTask     待办任务
+     * @param workflowTask 流程任务
+     */
+    private void bindTodoWorkflowLink(SysTodoTask todoTask, SysWorkflowTask workflowTask) {
+        if (todoTask == null || todoTask.getTodoId() == null || workflowTask == null || workflowTask.getTaskId() == null) {
+            return;
+        }
+        SysTodoTask updateTodo = new SysTodoTask();
+        updateTodo.setTodoId(todoTask.getTodoId());
+        updateTodo.setInstanceId(workflowTask.getInstanceId());
+        updateTodo.setTaskId(workflowTask.getTaskId());
+        todoTaskService.updateById(updateTodo);
+        todoTask.setInstanceId(workflowTask.getInstanceId());
+        todoTask.setTaskId(workflowTask.getTaskId());
     }
 
     /**
@@ -1396,6 +1867,294 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
     }
 
     /**
+     * 解析参与人规则命中的审批人集合。
+     *
+     * @param assigneeType     审批人类型
+     * @param assigneeUserId   单人审批用户ID
+     * @param candidateUserIds 候选用户ID集合
+     * @param assigneeRoleIds  角色ID集合
+     * @param assigneePostIds  岗位ID集合
+     * @param assigneeDeptId   部门ID
+     * @param instance         流程实例
+     * @param fallbackAssignee 兜底审批人
+     * @param actionContext    动作上下文
+     * @return 审批人集合
+     */
+    private List<AssigneeInfo> resolveParticipantAssigneeList(String assigneeType,
+                                                              Long assigneeUserId,
+                                                              List<Long> candidateUserIds,
+                                                              List<Long> assigneeRoleIds,
+                                                              List<Long> assigneePostIds,
+                                                              Long assigneeDeptId,
+                                                              SysWorkflowInstance instance,
+                                                              AssigneeInfo fallbackAssignee,
+                                                              ActionContext actionContext) {
+        List<AssigneeInfo> assigneeList = new ArrayList<>();
+        LinkedHashSet<Long> userIdSet = new LinkedHashSet<>();
+        String normalizedType = normalizeParticipantType(assigneeType);
+        if ("INITIATOR".equals(normalizedType) || "ORIGINATOR".equals(normalizedType)) {
+            appendAssigneeInfo(assigneeList, resolveExplicitAssignee(
+                    instance == null ? null : instance.getInitiatorUserId(),
+                    instance == null ? null : instance.getInitiatorUserName(),
+                    instance == null ? null : instance.getInitiatorNickName()));
+        } else if ("DIRECT_LEADER".equals(normalizedType) || "LEADER".equals(normalizedType)) {
+            appendAssigneeInfo(assigneeList, resolveDirectLeaderAssignee(instance));
+        } else if ("DEPT_LEADER".equals(normalizedType)) {
+            appendAssigneeInfo(assigneeList, resolveDeptLeaderAssignee(assigneeDeptId, instance));
+        } else if ("ROLE".equals(normalizedType)) {
+            userIdSet.addAll(resolveUserIdsByRoleIds(assigneeRoleIds));
+        } else if ("POST".equals(normalizedType)) {
+            userIdSet.addAll(resolveUserIdsByPostIds(assigneePostIds));
+        } else if ("DEPT".equals(normalizedType)) {
+            Long targetDeptId = assigneeDeptId != null ? assigneeDeptId : resolveInitiatorDeptId(instance);
+            userIdSet.addAll(resolveUserIdsByDeptId(targetDeptId));
+        } else {
+            if (assigneeUserId != null) {
+                appendAssigneeInfo(assigneeList, resolveExplicitAssignee(assigneeUserId, null, null));
+            }
+            if (candidateUserIds != null) {
+                for (Long candidateUserId : candidateUserIds) {
+                    appendAssigneeInfo(assigneeList, resolveExplicitAssignee(candidateUserId, null, null));
+                }
+            }
+        }
+        if (!userIdSet.isEmpty()) {
+            assigneeList.addAll(loadAssigneeList(userIdSet));
+        }
+        if (assigneeList.isEmpty() && fallbackAssignee != null && fallbackAssignee.userId != null) {
+            appendAssigneeInfo(assigneeList, fallbackAssignee);
+        }
+        if (assigneeList.isEmpty() && actionContext != null && actionContext.userId != null) {
+            appendAssigneeInfo(assigneeList, new AssigneeInfo(actionContext.userId, actionContext.userName, actionContext.userNick));
+        }
+        if (assigneeList.isEmpty() && instance != null && instance.getInitiatorUserId() != null) {
+            appendAssigneeInfo(assigneeList, resolveExplicitAssignee(instance.getInitiatorUserId(),
+                    instance.getInitiatorUserName(),
+                    instance.getInitiatorNickName()));
+        }
+        return assigneeList;
+    }
+
+    /**
+     * 解析 SLA 动态目标审批人。
+     *
+     * @param slaConfig   SLA 配置
+     * @param escalate    true 表示升级，否则表示转办
+     * @param instance    流程实例
+     * @return 审批人信息
+     */
+    private AssigneeInfo resolveSlaTargetAssignee(WorkflowSlaConfig slaConfig, boolean escalate, SysWorkflowInstance instance) {
+        if (slaConfig == null) {
+            return null;
+        }
+        List<AssigneeInfo> assigneeList = resolveParticipantAssigneeList(
+                escalate ? slaConfig.escalateTargetType : slaConfig.transferTargetType,
+                escalate ? slaConfig.escalateToUserId : slaConfig.transferToUserId,
+                Collections.emptyList(),
+                escalate ? slaConfig.escalateRoleIds : slaConfig.transferRoleIds,
+                escalate ? slaConfig.escalatePostIds : slaConfig.transferPostIds,
+                escalate ? slaConfig.escalateDeptId : slaConfig.transferDeptId,
+                instance,
+                null,
+                null);
+        return assigneeList.isEmpty() ? null : assigneeList.get(0);
+    }
+
+    /**
+     * 追加审批人用户ID。
+     *
+     * @param userIdSet     用户ID集合
+     * @param assigneeInfo  审批人信息
+     */
+    private void appendAssigneeInfo(List<AssigneeInfo> assigneeList, AssigneeInfo assigneeInfo) {
+        if (assigneeList == null || assigneeInfo == null || assigneeInfo.userId == null) {
+            return;
+        }
+        boolean exists = assigneeList.stream().anyMatch(item -> Objects.equals(item.userId, assigneeInfo.userId));
+        if (!exists) {
+            assigneeList.add(assigneeInfo);
+        }
+    }
+
+    /**
+     * 加载审批人集合。
+     *
+     * @param userIdSet 用户ID集合
+     * @return 审批人信息集合
+     */
+    private List<AssigneeInfo> loadAssigneeList(Set<Long> userIdSet) {
+        if (userIdSet == null || userIdSet.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<SysUser> userList = userService.list(new LambdaQueryWrapper<SysUser>()
+                .in(SysUser::getUserId, userIdSet)
+                .ne(SysUser::getStatus, "1")
+                .ne(SysUser::getDelFlag, "2")
+                .orderByAsc(SysUser::getUserId));
+        List<AssigneeInfo> assigneeList = new ArrayList<>();
+        for (SysUser user : userList) {
+            assigneeList.add(new AssigneeInfo(user.getUserId(),
+                    normalizeText(user.getUserName()),
+                    normalizeText(user.getNickName())));
+        }
+        return assigneeList;
+    }
+
+    /**
+     * 按角色解析用户ID集合。
+     *
+     * @param roleIds 角色ID集合
+     * @return 用户ID集合
+     */
+    private List<Long> resolveUserIdsByRoleIds(List<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<Long> userIdSet = new LinkedHashSet<>();
+        List<SysUserRole> relationList = userRoleService.list(new LambdaQueryWrapper<SysUserRole>()
+                .in(SysUserRole::getRoleId, roleIds));
+        for (SysUserRole relation : relationList) {
+            if (relation != null && relation.getUserId() != null) {
+                userIdSet.add(relation.getUserId());
+            }
+        }
+        return new ArrayList<>(userIdSet);
+    }
+
+    /**
+     * 按岗位解析用户ID集合。
+     *
+     * @param postIds 岗位ID集合
+     * @return 用户ID集合
+     */
+    private List<Long> resolveUserIdsByPostIds(List<Long> postIds) {
+        if (postIds == null || postIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<Long> userIdSet = new LinkedHashSet<>();
+        List<SysUserPost> relationList = userPostService.list(new LambdaQueryWrapper<SysUserPost>()
+                .in(SysUserPost::getPostId, postIds));
+        for (SysUserPost relation : relationList) {
+            if (relation != null && relation.getUserId() != null) {
+                userIdSet.add(relation.getUserId());
+            }
+        }
+        return new ArrayList<>(userIdSet);
+    }
+
+    /**
+     * 按部门解析用户ID集合。
+     *
+     * @param deptId 部门ID
+     * @return 用户ID集合
+     */
+    private List<Long> resolveUserIdsByDeptId(Long deptId) {
+        if (deptId == null) {
+            return Collections.emptyList();
+        }
+        List<SysUser> userList = userService.list(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getDeptId, deptId)
+                .ne(SysUser::getStatus, "1")
+                .ne(SysUser::getDelFlag, "2")
+                .orderByAsc(SysUser::getUserId));
+        List<Long> userIds = new ArrayList<>();
+        for (SysUser user : userList) {
+            if (user.getUserId() != null) {
+                userIds.add(user.getUserId());
+            }
+        }
+        return userIds;
+    }
+
+    /**
+     * 解析发起人的直属上级。
+     *
+     * @param instance 流程实例
+     * @return 审批人信息
+     */
+    private AssigneeInfo resolveDirectLeaderAssignee(SysWorkflowInstance instance) {
+        return resolveDeptLeaderAssignee(null, instance);
+    }
+
+    /**
+     * 解析部门负责人审批人。
+     *
+     * @param explicitDeptId 显式配置的部门ID
+     * @param instance       流程实例
+     * @return 审批人信息
+     */
+    private AssigneeInfo resolveDeptLeaderAssignee(Long explicitDeptId, SysWorkflowInstance instance) {
+        Long deptId = explicitDeptId != null ? explicitDeptId : resolveInitiatorDeptId(instance);
+        if (deptId == null) {
+            return null;
+        }
+        LinkedHashSet<Long> visitedDeptIds = new LinkedHashSet<>();
+        Long currentDeptId = deptId;
+        while (currentDeptId != null && visitedDeptIds.add(currentDeptId)) {
+            SysDept dept = deptService.getById(currentDeptId);
+            if (dept == null) {
+                return null;
+            }
+            AssigneeInfo leaderAssignee = resolveLeaderByDept(dept);
+            if (leaderAssignee != null) {
+                return leaderAssignee;
+            }
+            currentDeptId = dept.getParentId();
+        }
+        return null;
+    }
+
+    /**
+     * 解析部门负责人。
+     *
+     * @param dept 部门对象
+     * @return 审批人信息
+     */
+    private AssigneeInfo resolveLeaderByDept(SysDept dept) {
+        if (dept == null || !StringUtils.hasText(dept.getLeader())) {
+            return null;
+        }
+        String leaderText = dept.getLeader().trim();
+        List<SysUser> userList = userService.list(new LambdaQueryWrapper<SysUser>()
+                .and(wrapper -> wrapper.eq(SysUser::getUserName, leaderText)
+                        .or()
+                        .eq(SysUser::getNickName, leaderText))
+                .ne(SysUser::getStatus, "1")
+                .ne(SysUser::getDelFlag, "2")
+                .orderByAsc(SysUser::getUserId)
+                .last("LIMIT 1"));
+        if (userList.isEmpty()) {
+            return null;
+        }
+        SysUser user = userList.get(0);
+        return new AssigneeInfo(user.getUserId(), normalizeText(user.getUserName()), normalizeText(user.getNickName()));
+    }
+
+    /**
+     * 解析发起人的部门ID。
+     *
+     * @param instance 流程实例
+     * @return 部门ID
+     */
+    private Long resolveInitiatorDeptId(SysWorkflowInstance instance) {
+        if (instance == null || instance.getInitiatorUserId() == null) {
+            return null;
+        }
+        SysUser initiator = userService.getById(instance.getInitiatorUserId());
+        return initiator == null ? null : initiator.getDeptId();
+    }
+
+    /**
+     * 标准化参与人类型。
+     *
+     * @param assigneeType 参与人类型
+     * @return 标准值
+     */
+    private String normalizeParticipantType(String assigneeType) {
+        return StringUtils.hasText(assigneeType) ? assigneeType.trim().toUpperCase(Locale.ROOT) : "USER";
+    }
+
+    /**
      * 解析指定节点默认审批人。
      *
      * @param instance       流程实例
@@ -1418,27 +2177,17 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         WorkflowModel model = parseWorkflowModel(instance.getModelContentSnapshot());
         WorkflowNode node = model.resolveReturnNode(targetNodeKey, targetNodeName);
         if (node != null) {
-            if (node.assigneeUserId != null) {
-                AssigneeInfo explicitAssignee = resolveExplicitAssignee(node.assigneeUserId, null, null);
-                if (explicitAssignee != null) {
-                    return explicitAssignee;
-                }
-            }
-            if (!node.candidateUserIds.isEmpty()) {
-                AssigneeInfo candidateAssignee = resolveExplicitAssignee(node.candidateUserIds.get(0), null, null);
-                if (candidateAssignee != null) {
-                    return candidateAssignee;
-                }
-            }
-            if (StringUtils.hasText(node.assigneeType)) {
-                String normalized = node.assigneeType.trim().toUpperCase(Locale.ROOT);
-                if ("INITIATOR".equals(normalized) || "ORIGINATOR".equals(normalized)
-                        || "DIRECT_LEADER".equals(normalized) || "LEADER".equals(normalized)) {
-                    AssigneeInfo initiatorAssignee = resolveExplicitAssignee(instance.getInitiatorUserId(), instance.getInitiatorUserName(), instance.getInitiatorNickName());
-                    if (initiatorAssignee != null) {
-                        return initiatorAssignee;
-                    }
-                }
+            List<AssigneeInfo> assigneeList = resolveParticipantAssigneeList(node.assigneeType,
+                    node.assigneeUserId,
+                    node.candidateUserIds,
+                    node.assigneeRoleIds,
+                    node.assigneePostIds,
+                    node.assigneeDeptId,
+                    instance,
+                    null,
+                    null);
+            if (!assigneeList.isEmpty()) {
+                return assigneeList.get(0);
             }
         }
         AssigneeInfo fallbackAssignee = resolveExplicitAssignee(fallbackUserId, fallbackName, fallbackNick);
@@ -1485,6 +2234,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             if (startNodeKey != null) {
                 model.startNodeKey = String.valueOf(startNodeKey);
             }
+            model.slaConfig = parseSlaConfig(root.get("slaConfig"));
             Object nodesObj = root.get("nodes");
             if (nodesObj instanceof List) {
                 for (Object item : (List<?>) nodesObj) {
@@ -1504,11 +2254,17 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
                     node.nodeType = normalizeNodeType(readString(nodeMap, "nodeType", "type"));
                     node.assigneeType = readString(nodeMap, "assigneeType", "approverType");
                     node.assigneeUserId = parseLong(readString(nodeMap, "assigneeUserId", "approverUserId"));
+                    node.assigneeDeptId = parseLong(readString(nodeMap, "assigneeDeptId", "deptId"));
                     node.anyApprove = "ANY".equalsIgnoreCase(readString(nodeMap, "approveStrategy", "signType", "countersignStrategy"));
                     node.candidateUserIds.addAll(parseUserIds(nodeMap.get("candidateUserIds")));
                     node.candidateUserIds.addAll(parseUserIds(nodeMap.get("assignees")));
+                    node.assigneeRoleIds.addAll(parseUserIds(nodeMap.get("assigneeRoleIds")));
+                    node.assigneeRoleIds.addAll(parseUserIds(nodeMap.get("roleIds")));
+                    node.assigneePostIds.addAll(parseUserIds(nodeMap.get("assigneePostIds")));
+                    node.assigneePostIds.addAll(parseUserIds(nodeMap.get("postIds")));
                     node.ccUserIds.addAll(parseUserIds(nodeMap.get("ccUserIds")));
                     node.ccUserIds.addAll(parseUserIds(nodeMap.get("ccUsers")));
+                    node.slaConfig = parseSlaConfig(nodeMap.get("slaConfig"));
                     model.nodeMap.put(node.nodeKey, node);
                     model.nodeOrder.add(node.nodeKey);
                 }
@@ -1529,14 +2285,6 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
                     }
                 }
             }
-            if (model.edges.isEmpty() && model.nodeOrder.size() > 1) {
-                for (int i = 0; i < model.nodeOrder.size() - 1; i++) {
-                    WorkflowEdge edge = new WorkflowEdge();
-                    edge.from = model.nodeOrder.get(i);
-                    edge.to = model.nodeOrder.get(i + 1);
-                    model.edges.add(edge);
-                }
-            }
             if (!StringUtils.hasText(model.startNodeKey) && !model.nodeOrder.isEmpty()) {
                 model.startNodeKey = model.nodeOrder.get(0);
             }
@@ -1544,6 +2292,61 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             return new WorkflowModel();
         }
         return model;
+    }
+
+    /**
+     * 校验流程模型是否可用于发起流程。
+     *
+     * @param model 流程模型
+     * @return true 表示模型可运行
+     */
+    private boolean isRunnableStartModel(WorkflowModel model) {
+        if (model == null || model.nodeMap.isEmpty()) {
+            return false;
+        }
+        String startNodeKey = model.resolveStartNodeKey();
+        if (!StringUtils.hasText(startNodeKey) || !model.nodeMap.containsKey(startNodeKey.trim())) {
+            return false;
+        }
+        for (WorkflowEdge edge : model.edges) {
+            if (edge == null || !StringUtils.hasText(edge.from) || !StringUtils.hasText(edge.to)) {
+                return false;
+            }
+            if (!model.nodeMap.containsKey(edge.from.trim()) || !model.nodeMap.containsKey(edge.to.trim())) {
+                return false;
+            }
+        }
+        return hasReachableApprovalNode(model, startNodeKey.trim(), new HashSet<>());
+    }
+
+    /**
+     * 判断起始节点向后是否存在可执行的审批节点。
+     *
+     * @param model       流程模型
+     * @param currentNode 当前节点
+     * @param visitedNode 已访问节点集合
+     * @return true 表示存在可执行审批节点
+     */
+    private boolean hasReachableApprovalNode(WorkflowModel model, String currentNode, Set<String> visitedNode) {
+        if (model == null || !StringUtils.hasText(currentNode) || visitedNode == null || !visitedNode.add(currentNode)) {
+            return false;
+        }
+        WorkflowNode node = model.nodeMap.get(currentNode);
+        if (node == null) {
+            return false;
+        }
+        if ("approval".equals(normalizeNodeType(node.nodeType))) {
+            return true;
+        }
+        for (WorkflowEdge edge : model.edges) {
+            if (edge == null || !Objects.equals(currentNode, edge.from)) {
+                continue;
+            }
+            if (hasReachableApprovalNode(model, edge.to, visitedNode)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1627,6 +2430,49 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
     }
 
     /**
+     * 生成或解析发起业务单号。
+     *
+     * @param startBody   发起参数
+     * @param definition  流程定义
+     * @param currentTime 当前时间
+     * @return 业务单号
+     */
+    private String resolveBusinessNo(WorkflowStartBody startBody, SysWorkflowDefinition definition, Date currentTime) {
+        if (startBody != null && StringUtils.hasText(startBody.getBusinessNo())) {
+            return startBody.getBusinessNo().trim();
+        }
+        String prefix = "WF";
+        if (definition != null && StringUtils.hasText(definition.getProcessKey())) {
+            String normalizedProcessKey = definition.getProcessKey().replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT);
+            if (StringUtils.hasText(normalizedProcessKey)) {
+                prefix = normalizedProcessKey.length() > 8 ? normalizedProcessKey.substring(0, 8) : normalizedProcessKey;
+            }
+        }
+        Date now = currentTime == null ? new Date() : currentTime;
+        return prefix + "-" + new java.text.SimpleDateFormat("yyyyMMddHHmmssSSS").format(now);
+    }
+
+    /**
+     * 解析业务类型，缺失时回退流程分类。
+     *
+     * @param businessType 业务类型
+     * @param definition   流程定义
+     * @return 业务类型
+     */
+    private String resolveBusinessType(String businessType, SysWorkflowDefinition definition) {
+        if (StringUtils.hasText(businessType)) {
+            return businessType.trim();
+        }
+        if (definition == null) {
+            return null;
+        }
+        if (StringUtils.hasText(definition.getCategory())) {
+            return definition.getCategory().trim();
+        }
+        return normalizeText(definition.getProcessName());
+    }
+
+    /**
      * 规范化JSON文本。
      *
      * @param jsonText 原始JSON
@@ -1634,6 +2480,18 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
      */
     private String normalizeJsonText(String jsonText) {
         return StringUtils.hasText(jsonText) ? jsonText.trim() : null;
+    }
+
+    /**
+     * 规范化JSON文本，并在为空时回退默认值。
+     *
+     * @param jsonText      原始JSON
+     * @param defaultValue  默认值
+     * @return 规范化JSON
+     */
+    private String normalizeJsonText(String jsonText, String defaultValue) {
+        String normalized = normalizeJsonText(jsonText);
+        return normalized == null ? defaultValue : normalized;
     }
 
     /**
@@ -1825,6 +2683,125 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         } catch (Exception ignore) {
             return null;
         }
+    }
+
+    /**
+     * 解析整数值。
+     *
+     * @param value 文本值
+     * @return 整数值
+     */
+    private Integer parseInteger(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (Exception ignore) {
+            return null;
+        }
+    }
+
+    /**
+     * 解析 SLA 配置。
+     *
+     * @param source 原始对象
+     * @return SLA 配置
+     */
+    private WorkflowSlaConfig parseSlaConfig(Object source) {
+        WorkflowSlaConfig config = new WorkflowSlaConfig();
+        if (!(source instanceof Map)) {
+            return config;
+        }
+        Map<?, ?> dataMap = (Map<?, ?>) source;
+        config.enabled = parseBooleanValue(dataMap.get("enabled"));
+        Integer durationMinutes = parseInteger(readString(dataMap, "durationMinutes", "limitMinutes"));
+        Integer durationHours = parseInteger(readString(dataMap, "durationHours", "limitHours"));
+        if (durationMinutes != null && durationMinutes > 0) {
+            config.durationMinutes = durationMinutes;
+        } else if (durationHours != null && durationHours > 0) {
+            config.durationMinutes = durationHours * 60;
+        }
+        Integer reminderBeforeMinutes = parseInteger(readString(dataMap, "reminderBeforeMinutes", "warnBeforeMinutes"));
+        config.reminderBeforeMinutes = reminderBeforeMinutes == null ? 0 : Math.max(0, reminderBeforeMinutes);
+        config.escalateTargetType = readString(dataMap, "escalateTargetType", "upgradeTargetType");
+        config.escalateToUserId = parseLong(readString(dataMap, "escalateToUserId", "upgradeToUserId"));
+        config.escalateDeptId = parseLong(readString(dataMap, "escalateDeptId", "upgradeDeptId"));
+        config.escalateRoleIds.addAll(parseUserIds(dataMap.get("escalateRoleIds")));
+        config.escalatePostIds.addAll(parseUserIds(dataMap.get("escalatePostIds")));
+        config.transferTargetType = readString(dataMap, "transferTargetType", "autoTransferTargetType");
+        config.transferToUserId = parseLong(readString(dataMap, "transferToUserId", "autoTransferUserId"));
+        config.transferDeptId = parseLong(readString(dataMap, "transferDeptId", "autoTransferDeptId"));
+        config.transferRoleIds.addAll(parseUserIds(dataMap.get("transferRoleIds")));
+        config.transferPostIds.addAll(parseUserIds(dataMap.get("transferPostIds")));
+        config.channels.addAll(parseStringList(dataMap.get("channels")));
+        config.actionSet.addAll(normalizeSlaActionSet(dataMap.get("actions")));
+        if (config.actionSet.isEmpty() && config.enabled) {
+            config.actionSet.add("REMIND");
+        }
+        return config;
+    }
+
+    /**
+     * 解析布尔值。
+     *
+     * @param source 原始对象
+     * @return true 表示命中真值
+     */
+    private boolean parseBooleanValue(Object source) {
+        if (source == null) {
+            return false;
+        }
+        if (source instanceof Boolean) {
+            return (Boolean) source;
+        }
+        return "true".equalsIgnoreCase(String.valueOf(source).trim())
+                || "1".equals(String.valueOf(source).trim())
+                || "yes".equalsIgnoreCase(String.valueOf(source).trim());
+    }
+
+    /**
+     * 解析字符串列表。
+     *
+     * @param source 原始对象
+     * @return 字符串列表
+     */
+    private List<String> parseStringList(Object source) {
+        List<String> valueList = new ArrayList<>();
+        if (source instanceof List) {
+            for (Object item : (List<?>) source) {
+                if (item != null && StringUtils.hasText(String.valueOf(item))) {
+                    valueList.add(String.valueOf(item).trim());
+                }
+            }
+            return valueList;
+        }
+        if (source != null && StringUtils.hasText(String.valueOf(source))) {
+            String[] values = String.valueOf(source).split(",");
+            for (String item : values) {
+                if (StringUtils.hasText(item)) {
+                    valueList.add(item.trim());
+                }
+            }
+        }
+        return valueList;
+    }
+
+    /**
+     * 规范化 SLA 动作集合。
+     *
+     * @param source 原始对象
+     * @return 动作集合
+     */
+    private Set<String> normalizeSlaActionSet(Object source) {
+        Set<String> actionSet = new HashSet<>();
+        for (String item : parseStringList(source)) {
+            String normalized = item.trim().toUpperCase(Locale.ROOT);
+            if ("REMIND".equals(normalized) || "ESCALATE".equals(normalized) || "TRANSFER".equals(normalized)) {
+                actionSet.add(normalized);
+            }
+        }
+        return actionSet;
     }
 
     /**
@@ -2054,6 +3031,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         private final Map<String, WorkflowNode> nodeMap = new LinkedHashMap<>();
         private final List<String> nodeOrder = new ArrayList<>();
         private final List<WorkflowEdge> edges = new ArrayList<>();
+        private WorkflowSlaConfig slaConfig = new WorkflowSlaConfig();
 
         /**
          * 获取起始节点编码。
@@ -2146,9 +3124,13 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         private String nodeType;
         private String assigneeType;
         private Long assigneeUserId;
+        private Long assigneeDeptId;
         private boolean anyApprove;
         private final List<Long> candidateUserIds = new ArrayList<>();
+        private final List<Long> assigneeRoleIds = new ArrayList<>();
+        private final List<Long> assigneePostIds = new ArrayList<>();
         private final List<Long> ccUserIds = new ArrayList<>();
+        private WorkflowSlaConfig slaConfig = new WorkflowSlaConfig();
     }
 
     /**
@@ -2158,6 +3140,27 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         private String from;
         private String to;
         private String condition;
+    }
+
+    /**
+     * 流程 SLA 配置对象。
+     */
+    private static final class WorkflowSlaConfig {
+        private boolean enabled;
+        private int durationMinutes;
+        private int reminderBeforeMinutes;
+        private String escalateTargetType;
+        private Long escalateToUserId;
+        private Long escalateDeptId;
+        private final List<Long> escalateRoleIds = new ArrayList<>();
+        private final List<Long> escalatePostIds = new ArrayList<>();
+        private String transferTargetType;
+        private Long transferToUserId;
+        private Long transferDeptId;
+        private final List<Long> transferRoleIds = new ArrayList<>();
+        private final List<Long> transferPostIds = new ArrayList<>();
+        private final List<String> channels = new ArrayList<>();
+        private final Set<String> actionSet = new HashSet<>();
     }
 
     /**

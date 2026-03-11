@@ -1,12 +1,15 @@
 package com.erp.system.service.impl;
 
 import com.erp.system.domain.SysTodoTask;
+import com.erp.system.domain.SysDept;
 import com.erp.system.domain.SysUser;
+import com.erp.system.domain.SysUserRole;
 import com.erp.system.domain.SysWorkflowDefinition;
 import com.erp.system.domain.SysWorkflowInstance;
 import com.erp.system.domain.SysWorkflowTask;
 import com.erp.system.domain.SysWorkflowTaskAction;
 import com.erp.system.domain.vo.WorkflowInstanceDetailVO;
+import com.erp.system.domain.vo.WorkflowSlaScanResultVO;
 import com.erp.system.domain.vo.WorkflowStartBody;
 import com.erp.system.domain.vo.WorkflowTaskActionBody;
 import com.erp.system.domain.vo.WorkflowTaskTransferBody;
@@ -14,7 +17,10 @@ import com.erp.system.mapper.SysWorkflowInstanceMapper;
 import com.erp.system.mapper.SysWorkflowTaskActionMapper;
 import com.erp.system.mapper.SysWorkflowTaskMapper;
 import com.erp.system.service.ISysNoticeService;
+import com.erp.system.service.ISysDeptService;
 import com.erp.system.service.ISysTodoTaskService;
+import com.erp.system.service.ISysUserRoleService;
+import com.erp.system.service.ISysUserPostService;
 import com.erp.system.service.ISysUserService;
 import com.erp.system.service.ISysWorkflowDefinitionService;
 import org.junit.jupiter.api.Assertions;
@@ -63,6 +69,15 @@ class SysWorkflowEngineServiceImplTest {
     @Mock
     private ISysUserService userService;
 
+    @Mock
+    private ISysDeptService deptService;
+
+    @Mock
+    private ISysUserRoleService userRoleService;
+
+    @Mock
+    private ISysUserPostService userPostService;
+
     private SysWorkflowEngineServiceImpl workflowEngineService;
 
     /**
@@ -77,7 +92,10 @@ class SysWorkflowEngineServiceImplTest {
                 workflowDefinitionService,
                 todoTaskService,
                 noticeService,
-                userService);
+                userService,
+                deptService,
+                userRoleService,
+                userPostService);
     }
 
     /**
@@ -122,7 +140,7 @@ class SysWorkflowEngineServiceImplTest {
         definition.setCategory("purchase");
         definition.setVersion(2);
         definition.setFormSchema("{\"fields\":[]}");
-        definition.setModelContent("{\"nodes\":[]}");
+        definition.setModelContent("{\"startNodeKey\":\"START_1\",\"nodes\":[{\"nodeKey\":\"START_1\",\"nodeName\":\"开始\",\"nodeType\":\"start\"},{\"nodeKey\":\"NODE_1\",\"nodeName\":\"部门负责人审批\",\"nodeType\":\"approval\"}],\"edges\":[{\"from\":\"START_1\",\"to\":\"NODE_1\"}]}");
         when(workflowDefinitionService.selectLatestPublishedByProcessKey("purchase_apply")).thenReturn(definition);
         when(workflowInstanceMapper.insert(any(SysWorkflowInstance.class))).thenAnswer(invocation -> {
             SysWorkflowInstance instance = invocation.getArgument(0);
@@ -158,7 +176,7 @@ class SysWorkflowEngineServiceImplTest {
         verify(workflowInstanceMapper).insert(instanceCaptor.capture());
         Assertions.assertEquals(2, instanceCaptor.getValue().getDefinitionVersion());
         Assertions.assertEquals("{\"fields\":[]}", instanceCaptor.getValue().getFormSchemaSnapshot());
-        Assertions.assertEquals("{\"nodes\":[]}", instanceCaptor.getValue().getModelContentSnapshot());
+        Assertions.assertEquals("{\"startNodeKey\":\"START_1\",\"nodes\":[{\"nodeKey\":\"START_1\",\"nodeName\":\"开始\",\"nodeType\":\"start\"},{\"nodeKey\":\"NODE_1\",\"nodeName\":\"部门负责人审批\",\"nodeType\":\"approval\"}],\"edges\":[{\"from\":\"START_1\",\"to\":\"NODE_1\"}]}", instanceCaptor.getValue().getModelContentSnapshot());
     }
 
     /**
@@ -172,6 +190,7 @@ class SysWorkflowEngineServiceImplTest {
         definition.setProcessName("报销审批流程");
         definition.setCategory("expense");
         definition.setVersion(1);
+        definition.setModelContent("{\"startNodeKey\":\"START_1\",\"nodes\":[{\"nodeKey\":\"START_1\",\"nodeName\":\"开始\",\"nodeType\":\"start\"},{\"nodeKey\":\"NODE_1\",\"nodeName\":\"直属审批\",\"nodeType\":\"approval\"}],\"edges\":[{\"from\":\"START_1\",\"to\":\"NODE_1\"}]}");
         when(workflowDefinitionService.selectLatestPublishedByProcessKey("expense_apply")).thenReturn(definition);
         when(workflowInstanceMapper.insert(any(SysWorkflowInstance.class))).thenAnswer(invocation -> {
             SysWorkflowInstance instance = invocation.getArgument(0);
@@ -209,6 +228,131 @@ class SysWorkflowEngineServiceImplTest {
         List<SysWorkflowTask> taskList = workflowEngineService.selectMyTaskList(1L, "0");
 
         Assertions.assertEquals(1, taskList.size());
+    }
+
+    /**
+     * 验证 SLA 扫描会触发提醒，并将超时任务升级为新的可处理审批任务。
+     */
+    @Test
+    void shouldEscalateTimeoutTaskIntoNewApprovalTask() {
+        SysWorkflowTask task = new SysWorkflowTask();
+        task.setTaskId(11L);
+        task.setInstanceId(21L);
+        task.setTodoId(31L);
+        task.setTenantId("000000");
+        task.setNodeKey("NODE_1");
+        task.setNodeName("部门经理审批");
+        task.setAssigneeUserId(2L);
+        task.setStatus("0");
+        task.setDueTime(new Date(System.currentTimeMillis() - 3600000L));
+        task.setCreateTime(new Date(System.currentTimeMillis() - 7200000L));
+
+        SysWorkflowInstance instance = new SysWorkflowInstance();
+        instance.setInstanceId(21L);
+        instance.setDefinitionId(1L);
+        instance.setTenantId("000000");
+        instance.setProcessName("报销审批");
+        instance.setBusinessNo("EXP-001");
+        instance.setModelContentSnapshot("{\"startNodeKey\":\"START_1\",\"nodes\":[{\"nodeKey\":\"START_1\",\"nodeName\":\"开始节点\",\"nodeType\":\"start\"},{\"nodeKey\":\"NODE_1\",\"nodeName\":\"部门经理审批\",\"nodeType\":\"approval\",\"slaConfig\":{\"enabled\":true,\"durationHours\":2,\"reminderBeforeMinutes\":30,\"actions\":[\"REMIND\",\"ESCALATE\",\"TRANSFER\"],\"escalateToUserId\":3,\"transferToUserId\":4,\"channels\":[\"IN_APP\"]}}],\"edges\":[{\"from\":\"START_1\",\"to\":\"NODE_1\"}]}");
+
+        SysUser escalateUser = buildUser(3L, "director", "总监");
+
+        when(workflowTaskMapper.selectList(any())).thenReturn(Collections.singletonList(task));
+        when(workflowInstanceMapper.selectById(21L)).thenReturn(instance);
+        when(workflowTaskActionMapper.selectCount(any())).thenReturn(0L);
+        when(workflowTaskMapper.updateById(any(SysWorkflowTask.class))).thenReturn(1);
+        when(todoTaskService.updateById(any(SysTodoTask.class))).thenReturn(true);
+        when(todoTaskService.save(any(SysTodoTask.class))).thenAnswer(invocation -> {
+            SysTodoTask todoTask = invocation.getArgument(0);
+            todoTask.setTodoId(99L);
+            return true;
+        });
+        when(workflowTaskMapper.insert(any(SysWorkflowTask.class))).thenReturn(1);
+        when(workflowTaskActionMapper.insert(any(SysWorkflowTaskAction.class))).thenReturn(1);
+        when(workflowInstanceMapper.updateById(any(SysWorkflowInstance.class))).thenReturn(1);
+        when(noticeService.createNotice(any())).thenReturn(true);
+        when(userService.getById(3L)).thenReturn(escalateUser);
+
+        WorkflowSlaScanResultVO result = workflowEngineService.scanTimeoutTasks();
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.getScannedCount());
+        Assertions.assertEquals(1, result.getWarningCount());
+        Assertions.assertEquals(1, result.getOverdueCount());
+        Assertions.assertEquals(1, result.getEscalatedCount());
+        Assertions.assertEquals(0, result.getTransferredCount());
+        Assertions.assertEquals(1, result.getSkippedCount());
+
+        ArgumentCaptor<SysWorkflowTask> closeTaskCaptor = ArgumentCaptor.forClass(SysWorkflowTask.class);
+        verify(workflowTaskMapper).updateById(closeTaskCaptor.capture());
+        Assertions.assertEquals("5", closeTaskCaptor.getValue().getStatus());
+
+        ArgumentCaptor<SysWorkflowTask> newTaskCaptor = ArgumentCaptor.forClass(SysWorkflowTask.class);
+        verify(workflowTaskMapper).insert(newTaskCaptor.capture());
+        Assertions.assertEquals(3L, newTaskCaptor.getValue().getAssigneeUserId());
+        Assertions.assertEquals("0", newTaskCaptor.getValue().getStatus());
+        verify(todoTaskService, times(1)).save(any(SysTodoTask.class));
+    }
+
+    /**
+     * 验证 SLA 扫描在仅配置自动转办时，会将超时任务改派给兜底办理人。
+     */
+    @Test
+    void shouldTransferTimeoutTaskWhenTransferRuleConfigured() {
+        SysWorkflowTask task = new SysWorkflowTask();
+        task.setTaskId(12L);
+        task.setInstanceId(22L);
+        task.setTodoId(32L);
+        task.setTenantId("000000");
+        task.setNodeKey("NODE_2");
+        task.setNodeName("财务复核");
+        task.setAssigneeUserId(2L);
+        task.setStatus("0");
+        task.setDueTime(new Date(System.currentTimeMillis() - 3600000L));
+        task.setCreateTime(new Date(System.currentTimeMillis() - 7200000L));
+
+        SysWorkflowInstance instance = new SysWorkflowInstance();
+        instance.setInstanceId(22L);
+        instance.setDefinitionId(1L);
+        instance.setTenantId("000000");
+        instance.setProcessName("付款审批");
+        instance.setBusinessNo("PAY-001");
+        instance.setModelContentSnapshot("{\"startNodeKey\":\"START_1\",\"nodes\":[{\"nodeKey\":\"START_1\",\"nodeName\":\"开始节点\",\"nodeType\":\"start\"},{\"nodeKey\":\"NODE_2\",\"nodeName\":\"财务复核\",\"nodeType\":\"approval\",\"slaConfig\":{\"enabled\":true,\"durationHours\":1,\"actions\":[\"TRANSFER\"],\"transferToUserId\":4,\"channels\":[\"IN_APP\"]}}],\"edges\":[{\"from\":\"START_1\",\"to\":\"NODE_2\"}]}");
+
+        SysUser transferUser = buildUser(4L, "finance", "财务");
+
+        when(workflowTaskMapper.selectList(any())).thenReturn(Collections.singletonList(task));
+        when(workflowInstanceMapper.selectById(22L)).thenReturn(instance);
+        when(workflowTaskActionMapper.selectCount(any())).thenReturn(0L);
+        when(workflowTaskMapper.updateById(any(SysWorkflowTask.class))).thenReturn(1);
+        when(todoTaskService.updateById(any(SysTodoTask.class))).thenReturn(true);
+        when(todoTaskService.save(any(SysTodoTask.class))).thenAnswer(invocation -> {
+            SysTodoTask todoTask = invocation.getArgument(0);
+            todoTask.setTodoId(199L);
+            return true;
+        });
+        when(workflowTaskMapper.insert(any(SysWorkflowTask.class))).thenReturn(1);
+        when(workflowTaskActionMapper.insert(any(SysWorkflowTaskAction.class))).thenReturn(1);
+        when(workflowInstanceMapper.updateById(any(SysWorkflowInstance.class))).thenReturn(1);
+        when(noticeService.createNotice(any())).thenReturn(true);
+        when(userService.getById(4L)).thenReturn(transferUser);
+
+        WorkflowSlaScanResultVO result = workflowEngineService.scanTimeoutTasks();
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.getScannedCount());
+        Assertions.assertEquals(1, result.getWarningCount());
+        Assertions.assertEquals(1, result.getOverdueCount());
+        Assertions.assertEquals(0, result.getEscalatedCount());
+        Assertions.assertEquals(1, result.getTransferredCount());
+
+        ArgumentCaptor<SysWorkflowTask> closeTaskCaptor = ArgumentCaptor.forClass(SysWorkflowTask.class);
+        verify(workflowTaskMapper).updateById(closeTaskCaptor.capture());
+        Assertions.assertEquals("4", closeTaskCaptor.getValue().getStatus());
+
+        ArgumentCaptor<SysWorkflowTask> newTaskCaptor = ArgumentCaptor.forClass(SysWorkflowTask.class);
+        verify(workflowTaskMapper).insert(newTaskCaptor.capture());
+        Assertions.assertEquals(4L, newTaskCaptor.getValue().getAssigneeUserId());
     }
 
     /**
@@ -297,6 +441,215 @@ class SysWorkflowEngineServiceImplTest {
 
         Assertions.assertTrue(success);
         verify(workflowTaskMapper, times(2)).insert(any(SysWorkflowTask.class));
+    }
+
+    /**
+     * 验证直属上级规则会把任务派给部门负责人，而不是发起人本人。
+     */
+    @Test
+    void shouldStartProcessWithDirectLeaderAssignee() {
+        SysWorkflowDefinition definition = new SysWorkflowDefinition();
+        definition.setDefinitionId(3L);
+        definition.setProcessKey("leader_apply");
+        definition.setProcessName("直属上级审批流程");
+        definition.setCategory("expense");
+        definition.setVersion(1);
+        definition.setFormSchema("{\"fields\":[]}");
+        definition.setModelContent("{\"startNodeKey\":\"START_1\",\"nodes\":["
+                + "{\"nodeKey\":\"START_1\",\"nodeName\":\"开始\",\"nodeType\":\"start\"},"
+                + "{\"nodeKey\":\"NODE_1\",\"nodeName\":\"直属上级审批\",\"nodeType\":\"approval\",\"assigneeType\":\"DIRECT_LEADER\"}"
+                + "],\"edges\":[{\"from\":\"START_1\",\"to\":\"NODE_1\"}]}");
+        when(workflowDefinitionService.selectLatestPublishedByProcessKey("leader_apply")).thenReturn(definition);
+        when(workflowInstanceMapper.insert(any(SysWorkflowInstance.class))).thenAnswer(invocation -> {
+            SysWorkflowInstance instance = invocation.getArgument(0);
+            instance.setInstanceId(103L);
+            return 1;
+        });
+        when(todoTaskService.save(any(SysTodoTask.class))).thenAnswer(invocation -> {
+            SysTodoTask todoTask = invocation.getArgument(0);
+            todoTask.setTodoId(303L);
+            return true;
+        });
+        when(workflowTaskMapper.insert(any(SysWorkflowTask.class))).thenReturn(1);
+        when(workflowTaskActionMapper.insert(any(SysWorkflowTaskAction.class))).thenReturn(1);
+        when(noticeService.createNotice(any())).thenReturn(true);
+
+        SysUser initiator = buildUser(8L, "starter", "发起人");
+        initiator.setDeptId(20L);
+        SysDept dept = new SysDept();
+        dept.setDeptId(20L);
+        dept.setLeader("director");
+        SysUser director = buildUser(3L, "director", "总监");
+        when(userService.getById(8L)).thenReturn(initiator);
+        when(deptService.getById(20L)).thenReturn(dept);
+        when(userService.list(org.mockito.ArgumentMatchers.any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(Collections.singletonList(director));
+
+        WorkflowStartBody startBody = new WorkflowStartBody();
+        startBody.setProcessKey("leader_apply");
+        startBody.setBusinessNo("LEADER-001");
+
+        boolean success = workflowEngineService.startProcess(startBody, 8L, "starter", "发起人");
+
+        Assertions.assertTrue(success);
+        ArgumentCaptor<SysWorkflowTask> taskCaptor = ArgumentCaptor.forClass(SysWorkflowTask.class);
+        verify(workflowTaskMapper).insert(taskCaptor.capture());
+        Assertions.assertEquals(3L, taskCaptor.getValue().getAssigneeUserId());
+    }
+
+    /**
+     * 验证角色规则会按角色成员批量生成审批任务。
+     */
+    @Test
+    void shouldStartProcessWithRoleAssignees() {
+        SysWorkflowDefinition definition = new SysWorkflowDefinition();
+        definition.setDefinitionId(4L);
+        definition.setProcessKey("role_apply");
+        definition.setProcessName("角色审批流程");
+        definition.setCategory("contract");
+        definition.setVersion(1);
+        definition.setFormSchema("{\"fields\":[]}");
+        definition.setModelContent("{\"startNodeKey\":\"START_1\",\"nodes\":["
+                + "{\"nodeKey\":\"START_1\",\"nodeName\":\"开始\",\"nodeType\":\"start\"},"
+                + "{\"nodeKey\":\"NODE_1\",\"nodeName\":\"法务审批\",\"nodeType\":\"approval\",\"assigneeType\":\"ROLE\",\"assigneeRoleIds\":[7]}"
+                + "],\"edges\":[{\"from\":\"START_1\",\"to\":\"NODE_1\"}]}");
+        when(workflowDefinitionService.selectLatestPublishedByProcessKey("role_apply")).thenReturn(definition);
+        when(workflowInstanceMapper.insert(any(SysWorkflowInstance.class))).thenAnswer(invocation -> {
+            SysWorkflowInstance instance = invocation.getArgument(0);
+            instance.setInstanceId(104L);
+            return 1;
+        });
+        when(todoTaskService.save(any(SysTodoTask.class))).thenAnswer(invocation -> {
+            SysTodoTask todoTask = invocation.getArgument(0);
+            todoTask.setTodoId(System.currentTimeMillis());
+            return true;
+        });
+        when(workflowTaskMapper.insert(any(SysWorkflowTask.class))).thenReturn(1);
+        when(workflowTaskActionMapper.insert(any(SysWorkflowTaskAction.class))).thenReturn(1);
+        when(noticeService.createNotice(any())).thenReturn(true);
+
+        SysUser roleUserA = buildUser(11L, "legal_a", "法务A");
+        SysUser roleUserB = buildUser(12L, "legal_b", "法务B");
+        SysUserRole relationA = new SysUserRole();
+        relationA.setRoleId(7L);
+        relationA.setUserId(11L);
+        SysUserRole relationB = new SysUserRole();
+        relationB.setRoleId(7L);
+        relationB.setUserId(12L);
+        when(userRoleService.list(org.mockito.ArgumentMatchers.any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(Arrays.asList(relationA, relationB));
+        when(userService.list(org.mockito.ArgumentMatchers.any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(Arrays.asList(roleUserA, roleUserB));
+
+        WorkflowStartBody startBody = new WorkflowStartBody();
+        startBody.setProcessKey("role_apply");
+        startBody.setBusinessNo("ROLE-001");
+
+        boolean success = workflowEngineService.startProcess(startBody, 1L, "admin", "系统管理员");
+
+        Assertions.assertTrue(success);
+        verify(workflowTaskMapper, times(2)).insert(any(SysWorkflowTask.class));
+    }
+
+    /**
+     * 验证发起流程在未提供业务单号时会自动生成单号，并默认使用流程分类作为业务类型。
+     */
+    @Test
+    void shouldGenerateBusinessNoWhenNotProvided() {
+        SysWorkflowDefinition definition = new SysWorkflowDefinition();
+        definition.setDefinitionId(5L);
+        definition.setProcessKey("auto_apply");
+        definition.setProcessName("自动单号流程");
+        definition.setCategory("expense");
+        definition.setVersion(1);
+        definition.setFormSchema("{\"fields\":[]}");
+        definition.setModelContent("{\"startNodeKey\":\"START_1\",\"nodes\":[{\"nodeKey\":\"START_1\",\"nodeName\":\"开始\",\"nodeType\":\"start\"},{\"nodeKey\":\"NODE_1\",\"nodeName\":\"审批\",\"nodeType\":\"approval\"}],\"edges\":[{\"from\":\"START_1\",\"to\":\"NODE_1\"}]}");
+        when(workflowDefinitionService.selectLatestPublishedByProcessKey("auto_apply")).thenReturn(definition);
+        when(workflowInstanceMapper.insert(any(SysWorkflowInstance.class))).thenAnswer(invocation -> {
+            SysWorkflowInstance instance = invocation.getArgument(0);
+            instance.setInstanceId(105L);
+            return 1;
+        });
+        when(todoTaskService.save(any(SysTodoTask.class))).thenAnswer(invocation -> {
+            SysTodoTask todoTask = invocation.getArgument(0);
+            todoTask.setTodoId(305L);
+            return true;
+        });
+        when(todoTaskService.updateById(any(SysTodoTask.class))).thenReturn(true);
+        when(workflowTaskMapper.insert(any(SysWorkflowTask.class))).thenAnswer(invocation -> {
+            SysWorkflowTask task = invocation.getArgument(0);
+            task.setTaskId(405L);
+            return 1;
+        });
+        when(workflowTaskActionMapper.insert(any(SysWorkflowTaskAction.class))).thenReturn(1);
+        when(workflowInstanceMapper.updateById(any(SysWorkflowInstance.class))).thenReturn(1);
+        when(noticeService.createNotice(any())).thenReturn(true);
+
+        WorkflowStartBody startBody = new WorkflowStartBody();
+        startBody.setProcessKey("auto_apply");
+
+        boolean success = workflowEngineService.startProcess(startBody, 1L, "admin", "系统管理员");
+
+        Assertions.assertTrue(success);
+        ArgumentCaptor<SysWorkflowInstance> instanceCaptor = ArgumentCaptor.forClass(SysWorkflowInstance.class);
+        verify(workflowInstanceMapper).insert(instanceCaptor.capture());
+        Assertions.assertTrue(instanceCaptor.getValue().getBusinessNo() != null && instanceCaptor.getValue().getBusinessNo().contains("-"));
+        Assertions.assertEquals("expense", instanceCaptor.getValue().getBusinessType());
+    }
+
+    /**
+     * 验证流程模型缺少可执行审批节点时禁止发起流程。
+     */
+    @Test
+    void shouldRejectStartWhenModelHasNoApprovalPath() {
+        SysWorkflowDefinition definition = new SysWorkflowDefinition();
+        definition.setDefinitionId(6L);
+        definition.setProcessKey("invalid_apply");
+        definition.setProcessName("无审批路径流程");
+        definition.setCategory("custom");
+        definition.setVersion(1);
+        definition.setModelContent("{\"startNodeKey\":\"START_1\",\"nodes\":[{\"nodeKey\":\"START_1\",\"nodeType\":\"start\"},{\"nodeKey\":\"END_1\",\"nodeType\":\"end\"}],\"edges\":[{\"from\":\"START_1\",\"to\":\"END_1\"}]}");
+        when(workflowDefinitionService.selectLatestPublishedByProcessKey("invalid_apply")).thenReturn(definition);
+
+        WorkflowStartBody startBody = new WorkflowStartBody();
+        startBody.setProcessKey("invalid_apply");
+
+        boolean success = workflowEngineService.startProcess(startBody, 1L, "admin", "系统管理员");
+
+        Assertions.assertFalse(success);
+        verify(workflowInstanceMapper, never()).insert(any(SysWorkflowInstance.class));
+    }
+
+    /**
+     * 验证签收任务会联动更新任务状态、待办状态及动作日志。
+     */
+    @Test
+    void shouldClaimTaskSuccessfully() {
+        SysWorkflowTask task = new SysWorkflowTask();
+        task.setTaskId(120L);
+        task.setInstanceId(520L);
+        task.setTodoId(620L);
+        task.setAssigneeUserId(9L);
+        task.setStatus("0");
+        task.setNodeName("部门审批");
+        when(workflowTaskMapper.selectById(120L)).thenReturn(task);
+        when(workflowTaskMapper.updateById(any(SysWorkflowTask.class))).thenReturn(1);
+        when(todoTaskService.updateById(any(SysTodoTask.class))).thenReturn(true);
+        when(workflowTaskActionMapper.insert(any(SysWorkflowTaskAction.class))).thenReturn(1);
+        when(workflowInstanceMapper.updateById(any(SysWorkflowInstance.class))).thenReturn(1);
+
+        SysWorkflowInstance instance = new SysWorkflowInstance();
+        instance.setInstanceId(520L);
+        instance.setDefinitionId(1L);
+        instance.setTenantId("000000");
+        when(workflowInstanceMapper.selectById(520L)).thenReturn(instance);
+        when(workflowTaskMapper.selectList(any())).thenReturn(Collections.singletonList(task));
+
+        boolean success = workflowEngineService.claimTask(120L, 9L, "u9", "用户9");
+
+        Assertions.assertTrue(success);
+        verify(workflowTaskMapper).updateById(any(SysWorkflowTask.class));
+        verify(todoTaskService).updateById(any(SysTodoTask.class));
     }
 
     /**

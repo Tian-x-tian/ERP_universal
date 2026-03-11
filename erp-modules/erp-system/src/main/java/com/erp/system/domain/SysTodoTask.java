@@ -20,6 +20,12 @@ public class SysTodoTask implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long todoId;
 
+    /** 流程实例ID */
+    private Long instanceId;
+
+    /** 流程任务ID */
+    private Long taskId;
+
     /** 租户编号 */
     private String tenantId;
 

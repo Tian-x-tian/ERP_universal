@@ -1,22 +1,40 @@
 package com.erp.system.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
+import com.erp.system.domain.SysDept;
+import com.erp.system.domain.SysPost;
+import com.erp.system.domain.SysRole;
 import com.erp.system.domain.SysUser;
 import com.erp.system.domain.SysWorkflowDefinition;
 import com.erp.system.domain.SysWorkflowInstance;
 import com.erp.system.domain.SysWorkflowTask;
+import com.erp.system.domain.vo.DataPermissionScope;
+import com.erp.system.domain.vo.WorkflowDashboardQueryVO;
 import com.erp.system.domain.vo.WorkflowInstanceDetailVO;
+import com.erp.system.domain.vo.WorkflowDashboardVO;
+import com.erp.system.domain.vo.WorkflowParticipantOptionVO;
+import com.erp.system.domain.vo.WorkflowParticipantOptionsVO;
+import com.erp.system.domain.vo.WorkflowSlaScanResultVO;
 import com.erp.system.domain.vo.WorkflowStartBody;
 import com.erp.system.domain.vo.WorkflowTaskActionBody;
 import com.erp.system.domain.vo.WorkflowTaskFormVO;
 import com.erp.system.domain.vo.WorkflowTaskRemindBody;
 import com.erp.system.domain.vo.WorkflowTaskReturnBody;
 import com.erp.system.domain.vo.WorkflowTaskTransferBody;
+import com.erp.system.domain.vo.WorkflowTemplateActivateBody;
+import com.erp.system.domain.vo.WorkflowTemplateVO;
 import com.erp.system.security.service.SecurityUserResolver;
+import com.erp.system.service.IDataPermissionService;
+import com.erp.system.service.ISysDeptService;
+import com.erp.system.service.ISysPostService;
+import com.erp.system.service.ISysRoleService;
 import com.erp.system.service.ISysUserService;
+import com.erp.system.service.ISysWorkflowAnalyticsService;
 import com.erp.system.service.ISysWorkflowDefinitionService;
 import com.erp.system.service.ISysWorkflowEngineService;
+import com.erp.system.service.ISysWorkflowTemplateService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,6 +47,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -40,18 +60,36 @@ public class SysWorkflowController {
 
     private final ISysWorkflowDefinitionService workflowDefinitionService;
     private final ISysWorkflowEngineService workflowEngineService;
+    private final ISysWorkflowAnalyticsService workflowAnalyticsService;
+    private final ISysWorkflowTemplateService workflowTemplateService;
     private final SecurityUserResolver securityUserResolver;
     private final ISysUserService userService;
+    private final IDataPermissionService dataPermissionService;
+    private final ISysDeptService deptService;
+    private final ISysRoleService roleService;
+    private final ISysPostService postService;
 
     public SysWorkflowController(
             ISysWorkflowDefinitionService workflowDefinitionService,
             ISysWorkflowEngineService workflowEngineService,
+            ISysWorkflowAnalyticsService workflowAnalyticsService,
+            ISysWorkflowTemplateService workflowTemplateService,
             SecurityUserResolver securityUserResolver,
-            ISysUserService userService) {
+            ISysUserService userService,
+            IDataPermissionService dataPermissionService,
+            ISysDeptService deptService,
+            ISysRoleService roleService,
+            ISysPostService postService) {
         this.workflowDefinitionService = workflowDefinitionService;
         this.workflowEngineService = workflowEngineService;
+        this.workflowAnalyticsService = workflowAnalyticsService;
+        this.workflowTemplateService = workflowTemplateService;
         this.securityUserResolver = securityUserResolver;
         this.userService = userService;
+        this.dataPermissionService = dataPermissionService;
+        this.deptService = deptService;
+        this.roleService = roleService;
+        this.postService = postService;
     }
 
     /**
@@ -92,7 +130,7 @@ public class SysWorkflowController {
      * @return 新增结果
      */
     @PostMapping("/definition")
-    @PreAuthorize("@ss.hasPermi('system:workflow:add')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:add','system:workflow:design')")
     public R<Boolean> addDefinition(@RequestBody SysWorkflowDefinition definition) {
         String operator = resolveCurrentUsername();
         if (!StringUtils.hasText(operator)) {
@@ -109,7 +147,7 @@ public class SysWorkflowController {
      * @return 修改结果
      */
     @PutMapping("/definition")
-    @PreAuthorize("@ss.hasPermi('system:workflow:edit')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:edit','system:workflow:design')")
     public R<Boolean> editDefinition(@RequestBody SysWorkflowDefinition definition) {
         String operator = resolveCurrentUsername();
         if (!StringUtils.hasText(operator)) {
@@ -172,7 +210,7 @@ public class SysWorkflowController {
      * @return 新版本草稿
      */
     @PostMapping("/definition/version/{definitionId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:edit')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:edit','system:workflow:design')")
     public R<SysWorkflowDefinition> createDefinitionVersion(@PathVariable("definitionId") Long definitionId) {
         String operator = resolveCurrentUsername();
         if (!StringUtils.hasText(operator)) {
@@ -249,7 +287,7 @@ public class SysWorkflowController {
                 currentUser.userId,
                 currentUser.userName,
                 currentUser.nickName);
-        return success ? R.success(true) : R.failed("流程发起失败，请检查流程定义发布状态和审批人配置");
+        return success ? R.success(true) : R.failed("流程发起失败，请检查流程定义发布状态、流程模型与审批人配置");
     }
 
     /**
@@ -289,6 +327,88 @@ public class SysWorkflowController {
             return R.failed(ResultCode.UNAUTHORIZED);
         }
         return R.success(workflowEngineService.selectMyTaskList(currentUserId, status));
+    }
+
+    /**
+     * 查询流程效率看板。
+     *
+     * @param queryVO 查询条件
+     * @return 看板结果
+     */
+    @GetMapping("/report/dashboard")
+    @PreAuthorize("@ss.hasPermi('system:workflow:list')")
+    public R<WorkflowDashboardVO> reportDashboard(WorkflowDashboardQueryVO queryVO) {
+        return R.success(workflowAnalyticsService.buildDashboard(queryVO));
+    }
+
+    /**
+     * 查询流程设计器参与人配置选项。
+     *
+     * @return 用户、部门、角色、岗位选项
+     */
+    @GetMapping("/options/participants")
+    @PreAuthorize("@ss.hasPermi('system:workflow:list')")
+    public R<WorkflowParticipantOptionsVO> participantOptions() {
+        Long currentUserId = securityUserResolver.getCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
+        WorkflowParticipantOptionsVO optionsVO = new WorkflowParticipantOptionsVO();
+        List<SysDept> deptList = loadDeptOptions(dataScope);
+        List<SysUser> userList = loadUserOptions(dataScope);
+        List<SysRole> roleList = roleService.list();
+        List<SysPost> postList = postService.list();
+        optionsVO.setDepts(buildDeptOptions(deptList));
+        optionsVO.setUsers(buildUserOptions(userList));
+        optionsVO.setRoles(buildRoleOptions(roleList));
+        optionsVO.setPosts(buildPostOptions(postList));
+        return R.success(optionsVO);
+    }
+
+    /**
+     * 手动执行 SLA 扫描。
+     *
+     * @return 扫描结果
+     */
+    @PostMapping("/sla/scan")
+    @PreAuthorize("@ss.hasPermi('system:workflow:remind')")
+    public R<WorkflowSlaScanResultVO> scanWorkflowSla() {
+        return R.success(workflowEngineService.scanTimeoutTasks());
+    }
+
+    /**
+     * 查询流程模板市场。
+     *
+     * @param industry 行业筛选
+     * @return 模板列表
+     */
+    @GetMapping("/template/list")
+    @PreAuthorize("@ss.hasPermi('system:workflow:list')")
+    public R<List<WorkflowTemplateVO>> templateList(@RequestParam(value = "industry", required = false) String industry) {
+        return R.success(workflowTemplateService.selectTemplateList(industry));
+    }
+
+    /**
+     * 启用流程模板。
+     *
+     * @param templateCode 模板编码
+     * @param activateBody 启用参数
+     * @return 新建流程定义
+     */
+    @PostMapping("/template/activate/{templateCode}")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:add','system:workflow:design')")
+    public R<SysWorkflowDefinition> activateTemplate(@PathVariable("templateCode") String templateCode,
+                                                     @RequestBody(required = false) WorkflowTemplateActivateBody activateBody) {
+        String operator = resolveCurrentUsername();
+        if (!StringUtils.hasText(operator)) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        SysWorkflowDefinition definition = workflowTemplateService.activateTemplate(templateCode, activateBody, operator);
+        if (definition == null) {
+            return R.failed("模板启用失败，请检查模板编码或流程标识是否重复");
+        }
+        return R.success(definition);
     }
 
     /**
@@ -479,6 +599,142 @@ public class SysWorkflowController {
             return new CurrentUser(null, userName, null);
         }
         return new CurrentUser(user.getUserId(), user.getUserName(), user.getNickName());
+    }
+
+    /**
+     * 加载当前数据权限范围下的部门选项。
+     *
+     * @param dataScope 数据权限范围
+     * @return 部门列表
+     */
+    private List<SysDept> loadDeptOptions(DataPermissionScope dataScope) {
+        if (dataScope == null) {
+            return Collections.emptyList();
+        }
+        if (dataScope.isAllData()) {
+            return deptService.list();
+        }
+        if (dataScope.getDeptIds().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return deptService.list(new LambdaQueryWrapper<SysDept>()
+                .in(SysDept::getDeptId, dataScope.getDeptIds()));
+    }
+
+    /**
+     * 加载当前数据权限范围下的用户选项。
+     *
+     * @param dataScope 数据权限范围
+     * @return 用户列表
+     */
+    private List<SysUser> loadUserOptions(DataPermissionScope dataScope) {
+        if (dataScope == null) {
+            return Collections.emptyList();
+        }
+        if (dataScope.isAllData()) {
+            return userService.list();
+        }
+        if (dataScope.getDeptIds().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return userService.list(new LambdaQueryWrapper<SysUser>()
+                .in(SysUser::getDeptId, dataScope.getDeptIds()));
+    }
+
+    /**
+     * 构建部门选项。
+     *
+     * @param deptList 部门列表
+     * @return 选项列表
+     */
+    private List<WorkflowParticipantOptionVO> buildDeptOptions(List<SysDept> deptList) {
+        List<WorkflowParticipantOptionVO> optionList = new ArrayList<>();
+        if (deptList == null) {
+            return optionList;
+        }
+        for (SysDept dept : deptList) {
+            if (dept == null || dept.getDeptId() == null || "1".equals(dept.getStatus())) {
+                continue;
+            }
+            WorkflowParticipantOptionVO optionVO = new WorkflowParticipantOptionVO();
+            optionVO.setValue(dept.getDeptId());
+            optionVO.setLabel(dept.getDeptName());
+            optionVO.setParentId(dept.getParentId());
+            optionList.add(optionVO);
+        }
+        return optionList;
+    }
+
+    /**
+     * 构建用户选项。
+     *
+     * @param userList 用户列表
+     * @return 选项列表
+     */
+    private List<WorkflowParticipantOptionVO> buildUserOptions(List<SysUser> userList) {
+        List<WorkflowParticipantOptionVO> optionList = new ArrayList<>();
+        if (userList == null) {
+            return optionList;
+        }
+        for (SysUser user : userList) {
+            if (user == null || user.getUserId() == null || "1".equals(user.getStatus()) || "2".equals(user.getDelFlag())) {
+                continue;
+            }
+            WorkflowParticipantOptionVO optionVO = new WorkflowParticipantOptionVO();
+            optionVO.setValue(user.getUserId());
+            optionVO.setLabel(StringUtils.hasText(user.getNickName())
+                    ? user.getNickName() + " (" + user.getUserName() + ")"
+                    : user.getUserName());
+            optionVO.setParentId(user.getDeptId());
+            optionList.add(optionVO);
+        }
+        return optionList;
+    }
+
+    /**
+     * 构建角色选项。
+     *
+     * @param roleList 角色列表
+     * @return 选项列表
+     */
+    private List<WorkflowParticipantOptionVO> buildRoleOptions(List<SysRole> roleList) {
+        List<WorkflowParticipantOptionVO> optionList = new ArrayList<>();
+        if (roleList == null) {
+            return optionList;
+        }
+        for (SysRole role : roleList) {
+            if (role == null || role.getRoleId() == null || "1".equals(role.getStatus())) {
+                continue;
+            }
+            WorkflowParticipantOptionVO optionVO = new WorkflowParticipantOptionVO();
+            optionVO.setValue(role.getRoleId());
+            optionVO.setLabel(role.getRoleName());
+            optionList.add(optionVO);
+        }
+        return optionList;
+    }
+
+    /**
+     * 构建岗位选项。
+     *
+     * @param postList 岗位列表
+     * @return 选项列表
+     */
+    private List<WorkflowParticipantOptionVO> buildPostOptions(List<SysPost> postList) {
+        List<WorkflowParticipantOptionVO> optionList = new ArrayList<>();
+        if (postList == null) {
+            return optionList;
+        }
+        for (SysPost post : postList) {
+            if (post == null || post.getPostId() == null || "1".equals(post.getStatus())) {
+                continue;
+            }
+            WorkflowParticipantOptionVO optionVO = new WorkflowParticipantOptionVO();
+            optionVO.setValue(post.getPostId());
+            optionVO.setLabel(post.getPostName());
+            optionList.add(optionVO);
+        }
+        return optionList;
     }
 
     /**

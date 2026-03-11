@@ -3,6 +3,8 @@ package com.erp.system.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.system.domain.SysWorkflowDefinition;
 import com.erp.system.domain.SysWorkflowInstance;
 import com.erp.system.mapper.SysWorkflowDefinitionMapper;
@@ -18,7 +20,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -37,9 +42,11 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
             "purchaseApprove", "stamp", "inventoryTransfer"));
 
     private final SysWorkflowInstanceMapper workflowInstanceMapper;
+    private final ObjectMapper objectMapper;
 
     public SysWorkflowDefinitionServiceImpl(SysWorkflowInstanceMapper workflowInstanceMapper) {
         this.workflowInstanceMapper = workflowInstanceMapper;
+        this.objectMapper = new ObjectMapper();
     }
 
     /**
@@ -353,7 +360,120 @@ public class SysWorkflowDefinitionServiceImpl extends ServiceImpl<SysWorkflowDef
     private boolean isValidDefinition(SysWorkflowDefinition definition) {
         return definition != null
                 && StringUtils.hasText(definition.getProcessKey())
-                && StringUtils.hasText(definition.getProcessName());
+                && StringUtils.hasText(definition.getProcessName())
+                && StringUtils.hasText(definition.getModelContent())
+                && isValidModelContent(definition.getModelContent());
+    }
+
+    /**
+     * 校验流程模型结构完整性。
+     *
+     * @param modelContent 流程模型JSON
+     * @return true 表示结构合法
+     */
+    private boolean isValidModelContent(String modelContent) {
+        if (!StringUtils.hasText(modelContent)) {
+            return false;
+        }
+        try {
+            Map<String, Object> root = objectMapper.readValue(modelContent, new TypeReference<Map<String, Object>>() {
+            });
+            Object nodesObj = root.get("nodes");
+            if (!(nodesObj instanceof List) || ((List<?>) nodesObj).isEmpty()) {
+                return false;
+            }
+            LinkedHashSet<String> nodeKeySet = new LinkedHashSet<>();
+            LinkedHashSet<String> startNodeSet = new LinkedHashSet<>();
+            int approvalNodeCount = 0;
+            for (Object nodeItem : (List<?>) nodesObj) {
+                if (!(nodeItem instanceof Map)) {
+                    return false;
+                }
+                Map<?, ?> nodeMap = (Map<?, ?>) nodeItem;
+                String nodeKey = readString(nodeMap, "nodeKey", "id", "key");
+                if (!StringUtils.hasText(nodeKey) || !nodeKeySet.add(nodeKey.trim())) {
+                    return false;
+                }
+                String nodeType = normalizeNodeType(readString(nodeMap, "nodeType", "type"));
+                if ("start".equals(nodeType)) {
+                    startNodeSet.add(nodeKey.trim());
+                }
+                if ("approval".equals(nodeType)) {
+                    approvalNodeCount++;
+                }
+            }
+            if (approvalNodeCount <= 0) {
+                return false;
+            }
+
+            String startNodeKey = readString(root, "startNodeKey");
+            if (StringUtils.hasText(startNodeKey)) {
+                if (!nodeKeySet.contains(startNodeKey.trim())) {
+                    return false;
+                }
+            } else if (nodeKeySet.size() > 1 && startNodeSet.isEmpty()) {
+                return false;
+            }
+
+            Object edgesObj = root.get("edges");
+            if (edgesObj instanceof List) {
+                for (Object edgeItem : (List<?>) edgesObj) {
+                    if (!(edgeItem instanceof Map)) {
+                        return false;
+                    }
+                    Map<?, ?> edgeMap = (Map<?, ?>) edgeItem;
+                    String from = readString(edgeMap, "from", "source", "sourceNodeKey");
+                    String to = readString(edgeMap, "to", "target", "targetNodeKey");
+                    if (!StringUtils.hasText(from) || !StringUtils.hasText(to)) {
+                        return false;
+                    }
+                    if (!nodeKeySet.contains(from.trim()) || !nodeKeySet.contains(to.trim())) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } catch (Exception ignore) {
+            return false;
+        }
+    }
+
+    /**
+     * 读取映射中的首个非空字符串。
+     *
+     * @param source 映射对象
+     * @param keys   候选字段
+     * @return 字符串值
+     */
+    private String readString(Map<?, ?> source, String... keys) {
+        if (source == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            Object value = source.get(key);
+            if (value != null && StringUtils.hasText(String.valueOf(value))) {
+                return String.valueOf(value);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 规范化流程节点类型。
+     *
+     * @param nodeType 原始类型
+     * @return 规范化类型
+     */
+    private String normalizeNodeType(String nodeType) {
+        if (!StringUtils.hasText(nodeType)) {
+            return "approval";
+        }
+        String normalized = nodeType.trim().toLowerCase(Locale.ROOT);
+        if ("start".equals(normalized) || "end".equals(normalized) || "cc".equals(normalized)
+                || "gateway".equals(normalized) || "parallel".equals(normalized)) {
+            return normalized;
+        }
+        return "approval";
     }
 
     /**

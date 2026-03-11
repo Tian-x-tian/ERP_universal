@@ -365,6 +365,8 @@ CREATE TABLE `sys_notice` (
 DROP TABLE IF EXISTS `sys_todo_task`;
 CREATE TABLE `sys_todo_task` (
   `todo_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '待办ID',
+  `instance_id` bigint(20) DEFAULT NULL COMMENT '流程实例ID',
+  `task_id` bigint(20) DEFAULT NULL COMMENT '流程任务ID',
   `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
   `process_name` varchar(100) NOT NULL COMMENT '流程名称',
   `node_name` varchar(100) DEFAULT NULL COMMENT '当前节点',
@@ -378,7 +380,8 @@ CREATE TABLE `sys_todo_task` (
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `remark` varchar(500) DEFAULT NULL COMMENT '备注',
   PRIMARY KEY (`todo_id`),
-  KEY `idx_todo_assignee` (`tenant_id`, `assignee_user_id`, `status`)
+  KEY `idx_todo_assignee` (`tenant_id`, `assignee_user_id`, `status`),
+  KEY `idx_todo_workflow` (`tenant_id`, `instance_id`, `task_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程待办任务表';
 
 -- ----------------------------
@@ -715,12 +718,12 @@ VALUES
   (2, '000000', '导入任务 IM20260307-01 执行完成', '审批通知', '导入导出中心', 'IM20260307-01', '导入任务执行完成，请查看结果。', 1, '1', NOW()),
   (3, '000000', '报表中心出现数据延迟预警', '预警提醒', '报表中心', NULL, '近30分钟内报表数据刷新延迟超过阈值。', 1, '0', NOW());
 
-INSERT INTO `sys_todo_task` (`todo_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
+INSERT INTO `sys_todo_task` (`todo_id`, `instance_id`, `task_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
 VALUES
-  (1, '000000', '请假审批', '部门负责人审批', 'LV-20260307-001', 'H', '0', 1, DATE_ADD(NOW(), INTERVAL 1 DAY), NOW(), '请及时处理'),
-  (2, '000000', '采购申请', '财务复核', 'PO-20260307-018', 'M', '1', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), '处理中'),
-  (3, '000000', '合同归档', '档案确认', 'CT-20260306-021', 'L', '0', 1, DATE_ADD(NOW(), INTERVAL 3 DAY), NOW(), '待签收'),
-  (4, '000000', '采购审批流程', '部门负责人审批', 'PO-20260309-001', 'M', '0', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), '流程引擎初始化待办');
+  (1, NULL, NULL, '000000', '请假审批', '部门负责人审批', 'LV-20260307-001', 'H', '0', 1, DATE_ADD(NOW(), INTERVAL 1 DAY), NOW(), '请及时处理'),
+  (2, NULL, NULL, '000000', '采购申请', '财务复核', 'PO-20260307-018', 'M', '1', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), '处理中'),
+  (3, NULL, NULL, '000000', '合同归档', '档案确认', 'CT-20260306-021', 'L', '0', 1, DATE_ADD(NOW(), INTERVAL 3 DAY), NOW(), '待签收'),
+  (4, 1, 1, '000000', '采购审批流程', '部门负责人审批', 'PO-20260309-001', 'M', '0', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), '流程引擎初始化待办');
 
 INSERT INTO `sys_wf_task` (`task_id`, `tenant_id`, `instance_id`, `definition_id`, `node_key`, `node_name`, `candidate_user_ids`, `assignee_user_id`, `assignee_user_name`, `assignee_nick_name`, `status`, `todo_id`, `due_time`, `create_time`)
 VALUES

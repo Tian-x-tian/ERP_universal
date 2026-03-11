@@ -9,6 +9,7 @@ import com.erp.system.domain.vo.WorkflowTaskFormVO;
 import com.erp.system.domain.vo.WorkflowTaskRemindBody;
 import com.erp.system.domain.vo.WorkflowTaskReturnBody;
 import com.erp.system.domain.vo.WorkflowTaskTransferBody;
+import com.erp.system.domain.vo.WorkflowSlaScanResultVO;
 
 import java.util.List;
 
@@ -54,6 +55,17 @@ public interface ISysWorkflowEngineService {
      * @return 任务列表
      */
     List<SysWorkflowTask> selectMyTaskList(Long userId, String status);
+
+    /**
+     * 签收流程任务。
+     *
+     * @param taskId          任务ID
+     * @param actionUserId    操作人用户ID
+     * @param actionUserName  操作人账号
+     * @param actionUserNick  操作人昵称
+     * @return 签收结果
+     */
+    boolean claimTask(Long taskId, Long actionUserId, String actionUserName, String actionUserNick);
 
     /**
      * 同意审批任务。
@@ -171,4 +183,11 @@ public interface ISysWorkflowEngineService {
      * @return 动态表单
      */
     WorkflowTaskFormVO selectTaskForm(Long taskId, Long userId);
+
+    /**
+     * 执行流程任务 SLA 扫描。
+     *
+     * @return 扫描结果
+     */
+    WorkflowSlaScanResultVO scanTimeoutTasks();
 }
