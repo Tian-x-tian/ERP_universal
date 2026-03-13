@@ -3,7 +3,6 @@ package com.erp.system.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import lombok.Data;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -11,7 +10,6 @@ import java.util.Date;
 /**
  * 流程任务动作记录对象 sys_wf_task_action
  */
-@Data
 @TableName("sys_wf_task_action")
 public class SysWorkflowTaskAction implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -58,5 +56,118 @@ public class SysWorkflowTaskAction implements Serializable {
 
     /** 动作时间 */
     private Date actionTime;
-}
 
+
+
+    public Long getActionId() {
+        return actionId;
+    }
+
+    public void setActionId(Long actionId) {
+        this.actionId = actionId;
+    }
+
+    public String getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(String tenantId) {
+        this.tenantId = tenantId;
+    }
+
+    public Long getInstanceId() {
+        return instanceId;
+    }
+
+    public void setInstanceId(Long instanceId) {
+        this.instanceId = instanceId;
+    }
+
+    public Long getTaskId() {
+        return taskId;
+    }
+
+    public void setTaskId(Long taskId) {
+        this.taskId = taskId;
+    }
+
+    public Long getDefinitionId() {
+        return definitionId;
+    }
+
+    public void setDefinitionId(Long definitionId) {
+        this.definitionId = definitionId;
+    }
+
+    public String getNodeName() {
+        return nodeName;
+    }
+
+    public void setNodeName(String nodeName) {
+        this.nodeName = nodeName;
+    }
+
+    public String getActionType() {
+        return actionType;
+    }
+
+    public void setActionType(String actionType) {
+        this.actionType = actionType;
+    }
+
+    public Long getActionUserId() {
+        return actionUserId;
+    }
+
+    public void setActionUserId(Long actionUserId) {
+        this.actionUserId = actionUserId;
+    }
+
+    public String getActionUserName() {
+        return actionUserName;
+    }
+
+    public void setActionUserName(String actionUserName) {
+        this.actionUserName = actionUserName;
+    }
+
+    public String getActionNickName() {
+        return actionNickName;
+    }
+
+    public void setActionNickName(String actionNickName) {
+        this.actionNickName = actionNickName;
+    }
+
+    public Long getFromAssigneeUserId() {
+        return fromAssigneeUserId;
+    }
+
+    public void setFromAssigneeUserId(Long fromAssigneeUserId) {
+        this.fromAssigneeUserId = fromAssigneeUserId;
+    }
+
+    public Long getToAssigneeUserId() {
+        return toAssigneeUserId;
+    }
+
+    public void setToAssigneeUserId(Long toAssigneeUserId) {
+        this.toAssigneeUserId = toAssigneeUserId;
+    }
+
+    public String getActionComment() {
+        return actionComment;
+    }
+
+    public void setActionComment(String actionComment) {
+        this.actionComment = actionComment;
+    }
+
+    public Date getActionTime() {
+        return actionTime;
+    }
+
+    public void setActionTime(Date actionTime) {
+        this.actionTime = actionTime;
+    }
+}

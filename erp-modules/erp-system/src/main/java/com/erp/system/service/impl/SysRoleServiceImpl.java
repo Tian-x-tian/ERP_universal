@@ -29,6 +29,8 @@ import java.util.Set;
  */
 @Service
 public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> implements ISysRoleService {
+    private static final String PLATFORM_TENANT_ID = "000000";
+    private static final String SUPER_ADMIN_ROLE_KEY = "admin";
 
     private final ISysRoleMenuService roleMenuService;
     private final ISysUserRoleService userRoleService;
@@ -54,6 +56,29 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
                 .map(SysRole::getRoleKey)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * 判断用户是否拥有平台超级管理员角色。
+     *
+     * @param userId 用户ID
+     * @return true 表示平台超级管理员
+     */
+    @Override
+    public boolean isPlatformSuperAdmin(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        List<Long> roleIds = userRoleService
+                .list(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId))
+                .stream()
+                .map(SysUserRole::getRoleId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (roleIds.isEmpty()) {
+            return false;
+        }
+        return listByIds(roleIds).stream().anyMatch(this::isPlatformSuperAdminRole);
     }
 
     /**
@@ -141,6 +166,10 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
             return false;
         }
         entity.setTenantId(tenantId);
+        entity.setRoleKey(normalizeRoleKey(entity.getRoleKey()));
+        if (!canUseRoleKey(tenantId, entity.getRoleKey())) {
+            return false;
+        }
         boolean success = super.save(entity);
         if (success && entity.getMenuIds() != null && !entity.getMenuIds().isEmpty()) {
             insertRoleMenu(entity);
@@ -166,6 +195,11 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
             return false;
         }
         entity.setTenantId(tenantId);
+        entity.setRoleKey(normalizeRoleKey(entity.getRoleKey()));
+        String targetRoleKey = StringUtils.hasText(entity.getRoleKey()) ? entity.getRoleKey() : existedRole.getRoleKey();
+        if (!canUseRoleKey(tenantId, targetRoleKey)) {
+            return false;
+        }
         // 删除旧关联
         roleMenuService.remove(new LambdaQueryWrapper<SysRoleMenu>().eq(SysRoleMenu::getRoleId, entity.getRoleId()));
         roleDeptService.remove(new LambdaQueryWrapper<SysRoleDept>().eq(SysRoleDept::getRoleId, entity.getRoleId()));
@@ -252,5 +286,44 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
      */
     private String normalizeTenantId(String tenantId) {
         return StringUtils.hasText(tenantId) ? tenantId.trim() : null;
+    }
+
+    /**
+     * 判断角色是否为平台超级管理员角色。
+     *
+     * @param role 角色对象
+     * @return true 表示平台超级管理员角色
+     */
+    private boolean isPlatformSuperAdminRole(SysRole role) {
+        if (role == null) {
+            return false;
+        }
+        return PLATFORM_TENANT_ID.equals(normalizeTenantId(role.getTenantId()))
+                && SUPER_ADMIN_ROLE_KEY.equals(normalizeRoleKey(role.getRoleKey()));
+    }
+
+    /**
+     * 校验角色编码是否允许在目标租户下使用。
+     *
+     * @param tenantId 目标租户编号
+     * @param roleKey  角色编码
+     * @return true 表示允许保存
+     */
+    private boolean canUseRoleKey(String tenantId, String roleKey) {
+        String normalizedRoleKey = normalizeRoleKey(roleKey);
+        if (!SUPER_ADMIN_ROLE_KEY.equals(normalizedRoleKey)) {
+            return true;
+        }
+        return PLATFORM_TENANT_ID.equals(normalizeTenantId(tenantId));
+    }
+
+    /**
+     * 规范化角色编码。
+     *
+     * @param roleKey 原始角色编码
+     * @return 去空白后的角色编码
+     */
+    private String normalizeRoleKey(String roleKey) {
+        return StringUtils.hasText(roleKey) ? roleKey.trim() : null;
     }
 }

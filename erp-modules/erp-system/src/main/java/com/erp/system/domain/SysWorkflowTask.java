@@ -3,7 +3,6 @@ package com.erp.system.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import lombok.Data;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -11,7 +10,6 @@ import java.util.Date;
 /**
  * 流程任务对象 sys_wf_task
  */
-@Data
 @TableName("sys_wf_task")
 public class SysWorkflowTask implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -67,5 +65,142 @@ public class SysWorkflowTask implements Serializable {
 
     /** 创建时间 */
     private Date createTime;
-}
 
+
+
+    public Long getTaskId() {
+        return taskId;
+    }
+
+    public void setTaskId(Long taskId) {
+        this.taskId = taskId;
+    }
+
+    public String getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(String tenantId) {
+        this.tenantId = tenantId;
+    }
+
+    public Long getInstanceId() {
+        return instanceId;
+    }
+
+    public void setInstanceId(Long instanceId) {
+        this.instanceId = instanceId;
+    }
+
+    public Long getDefinitionId() {
+        return definitionId;
+    }
+
+    public void setDefinitionId(Long definitionId) {
+        this.definitionId = definitionId;
+    }
+
+    public String getNodeKey() {
+        return nodeKey;
+    }
+
+    public void setNodeKey(String nodeKey) {
+        this.nodeKey = nodeKey;
+    }
+
+    public String getNodeName() {
+        return nodeName;
+    }
+
+    public void setNodeName(String nodeName) {
+        this.nodeName = nodeName;
+    }
+
+    public String getCandidateUserIds() {
+        return candidateUserIds;
+    }
+
+    public void setCandidateUserIds(String candidateUserIds) {
+        this.candidateUserIds = candidateUserIds;
+    }
+
+    public Long getAssigneeUserId() {
+        return assigneeUserId;
+    }
+
+    public void setAssigneeUserId(Long assigneeUserId) {
+        this.assigneeUserId = assigneeUserId;
+    }
+
+    public String getAssigneeUserName() {
+        return assigneeUserName;
+    }
+
+    public void setAssigneeUserName(String assigneeUserName) {
+        this.assigneeUserName = assigneeUserName;
+    }
+
+    public String getAssigneeNickName() {
+        return assigneeNickName;
+    }
+
+    public void setAssigneeNickName(String assigneeNickName) {
+        this.assigneeNickName = assigneeNickName;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getActionComment() {
+        return actionComment;
+    }
+
+    public void setActionComment(String actionComment) {
+        this.actionComment = actionComment;
+    }
+
+    public Long getTodoId() {
+        return todoId;
+    }
+
+    public void setTodoId(Long todoId) {
+        this.todoId = todoId;
+    }
+
+    public Date getDueTime() {
+        return dueTime;
+    }
+
+    public void setDueTime(Date dueTime) {
+        this.dueTime = dueTime;
+    }
+
+    public Date getClaimTime() {
+        return claimTime;
+    }
+
+    public void setClaimTime(Date claimTime) {
+        this.claimTime = claimTime;
+    }
+
+    public Date getFinishTime() {
+        return finishTime;
+    }
+
+    public void setFinishTime(Date finishTime) {
+        this.finishTime = finishTime;
+    }
+
+    public Date getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(Date createTime) {
+        this.createTime = createTime;
+    }
+}

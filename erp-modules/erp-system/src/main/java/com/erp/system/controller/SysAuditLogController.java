@@ -1,6 +1,8 @@
 package com.erp.system.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.SysAuditLog;
 import com.erp.system.service.ISysAuditLogService;
@@ -17,7 +19,6 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
-
 /**
  * 审计日志控制层
  */
@@ -39,18 +40,24 @@ public class SysAuditLogController {
      * @param success    是否成功（1 成功，0 失败）
      * @param startTime  开始时间
      * @param endTime    结束时间
+     * @param keyword    操作人或请求地址关键字
+     * @param pageNum    当前页码
+     * @param pageSize   每页条数
      * @return 审计日志列表
      */
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:audit:list')")
-    public R<List<SysAuditLog>> list(
+    public R<PageData<SysAuditLog>> list(
             @RequestParam(value = "operator", required = false) String operator,
             @RequestParam(value = "requestUri", required = false) String requestUri,
             @RequestParam(value = "success", required = false) String success,
             @RequestParam(value = "startTime", required = false)
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @RequestParam(value = "endTime", required = false)
-            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
+            @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
         LambdaQueryWrapper<SysAuditLog> queryWrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(operator)) {
             queryWrapper.like(SysAuditLog::getOperator, operator.trim());
@@ -67,8 +74,16 @@ public class SysAuditLogController {
         if (endTime != null) {
             queryWrapper.le(SysAuditLog::getOperationTime, toDate(endTime));
         }
+        if (StringUtils.hasText(keyword)) {
+            String normalizedKeyword = keyword.trim();
+            queryWrapper.and(wrapper -> wrapper.like(SysAuditLog::getOperator, normalizedKeyword)
+                    .or()
+                    .like(SysAuditLog::getRequestUri, normalizedKeyword));
+        }
         queryWrapper.orderByDesc(SysAuditLog::getOperationTime);
-        return R.success(auditLogService.list(queryWrapper));
+        Page<SysAuditLog> page = new Page<>(normalizePageNum(pageNum), normalizePageSize(pageSize));
+        Page<SysAuditLog> resultPage = auditLogService.page(page, queryWrapper);
+        return R.page(resultPage.getRecords(), resultPage.getCurrent(), resultPage.getSize(), resultPage.getTotal());
     }
 
     /**
@@ -103,5 +118,28 @@ public class SysAuditLogController {
      */
     private Date toDate(LocalDateTime localDateTime) {
         return java.sql.Timestamp.valueOf(localDateTime);
+    }
+
+    /**
+     * 规范化页码，避免非法页码导致分页异常。
+     *
+     * @param pageNum 原始页码
+     * @return 规范化后的页码
+     */
+    private long normalizePageNum(Long pageNum) {
+        return pageNum == null || pageNum < 1 ? 1L : pageNum;
+    }
+
+    /**
+     * 规范化分页大小，统一限制最大页长。
+     *
+     * @param pageSize 原始分页大小
+     * @return 规范化后的分页大小
+     */
+    private long normalizePageSize(Long pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return 20L;
+        }
+        return Math.min(pageSize, 200L);
     }
 }

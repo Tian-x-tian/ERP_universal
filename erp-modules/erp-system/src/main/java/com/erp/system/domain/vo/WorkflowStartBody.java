@@ -1,6 +1,5 @@
 package com.erp.system.domain.vo;
 
-import lombok.Data;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -8,7 +7,6 @@ import java.util.Date;
 /**
  * 流程发起请求对象。
  */
-@Data
 public class WorkflowStartBody implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -44,5 +42,94 @@ public class WorkflowStartBody implements Serializable {
 
     /** 备注 */
     private String remark;
-}
 
+
+
+    public String getProcessKey() {
+        return processKey;
+    }
+
+    public void setProcessKey(String processKey) {
+        this.processKey = processKey;
+    }
+
+    public String getBusinessNo() {
+        return businessNo;
+    }
+
+    public void setBusinessNo(String businessNo) {
+        this.businessNo = businessNo;
+    }
+
+    public String getBusinessType() {
+        return businessType;
+    }
+
+    public void setBusinessType(String businessType) {
+        this.businessType = businessType;
+    }
+
+    public String getNodeName() {
+        return nodeName;
+    }
+
+    public void setNodeName(String nodeName) {
+        this.nodeName = nodeName;
+    }
+
+    public Long getAssigneeUserId() {
+        return assigneeUserId;
+    }
+
+    public void setAssigneeUserId(Long assigneeUserId) {
+        this.assigneeUserId = assigneeUserId;
+    }
+
+    public String getAssigneeUserName() {
+        return assigneeUserName;
+    }
+
+    public void setAssigneeUserName(String assigneeUserName) {
+        this.assigneeUserName = assigneeUserName;
+    }
+
+    public String getAssigneeNickName() {
+        return assigneeNickName;
+    }
+
+    public void setAssigneeNickName(String assigneeNickName) {
+        this.assigneeNickName = assigneeNickName;
+    }
+
+    public String getPriority() {
+        return priority;
+    }
+
+    public void setPriority(String priority) {
+        this.priority = priority;
+    }
+
+    public Date getDueTime() {
+        return dueTime;
+    }
+
+    public void setDueTime(Date dueTime) {
+        this.dueTime = dueTime;
+    }
+
+    public String getFormData() {
+        return formData;
+    }
+
+    public void setFormData(String formData) {
+        this.formData = formData;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
+    }
+}

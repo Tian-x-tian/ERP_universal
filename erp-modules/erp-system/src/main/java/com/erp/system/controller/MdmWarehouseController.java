@@ -1,8 +1,12 @@
 package com.erp.system.controller;
 
+import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.MdmWarehouse;
+import com.erp.system.domain.vo.MdmWarehouseWorkflowSubmitBody;
 import com.erp.system.service.IMdmWarehouseService;
+import com.erp.system.service.IMdmWarehouseWorkflowSubmitService;
+import com.erp.system.support.MdmPageSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,8 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
  * MDM 仓库主数据控制层。
  */
@@ -23,9 +25,12 @@ import java.util.List;
 @RequestMapping("/system/mdm/warehouse")
 public class MdmWarehouseController {
     private final IMdmWarehouseService warehouseService;
+    private final IMdmWarehouseWorkflowSubmitService warehouseWorkflowSubmitService;
 
-    public MdmWarehouseController(IMdmWarehouseService warehouseService) {
+    public MdmWarehouseController(IMdmWarehouseService warehouseService,
+            IMdmWarehouseWorkflowSubmitService warehouseWorkflowSubmitService) {
         this.warehouseService = warehouseService;
+        this.warehouseWorkflowSubmitService = warehouseWorkflowSubmitService;
     }
 
     /**
@@ -38,10 +43,12 @@ public class MdmWarehouseController {
      */
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:mdm:warehouse:list')")
-    public R<List<MdmWarehouse>> list(@RequestParam(value = "whCode", required = false) String whCode,
+    public R<PageData<MdmWarehouse>> list(@RequestParam(value = "whCode", required = false) String whCode,
             @RequestParam(value = "whName", required = false) String whName,
-            @RequestParam(value = "status", required = false) String status) {
-        return R.success(warehouseService.selectWarehouseList(whCode, whName, status));
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
+            @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
+        return R.success(MdmPageSupport.paginate(warehouseService.selectWarehouseList(whCode, whName, status), pageNum, pageSize));
     }
 
     /**
@@ -100,6 +107,61 @@ public class MdmWarehouseController {
     public R<Boolean> disable(@PathVariable("warehouseId") Long warehouseId) {
         boolean success = warehouseService.disableWarehouse(warehouseId);
         return success ? R.success(true) : R.failed("停用仓库失败");
+    }
+
+    /**
+     * 提交仓库草稿生效审批。
+     *
+     * @param warehouseId 仓库ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/submit/{warehouseId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:warehouse:edit')")
+    public R<Boolean> submit(@PathVariable("warehouseId") Long warehouseId,
+            @RequestBody MdmWarehouseWorkflowSubmitBody submitBody) {
+        boolean success = warehouseWorkflowSubmitService.submitDraftActivation(
+                warehouseId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交仓库审批失败");
+    }
+
+    /**
+     * 提交仓库变更审批。
+     *
+     * @param warehouseId 仓库ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/change/{warehouseId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:warehouse:edit')")
+    public R<Boolean> submitChange(@PathVariable("warehouseId") Long warehouseId,
+            @RequestBody MdmWarehouseWorkflowSubmitBody submitBody) {
+        boolean success = warehouseWorkflowSubmitService.submitChange(
+                warehouseId,
+                submitBody == null ? null : submitBody.getWarehouse(),
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交仓库变更审批失败");
+    }
+
+    /**
+     * 提交仓库停用审批。
+     *
+     * @param warehouseId 仓库ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/disable/submit/{warehouseId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:warehouse:disable')")
+    public R<Boolean> submitDisable(@PathVariable("warehouseId") Long warehouseId,
+            @RequestBody MdmWarehouseWorkflowSubmitBody submitBody) {
+        boolean success = warehouseWorkflowSubmitService.submitDisable(
+                warehouseId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交仓库停用审批失败");
     }
 
     /**

@@ -24,6 +24,23 @@ WHERE `tenant_id` IS NULL OR `tenant_id` = '';
 
 SET @sql = (
     SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `sys_user` ADD COLUMN `token_version` int(11) NOT NULL DEFAULT 0 COMMENT ''Token版本号'' AFTER `password`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sys_user'
+      AND COLUMN_NAME = 'token_version'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE `sys_user`
+SET `token_version` = 0
+WHERE `token_version` IS NULL;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
               'ALTER TABLE `sys_role_menu` ADD COLUMN `tenant_id` varchar(20) NOT NULL DEFAULT ''000000'' COMMENT ''租户编号''',
               'SELECT 1')
     FROM information_schema.COLUMNS
@@ -699,8 +716,175 @@ SELECT '区域主数据', 2, 14, '/system/region', '/views/system/region/index',
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/region');
 
 UPDATE sys_menu
+SET parent_id = 0,
+    order_num = 4,
+    path = '/master-data',
+    component = NULL,
+    is_frame = 1,
+    menu_type = 'M',
+    visible = '0',
+    status = '0',
+    perms = NULL,
+    icon = 'Collection',
+    update_by = 'system',
+    update_time = NOW(),
+    remark = '升级脚本迁移至当前菜单蓝图'
+WHERE path = '/system/mdm'
+  AND 0 = (
+      SELECT COUNT(1)
+      FROM (
+          SELECT menu_id
+          FROM sys_menu
+          WHERE path = '/master-data'
+      ) existing_master_data
+  );
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '主数据管理', 0, 4, '/master-data', NULL, 1, 'M', '0', '0', NULL, 'Collection', 'system', NOW(), '升级脚本补齐目录'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/master-data');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '客户主数据',
+       (SELECT menu_id FROM sys_menu WHERE path = '/master-data' LIMIT 1),
+       1,
+       '/system/mdm/customer',
+       '/views/system/mdm/customer/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:mdm:customer:list',
+       NULL,
+       'system',
+       NOW(),
+       '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/mdm/customer');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '供应商主数据',
+       (SELECT menu_id FROM sys_menu WHERE path = '/master-data' LIMIT 1),
+       2,
+       '/system/mdm/supplier',
+       '/views/system/mdm/supplier/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:mdm:supplier:list',
+       NULL,
+       'system',
+       NOW(),
+       '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/mdm/supplier');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '物料主数据',
+       (SELECT menu_id FROM sys_menu WHERE path = '/master-data' LIMIT 1),
+       3,
+       '/system/mdm/item',
+       '/views/system/mdm/item/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:mdm:item:list',
+       NULL,
+       'system',
+       NOW(),
+       '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/mdm/item');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '仓库主数据',
+       (SELECT menu_id FROM sys_menu WHERE path = '/master-data' LIMIT 1),
+       4,
+       '/system/mdm/warehouse',
+       '/views/system/mdm/warehouse/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:mdm:warehouse:list',
+       NULL,
+       'system',
+       NOW(),
+       '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/mdm/warehouse');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '员工主数据',
+       (SELECT menu_id FROM sys_menu WHERE path = '/master-data' LIMIT 1),
+       5,
+       '/system/mdm/employee',
+       '/views/system/mdm/employee/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:mdm:employee:list',
+       NULL,
+       'system',
+       NOW(),
+       '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/mdm/employee');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '组织成本项目',
+       (SELECT menu_id FROM sys_menu WHERE path = '/master-data' LIMIT 1),
+       6,
+       '/system/mdm/dimension',
+       '/views/system/mdm/dimension/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:mdm:org:list',
+       NULL,
+       'system',
+       NOW(),
+       '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/mdm/dimension');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '基础字典',
+       (SELECT menu_id FROM sys_menu WHERE path = '/master-data' LIMIT 1),
+       7,
+       '/system/mdm/dict',
+       '/views/system/mdm/dict/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:mdm:dict:list',
+       NULL,
+       'system',
+       NOW(),
+       '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/mdm/dict');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '变更追踪',
+       (SELECT menu_id FROM sys_menu WHERE path = '/master-data' LIMIT 1),
+       8,
+       '/system/mdm/trace',
+       '/views/system/mdm/trace/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:mdm:trace:list',
+       NULL,
+       'system',
+       NOW(),
+       '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/mdm/trace');
+
+UPDATE sys_menu
 SET visible = '0'
-WHERE path IN ('/system/notice', '/system/audit-log', '/system/oper-log', '/system/login-log', '/system/region')
+WHERE path IN ('/system/notice', '/system/audit-log', '/system/oper-log', '/system/login-log', '/system/region',
+               '/master-data', '/system/mdm/customer', '/system/mdm/supplier', '/system/mdm/item',
+               '/system/mdm/warehouse', '/system/mdm/employee', '/system/mdm/dimension',
+               '/system/mdm/dict', '/system/mdm/trace')
   AND visible <> '0';
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
@@ -862,6 +1046,52 @@ FROM (
   UNION ALL SELECT '/system/region', '区域新增', 2, 'system:region:add'
   UNION ALL SELECT '/system/region', '区域修改', 3, 'system:region:edit'
   UNION ALL SELECT '/system/region', '区域删除', 4, 'system:region:remove'
+  UNION ALL SELECT '/system/mdm/customer', '客户查询', 1, 'system:mdm:customer:query'
+  UNION ALL SELECT '/system/mdm/customer', '客户新增', 2, 'system:mdm:customer:add'
+  UNION ALL SELECT '/system/mdm/customer', '客户修改', 3, 'system:mdm:customer:edit'
+  UNION ALL SELECT '/system/mdm/customer', '客户停用', 4, 'system:mdm:customer:disable'
+  UNION ALL SELECT '/system/mdm/customer', '客户删除', 5, 'system:mdm:customer:remove'
+  UNION ALL SELECT '/system/mdm/supplier', '供应商查询', 1, 'system:mdm:supplier:query'
+  UNION ALL SELECT '/system/mdm/supplier', '供应商新增', 2, 'system:mdm:supplier:add'
+  UNION ALL SELECT '/system/mdm/supplier', '供应商修改', 3, 'system:mdm:supplier:edit'
+  UNION ALL SELECT '/system/mdm/supplier', '供应商停用', 4, 'system:mdm:supplier:disable'
+  UNION ALL SELECT '/system/mdm/supplier', '供应商删除', 5, 'system:mdm:supplier:remove'
+  UNION ALL SELECT '/system/mdm/item', '物料查询', 1, 'system:mdm:item:query'
+  UNION ALL SELECT '/system/mdm/item', '物料新增', 2, 'system:mdm:item:add'
+  UNION ALL SELECT '/system/mdm/item', '物料修改', 3, 'system:mdm:item:edit'
+  UNION ALL SELECT '/system/mdm/item', '物料停用', 4, 'system:mdm:item:disable'
+  UNION ALL SELECT '/system/mdm/item', '物料删除', 5, 'system:mdm:item:remove'
+  UNION ALL SELECT '/system/mdm/warehouse', '仓库查询', 1, 'system:mdm:warehouse:query'
+  UNION ALL SELECT '/system/mdm/warehouse', '仓库新增', 2, 'system:mdm:warehouse:add'
+  UNION ALL SELECT '/system/mdm/warehouse', '仓库修改', 3, 'system:mdm:warehouse:edit'
+  UNION ALL SELECT '/system/mdm/warehouse', '仓库停用', 4, 'system:mdm:warehouse:disable'
+  UNION ALL SELECT '/system/mdm/warehouse', '仓库删除', 5, 'system:mdm:warehouse:remove'
+  UNION ALL SELECT '/system/mdm/employee', '员工查询', 1, 'system:mdm:employee:query'
+  UNION ALL SELECT '/system/mdm/employee', '员工新增', 2, 'system:mdm:employee:add'
+  UNION ALL SELECT '/system/mdm/employee', '员工修改', 3, 'system:mdm:employee:edit'
+  UNION ALL SELECT '/system/mdm/employee', '员工离职', 4, 'system:mdm:employee:leave'
+  UNION ALL SELECT '/system/mdm/employee', '员工删除', 5, 'system:mdm:employee:remove'
+  UNION ALL SELECT '/system/mdm/dimension', '组织查询', 1, 'system:mdm:org:query'
+  UNION ALL SELECT '/system/mdm/dimension', '组织新增', 2, 'system:mdm:org:add'
+  UNION ALL SELECT '/system/mdm/dimension', '组织修改', 3, 'system:mdm:org:edit'
+  UNION ALL SELECT '/system/mdm/dimension', '组织停用', 4, 'system:mdm:org:disable'
+  UNION ALL SELECT '/system/mdm/dimension', '组织删除', 5, 'system:mdm:org:remove'
+  UNION ALL SELECT '/system/mdm/dimension', '成本中心查询', 6, 'system:mdm:cc:query'
+  UNION ALL SELECT '/system/mdm/dimension', '成本中心新增', 7, 'system:mdm:cc:add'
+  UNION ALL SELECT '/system/mdm/dimension', '成本中心修改', 8, 'system:mdm:cc:edit'
+  UNION ALL SELECT '/system/mdm/dimension', '成本中心停用', 9, 'system:mdm:cc:disable'
+  UNION ALL SELECT '/system/mdm/dimension', '成本中心删除', 10, 'system:mdm:cc:remove'
+  UNION ALL SELECT '/system/mdm/dimension', '项目查询', 11, 'system:mdm:project:query'
+  UNION ALL SELECT '/system/mdm/dimension', '项目新增', 12, 'system:mdm:project:add'
+  UNION ALL SELECT '/system/mdm/dimension', '项目修改', 13, 'system:mdm:project:edit'
+  UNION ALL SELECT '/system/mdm/dimension', '项目停用', 14, 'system:mdm:project:disable'
+  UNION ALL SELECT '/system/mdm/dimension', '项目删除', 15, 'system:mdm:project:remove'
+  UNION ALL SELECT '/system/mdm/dict', '字典项查询', 1, 'system:mdm:dict:query'
+  UNION ALL SELECT '/system/mdm/dict', '字典项新增', 2, 'system:mdm:dict:add'
+  UNION ALL SELECT '/system/mdm/dict', '字典项修改', 3, 'system:mdm:dict:edit'
+  UNION ALL SELECT '/system/mdm/dict', '字典项停用', 4, 'system:mdm:dict:disable'
+  UNION ALL SELECT '/system/mdm/dict', '字典项删除', 5, 'system:mdm:dict:remove'
+  UNION ALL SELECT '/system/mdm/trace', '追踪查询', 1, 'system:mdm:trace:query'
   UNION ALL SELECT '/platform/todo-center', '待办处理', 1, 'system:todo:handle'
   UNION ALL SELECT '/platform/code-rule', '编码规则查询', 1, 'system:codeRule:query'
   UNION ALL SELECT '/platform/code-rule', '编码规则新增', 2, 'system:codeRule:add'
@@ -893,6 +1123,8 @@ SELECT 1, m.menu_id
 FROM sys_menu m
 WHERE m.path IN (
   '/system/notice', '/system/audit-log', '/system/oper-log', '/system/login-log', '/system/region',
+  '/master-data', '/system/mdm/customer', '/system/mdm/supplier', '/system/mdm/item',
+  '/system/mdm/warehouse', '/system/mdm/employee', '/system/mdm/dimension', '/system/mdm/dict', '/system/mdm/trace',
   '/platform', '/platform/org', '/platform/data-scope', '/platform/todo-center', '/platform/code-rule', '/platform/workflow'
 )
   AND EXISTS (SELECT 1 FROM sys_role WHERE role_id = 1)
@@ -921,6 +1153,16 @@ WHERE m.perms IN (
   'system:oper:query', 'system:oper:remove',
   'system:loginLog:remove',
   'system:region:query', 'system:region:add', 'system:region:edit', 'system:region:remove',
+  'system:mdm:customer:query', 'system:mdm:customer:add', 'system:mdm:customer:edit', 'system:mdm:customer:disable', 'system:mdm:customer:remove',
+  'system:mdm:supplier:query', 'system:mdm:supplier:add', 'system:mdm:supplier:edit', 'system:mdm:supplier:disable', 'system:mdm:supplier:remove',
+  'system:mdm:item:query', 'system:mdm:item:add', 'system:mdm:item:edit', 'system:mdm:item:disable', 'system:mdm:item:remove',
+  'system:mdm:warehouse:query', 'system:mdm:warehouse:add', 'system:mdm:warehouse:edit', 'system:mdm:warehouse:disable', 'system:mdm:warehouse:remove',
+  'system:mdm:employee:query', 'system:mdm:employee:add', 'system:mdm:employee:edit', 'system:mdm:employee:leave', 'system:mdm:employee:remove',
+  'system:mdm:org:query', 'system:mdm:org:add', 'system:mdm:org:edit', 'system:mdm:org:disable', 'system:mdm:org:remove',
+  'system:mdm:cc:query', 'system:mdm:cc:add', 'system:mdm:cc:edit', 'system:mdm:cc:disable', 'system:mdm:cc:remove',
+  'system:mdm:project:query', 'system:mdm:project:add', 'system:mdm:project:edit', 'system:mdm:project:disable', 'system:mdm:project:remove',
+  'system:mdm:dict:query', 'system:mdm:dict:add', 'system:mdm:dict:edit', 'system:mdm:dict:disable', 'system:mdm:dict:remove',
+  'system:mdm:trace:query',
   'system:todo:handle',
   'system:codeRule:query', 'system:codeRule:add', 'system:codeRule:edit', 'system:codeRule:remove', 'system:codeRule:generate',
   'system:workflow:query', 'system:workflow:add', 'system:workflow:edit', 'system:workflow:remove',

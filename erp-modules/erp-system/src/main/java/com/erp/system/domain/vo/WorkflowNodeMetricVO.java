@@ -1,13 +1,11 @@
 package com.erp.system.domain.vo;
 
-import lombok.Data;
 
 import java.io.Serializable;
 
 /**
  * 节点效率指标。
  */
-@Data
 public class WorkflowNodeMetricVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -28,4 +26,53 @@ public class WorkflowNodeMetricVO implements Serializable {
 
     /** 驳回数量 */
     private long rejectCount;
+
+
+    public String getNodeKey() {
+        return nodeKey;
+    }
+
+    public void setNodeKey(String nodeKey) {
+        this.nodeKey = nodeKey;
+    }
+
+    public String getNodeName() {
+        return nodeName;
+    }
+
+    public void setNodeName(String nodeName) {
+        this.nodeName = nodeName;
+    }
+
+    public long getTaskCount() {
+        return taskCount;
+    }
+
+    public void setTaskCount(long taskCount) {
+        this.taskCount = taskCount;
+    }
+
+    public double getAverageHours() {
+        return averageHours;
+    }
+
+    public void setAverageHours(double averageHours) {
+        this.averageHours = averageHours;
+    }
+
+    public long getOvertimeCount() {
+        return overtimeCount;
+    }
+
+    public void setOvertimeCount(long overtimeCount) {
+        this.overtimeCount = overtimeCount;
+    }
+
+    public long getRejectCount() {
+        return rejectCount;
+    }
+
+    public void setRejectCount(long rejectCount) {
+        this.rejectCount = rejectCount;
+    }
 }

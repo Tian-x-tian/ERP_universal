@@ -1,13 +1,11 @@
 package com.erp.system.domain.vo;
 
-import lombok.Data;
 
 import java.io.Serializable;
 
 /**
  * 流程参与人选项对象。
  */
-@Data
 public class WorkflowParticipantOptionVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -19,4 +17,29 @@ public class WorkflowParticipantOptionVO implements Serializable {
 
     /** 上级节点值 */
     private Long parentId;
+
+
+    public Long getValue() {
+        return value;
+    }
+
+    public void setValue(Long value) {
+        this.value = value;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+
+    public void setLabel(String label) {
+        this.label = label;
+    }
+
+    public Long getParentId() {
+        return parentId;
+    }
+
+    public void setParentId(Long parentId) {
+        this.parentId = parentId;
+    }
 }

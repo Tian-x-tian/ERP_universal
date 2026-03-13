@@ -1,8 +1,12 @@
 package com.erp.system.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.MdmCustomer;
+import com.erp.system.domain.vo.MdmCustomerWorkflowSubmitBody;
 import com.erp.system.service.IMdmCustomerService;
+import com.erp.system.service.IMdmCustomerWorkflowSubmitService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,9 +29,12 @@ import java.util.List;
 public class MdmCustomerController {
 
     private final IMdmCustomerService customerService;
+    private final IMdmCustomerWorkflowSubmitService customerWorkflowSubmitService;
 
-    public MdmCustomerController(IMdmCustomerService customerService) {
+    public MdmCustomerController(IMdmCustomerService customerService,
+                                 IMdmCustomerWorkflowSubmitService customerWorkflowSubmitService) {
         this.customerService = customerService;
+        this.customerWorkflowSubmitService = customerWorkflowSubmitService;
     }
 
     /**
@@ -40,10 +47,18 @@ public class MdmCustomerController {
      */
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:mdm:customer:list')")
-    public R<List<MdmCustomer>> list(@RequestParam(value = "customerCode", required = false) String customerCode,
+    public R<PageData<MdmCustomer>> list(@RequestParam(value = "customerCode", required = false) String customerCode,
             @RequestParam(value = "customerName", required = false) String customerName,
-            @RequestParam(value = "status", required = false) String status) {
-        return R.success(maskSensitiveFields(customerService.selectCustomerList(customerCode, customerName, status)));
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
+            @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
+        Page<MdmCustomer> page = customerService.selectCustomerPage(
+                new Page<>(normalizePageNum(pageNum), normalizePageSize(pageSize)),
+                customerCode,
+                customerName,
+                status);
+        List<MdmCustomer> items = maskSensitiveFields(page.getRecords());
+        return R.page(items, page.getCurrent(), page.getSize(), page.getTotal());
     }
 
     /**
@@ -108,6 +123,61 @@ public class MdmCustomerController {
     }
 
     /**
+     * 提交客户草稿生效审批。
+     *
+     * @param customerId 客户ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/submit/{customerId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:customer:edit')")
+    public R<Boolean> submit(@PathVariable("customerId") Long customerId,
+                             @RequestBody MdmCustomerWorkflowSubmitBody submitBody) {
+        boolean success = customerWorkflowSubmitService.submitDraftActivation(
+                customerId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交客户审批失败");
+    }
+
+    /**
+     * 提交客户变更审批。
+     *
+     * @param customerId 客户ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/change/{customerId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:customer:edit')")
+    public R<Boolean> submitChange(@PathVariable("customerId") Long customerId,
+                                   @RequestBody MdmCustomerWorkflowSubmitBody submitBody) {
+        boolean success = customerWorkflowSubmitService.submitChange(
+                customerId,
+                submitBody == null ? null : submitBody.getCustomer(),
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交客户变更审批失败");
+    }
+
+    /**
+     * 提交客户停用审批。
+     *
+     * @param customerId 客户ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/disable/submit/{customerId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:customer:disable')")
+    public R<Boolean> submitDisable(@PathVariable("customerId") Long customerId,
+                                    @RequestBody MdmCustomerWorkflowSubmitBody submitBody) {
+        boolean success = customerWorkflowSubmitService.submitDisable(
+                customerId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交客户停用审批失败");
+    }
+
+    /**
      * 删除客户（逻辑删除）。
      *
      * @param customerId 客户ID
@@ -153,5 +223,28 @@ public class MdmCustomerController {
         String prefix = taxNo.substring(0, 2);
         String suffix = taxNo.substring(taxNo.length() - 2);
         customer.setTaxNo(prefix + "****" + suffix);
+    }
+
+    /**
+     * 规范分页页码。
+     *
+     * @param pageNum 原始页码
+     * @return 有效页码
+     */
+    private long normalizePageNum(Long pageNum) {
+        return pageNum == null || pageNum < 1 ? 1L : pageNum;
+    }
+
+    /**
+     * 规范分页大小。
+     *
+     * @param pageSize 原始分页大小
+     * @return 有效分页大小
+     */
+    private long normalizePageSize(Long pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return 20L;
+        }
+        return Math.min(pageSize, 200L);
     }
 }

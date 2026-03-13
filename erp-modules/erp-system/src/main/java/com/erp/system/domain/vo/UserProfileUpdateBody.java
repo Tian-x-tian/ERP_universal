@@ -1,13 +1,11 @@
 package com.erp.system.domain.vo;
 
-import lombok.Data;
 
 import java.io.Serializable;
 
 /**
  * 个人中心资料更新请求对象。
  */
-@Data
 public class UserProfileUpdateBody implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -25,4 +23,45 @@ public class UserProfileUpdateBody implements Serializable {
 
     /** 头像地址 */
     private String avatar;
+
+
+    public String getNickName() {
+        return nickName;
+    }
+
+    public void setNickName(String nickName) {
+        this.nickName = nickName;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getPhonenumber() {
+        return phonenumber;
+    }
+
+    public void setPhonenumber(String phonenumber) {
+        this.phonenumber = phonenumber;
+    }
+
+    public String getSex() {
+        return sex;
+    }
+
+    public void setSex(String sex) {
+        this.sex = sex;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
+    }
 }

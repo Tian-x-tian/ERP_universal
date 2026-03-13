@@ -1,6 +1,5 @@
 package com.erp.system.domain.vo;
 
-import lombok.Data;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -9,7 +8,6 @@ import java.util.List;
 /**
  * 流程任务催办请求对象。
  */
-@Data
 public class WorkflowTaskRemindBody implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -18,4 +16,21 @@ public class WorkflowTaskRemindBody implements Serializable {
 
     /** 催办消息 */
     private String message;
+
+
+    public List<String> getChannels() {
+        return channels;
+    }
+
+    public void setChannels(List<String> channels) {
+        this.channels = channels;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
 }

@@ -1,13 +1,11 @@
 package com.erp.system.domain.vo;
 
-import lombok.Data;
 
 import java.io.Serializable;
 
 /**
  * 流程任务转交请求对象。
  */
-@Data
 public class WorkflowTaskTransferBody implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -22,5 +20,38 @@ public class WorkflowTaskTransferBody implements Serializable {
 
     /** 转交说明 */
     private String actionComment;
-}
 
+
+
+    public Long getTargetUserId() {
+        return targetUserId;
+    }
+
+    public void setTargetUserId(Long targetUserId) {
+        this.targetUserId = targetUserId;
+    }
+
+    public String getTargetUserName() {
+        return targetUserName;
+    }
+
+    public void setTargetUserName(String targetUserName) {
+        this.targetUserName = targetUserName;
+    }
+
+    public String getTargetNickName() {
+        return targetNickName;
+    }
+
+    public void setTargetNickName(String targetNickName) {
+        this.targetNickName = targetNickName;
+    }
+
+    public String getActionComment() {
+        return actionComment;
+    }
+
+    public void setActionComment(String actionComment) {
+        this.actionComment = actionComment;
+    }
+}

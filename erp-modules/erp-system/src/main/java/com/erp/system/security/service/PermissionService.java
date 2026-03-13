@@ -15,7 +15,6 @@ import java.util.Set;
 public class PermissionService {
 
     private static final String ALL_PERMISSION = "*:*:*";
-    private static final String SUPER_ADMIN_ROLE_KEY = "admin";
 
     private final SecurityUserResolver securityUserResolver;
     private final ISysRoleService roleService;
@@ -43,8 +42,7 @@ public class PermissionService {
         if (currentUserId == null) {
             return false;
         }
-        Set<String> roleKeys = roleService.selectRoleKeysByUserId(currentUserId);
-        if (isSuperAdmin(roleKeys)) {
+        if (roleService.isPlatformSuperAdmin(currentUserId)) {
             return true;
         }
         Set<String> permissions = menuService.selectMenuPermsByUserId(currentUserId);
@@ -67,19 +65,6 @@ public class PermissionService {
             }
         }
         return false;
-    }
-
-    /**
-     * 判断是否为超级管理员角色。
-     *
-     * @param roleKeys 角色编码集合
-     * @return true 表示超级管理员，false 表示非超级管理员
-     */
-    private boolean isSuperAdmin(Set<String> roleKeys) {
-        if (roleKeys == null || roleKeys.isEmpty()) {
-            return false;
-        }
-        return roleKeys.contains(SUPER_ADMIN_ROLE_KEY);
     }
 
     /**

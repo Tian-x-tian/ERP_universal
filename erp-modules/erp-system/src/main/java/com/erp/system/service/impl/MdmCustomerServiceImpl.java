@@ -1,12 +1,17 @@
 package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.erp.system.domain.MdmProject;
 import com.erp.system.domain.MdmCustomer;
 import com.erp.system.mapper.MdmCustomerMapper;
+import com.erp.system.mapper.MdmProjectMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IMdmCustomerService;
+import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmStatusSupport;
@@ -31,10 +36,17 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
 
     private final IMdmAuditTrailService auditTrailService;
     private final SecurityUserResolver securityUserResolver;
+    private final MdmProjectMapper projectMapper;
+    private final IMdmReferenceCheckService referenceCheckService;
 
-    public MdmCustomerServiceImpl(IMdmAuditTrailService auditTrailService, SecurityUserResolver securityUserResolver) {
+    public MdmCustomerServiceImpl(IMdmAuditTrailService auditTrailService,
+            SecurityUserResolver securityUserResolver,
+            MdmProjectMapper projectMapper,
+            IMdmReferenceCheckService referenceCheckService) {
         this.auditTrailService = auditTrailService;
         this.securityUserResolver = securityUserResolver;
+        this.projectMapper = projectMapper;
+        this.referenceCheckService = referenceCheckService;
     }
 
     /**
@@ -47,6 +59,32 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
      */
     @Override
     public List<MdmCustomer> selectCustomerList(String customerCode, String customerName, String status) {
+        return list(buildQueryWrapper(customerCode, customerName, status));
+    }
+
+    /**
+     * 查询客户分页列表。
+     *
+     * @param page         分页参数
+     * @param customerCode 客户编码
+     * @param customerName 客户名称
+     * @param status       状态
+     * @return 分页结果
+     */
+    public Page<MdmCustomer> selectCustomerPage(Page<MdmCustomer> page, String customerCode, String customerName,
+            String status) {
+        return page(page, buildQueryWrapper(customerCode, customerName, status));
+    }
+
+    /**
+     * 构建客户查询条件。
+     *
+     * @param customerCode 客户编码
+     * @param customerName 客户名称
+     * @param status       状态
+     * @return 查询条件
+     */
+    private LambdaQueryWrapper<MdmCustomer> buildQueryWrapper(String customerCode, String customerName, String status) {
         LambdaQueryWrapper<MdmCustomer> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST);
         if (StringUtils.hasText(customerCode)) {
@@ -59,7 +97,7 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
             queryWrapper.eq(MdmCustomer::getStatus, MdmStatusSupport.normalizeStatus(status));
         }
         queryWrapper.orderByDesc(MdmCustomer::getUpdateTime).orderByDesc(MdmCustomer::getCreateTime);
-        return list(queryWrapper);
+        return queryWrapper;
     }
 
     /**
@@ -100,16 +138,14 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         customer.setCity(MdmValueSupport.trimToNull(customer.getCity()));
         customer.setDistrict(MdmValueSupport.trimToNull(customer.getDistrict()));
         customer.setDetailAddress(MdmValueSupport.trimToNull(customer.getDetailAddress()));
-        customer.setStatus(MdmStatusSupport.normalizeStatus(customer.getStatus()));
+        customer.setStatus(MdmStatusSupport.DRAFT);
         customer.setVersionNo(1);
         customer.setDelFlag(DEL_FLAG_EXIST);
         customer.setCreateBy(operator);
         customer.setUpdateBy(operator);
         customer.setCreateTime(now);
         customer.setUpdateTime(now);
-        if (MdmStatusSupport.isActive(customer.getStatus())) {
-            customer.setEffectiveTime(now);
-        }
+        customer.setEffectiveTime(null);
         boolean saved = save(customer);
         if (saved) {
             auditTrailService.record(MdmDomainTypeSupport.CUSTOMER,
@@ -140,6 +176,12 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
                 .eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST));
         if (existedCustomer == null) {
             return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existedCustomer.getStatus())) {
+            throw new IllegalStateException("客户审批中，暂不允许直接修改");
+        }
+        if (!MdmStatusSupport.isDraft(existedCustomer.getStatus())) {
+            throw new IllegalStateException("已生效客户请通过审批流程提交变更");
         }
         if (StringUtils.hasText(customer.getCustomerCode())) {
             String customerCode = customer.getCustomerCode().trim();
@@ -175,7 +217,7 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         }
         customer.setUpdateBy(resolveOperator());
         customer.setUpdateTime(new Date());
-        boolean updated = updateById(customer);
+        boolean updated = updateCustomerByVersion(customer, existedCustomer.getVersionNo());
         if (updated) {
             MdmCustomer after = getById(customer.getCustomerId());
             auditTrailService.record(MdmDomainTypeSupport.CUSTOMER,
@@ -201,11 +243,20 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         if (customerId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.CUSTOMER, customerId);
+
         MdmCustomer existedCustomer = getOne(new LambdaQueryWrapper<MdmCustomer>()
                 .eq(MdmCustomer::getCustomerId, customerId)
                 .eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST));
         if (existedCustomer == null) {
             return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existedCustomer.getStatus())) {
+            throw new IllegalStateException("客户审批中，暂不允许直接停用");
+        }
+        if (MdmStatusSupport.isActive(existedCustomer.getStatus())) {
+            throw new IllegalStateException("已生效客户请通过审批流程提交停用");
         }
         if (MdmStatusSupport.DISABLED.equals(existedCustomer.getStatus())) {
             return true;
@@ -216,7 +267,7 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existedCustomer.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateCustomerByVersion(updateEntity, existedCustomer.getVersionNo());
         if (updated) {
             MdmCustomer after = getById(customerId);
             auditTrailService.record(MdmDomainTypeSupport.CUSTOMER,
@@ -242,10 +293,19 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         if (customerId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.CUSTOMER, customerId);
+
+        if (isReferenced(customerId)) {
+            throw new IllegalStateException("客户已被项目引用，不能删除");
+        }
         MdmCustomer existedCustomer = getOne(new LambdaQueryWrapper<MdmCustomer>()
                 .eq(MdmCustomer::getCustomerId, customerId)
                 .eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST));
         if (existedCustomer == null || !MdmStatusSupport.isDraft(existedCustomer.getStatus())) {
+            return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existedCustomer.getStatus())) {
             return false;
         }
         MdmCustomer updateEntity = new MdmCustomer();
@@ -254,7 +314,7 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existedCustomer.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateCustomerByVersion(updateEntity, existedCustomer.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.CUSTOMER,
                     customerId,
@@ -285,6 +345,46 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
             queryWrapper.ne(MdmCustomer::getCustomerId, excludeBizId);
         }
         return count(queryWrapper) > 0;
+    }
+
+    /**
+     * 按版本号执行乐观锁更新。
+     *
+     * @param customer         更新对象
+     * @param currentVersionNo 当前版本号
+     * @return true 表示更新成功
+     */
+    private boolean updateCustomerByVersion(MdmCustomer customer, Integer currentVersionNo) {
+        if (customer == null || customer.getCustomerId() == null) {
+            return false;
+        }
+        LambdaUpdateWrapper<MdmCustomer> updateWrapper = new LambdaUpdateWrapper<MdmCustomer>()
+                .eq(MdmCustomer::getCustomerId, customer.getCustomerId())
+                .eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST);
+        if (currentVersionNo != null) {
+            updateWrapper.eq(MdmCustomer::getVersionNo, currentVersionNo);
+        }
+        boolean updated = update(customer, updateWrapper);
+        if (!updated) {
+            throw new IllegalStateException("客户数据已被其他人更新，请刷新后重试");
+        }
+        return true;
+    }
+
+    /**
+     * 判断客户是否已被其他主数据引用。
+     *
+     * @param customerId 客户ID
+     * @return true 表示已引用
+     */
+    private boolean isReferenced(Long customerId) {
+        if (customerId == null) {
+            return false;
+        }
+        Long projectCount = projectMapper.selectCount(new LambdaQueryWrapper<MdmProject>()
+                .eq(MdmProject::getCustomerId, customerId)
+                .eq(MdmProject::getDelFlag, DEL_FLAG_EXIST));
+        return projectCount != null && projectCount > 0;
     }
 
     /**

@@ -3,6 +3,7 @@ package com.erp.system.controller;
 import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysMenu;
+import com.erp.system.domain.vo.SysMenuSyncNode;
 import com.erp.system.service.ISysMenuService;
 import com.erp.system.support.TenantWriteGuard;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -63,6 +64,24 @@ public class SysMenuController {
             return R.failed(ResultCode.FORBIDDEN);
         }
         return R.success(menuService.updateById(menu));
+    }
+
+    /**
+     * 同步当前页面菜单结构。
+     *
+     * @param menuTree 菜单同步树
+     * @return 同步处理记录数
+     */
+    @PreAuthorize("@ss.hasPermi('system:menu:edit')")
+    @PostMapping("/sync")
+    public R<Integer> sync(@RequestBody List<SysMenuSyncNode> menuTree) {
+        if (!TenantWriteGuard.canWriteGlobalData()) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
+        if (menuTree == null || menuTree.isEmpty()) {
+            return R.failed(ResultCode.PARAM_ERROR, "同步菜单数据不能为空");
+        }
+        return R.success(menuService.syncMenuTree(menuTree));
     }
 
     /**

@@ -109,6 +109,14 @@ public class SysDeptController {
         if (dept.getParentId() == null) {
             return R.failed("上级部门不能为空");
         }
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
+        if (!canWriteDept(dataScope, dept, null)) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         dept.setStatus(StatusFieldSupport.normalizeBinaryStatus(dept.getStatus()));
         boolean success = deptService.createDept(dept);
         return success ? R.success(true) : R.failed("新增部门失败，请检查上级部门是否存在");
@@ -123,6 +131,18 @@ public class SysDeptController {
         if (dept == null || dept.getDeptId() == null) {
             return R.failed("部门ID不能为空");
         }
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
+        SysDept existedDept = deptService.getById(dept.getDeptId());
+        if (existedDept == null) {
+            return R.failed("部门不存在");
+        }
+        if (!canAccessDept(dataScope, existedDept.getDeptId()) || !canWriteDept(dataScope, dept, existedDept)) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         boolean success = deptService.updateDept(dept);
         return success ? R.success(true) : R.failed("修改部门失败，请检查上级部门配置");
     }
@@ -133,6 +153,14 @@ public class SysDeptController {
     @PreAuthorize("@ss.hasPermi('system:dept:remove')")
     @DeleteMapping("/{deptId}")
     public R<Boolean> remove(@PathVariable("deptId") Long deptId) {
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
+        if (!canAccessDept(dataScope, deptId)) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         long childCount = deptService.count(new LambdaQueryWrapper<SysDept>()
                 .eq(SysDept::getParentId, deptId));
         if (childCount > 0) {
@@ -168,6 +196,35 @@ public class SysDeptController {
             return true;
         }
         return dataScope.getDeptIds().contains(deptId);
+    }
+
+    /**
+     * 校验部门写操作是否落在当前数据权限范围内。
+     *
+     * @param dataScope   数据权限范围
+     * @param requestDept 请求部门对象
+     * @param existedDept 已存在部门对象
+     * @return true 表示允许写入
+     */
+    private boolean canWriteDept(DataPermissionScope dataScope, SysDept requestDept, SysDept existedDept) {
+        if (dataScope == null || requestDept == null) {
+            return false;
+        }
+        if (dataScope.isAllData()) {
+            return true;
+        }
+        Long parentDeptId = requestDept.getParentId();
+        if (parentDeptId == null && existedDept != null) {
+            parentDeptId = existedDept.getParentId();
+        }
+        if (parentDeptId != null && parentDeptId > 0L && !dataScope.getDeptIds().contains(parentDeptId)) {
+            return false;
+        }
+        Long companyId = requestDept.getCompanyId();
+        if (companyId == null && existedDept != null) {
+            companyId = existedDept.getCompanyId();
+        }
+        return companyId == null || dataScope.getCompanyIds().contains(companyId);
     }
 
     /**

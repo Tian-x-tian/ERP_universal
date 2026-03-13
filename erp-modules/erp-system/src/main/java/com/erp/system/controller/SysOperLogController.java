@@ -1,6 +1,8 @@
 package com.erp.system.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.SysOperLog;
 import com.erp.system.service.ISysOperLogService;
@@ -17,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
-
 /**
  * 操作日志控制层
  */
@@ -39,18 +40,22 @@ public class SysOperLogController {
      * @param success    是否成功（1 成功，0 失败）
      * @param startTime  开始时间
      * @param endTime    结束时间
+     * @param pageNum    当前页码
+     * @param pageSize   每页条数
      * @return 操作日志列表
      */
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:oper:list')")
-    public R<List<SysOperLog>> list(
+    public R<PageData<SysOperLog>> list(
             @RequestParam(value = "operator", required = false) String operator,
             @RequestParam(value = "requestUri", required = false) String requestUri,
             @RequestParam(value = "success", required = false) String success,
             @RequestParam(value = "startTime", required = false)
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @RequestParam(value = "endTime", required = false)
-            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
+            @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
+            @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
         LambdaQueryWrapper<SysOperLog> queryWrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(operator)) {
             queryWrapper.like(SysOperLog::getOperator, operator.trim());
@@ -68,7 +73,9 @@ public class SysOperLogController {
             queryWrapper.le(SysOperLog::getOperationTime, toDate(endTime));
         }
         queryWrapper.orderByDesc(SysOperLog::getOperationTime);
-        return R.success(operLogService.list(queryWrapper));
+        Page<SysOperLog> page = new Page<>(normalizePageNum(pageNum), normalizePageSize(pageSize));
+        Page<SysOperLog> resultPage = operLogService.page(page, queryWrapper);
+        return R.page(resultPage.getRecords(), resultPage.getCurrent(), resultPage.getSize(), resultPage.getTotal());
     }
 
     /**
@@ -103,5 +110,28 @@ public class SysOperLogController {
      */
     private Date toDate(LocalDateTime localDateTime) {
         return java.sql.Timestamp.valueOf(localDateTime);
+    }
+
+    /**
+     * 规范化页码，避免非法页码导致分页异常。
+     *
+     * @param pageNum 原始页码
+     * @return 规范化后的页码
+     */
+    private long normalizePageNum(Long pageNum) {
+        return pageNum == null || pageNum < 1 ? 1L : pageNum;
+    }
+
+    /**
+     * 规范化分页大小，统一限制最大页长。
+     *
+     * @param pageSize 原始分页大小
+     * @return 规范化后的分页大小
+     */
+    private long normalizePageSize(Long pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return 20L;
+        }
+        return Math.min(pageSize, 200L);
     }
 }

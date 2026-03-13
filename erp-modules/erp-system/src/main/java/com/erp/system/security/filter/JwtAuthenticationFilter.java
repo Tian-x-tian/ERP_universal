@@ -4,6 +4,8 @@ import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.utils.JwtUtils;
+import com.erp.system.domain.SysUser;
+import com.erp.system.service.ISysUserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -28,9 +30,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String LOGIN_URI_SUFFIX = "/login";
     private static final String JSON_CONTENT_TYPE = "application/json; charset=UTF-8";
     private final ObjectMapper objectMapper;
+    private final ISysUserService userService;
 
-    public JwtAuthenticationFilter(ObjectMapper objectMapper) {
+    public JwtAuthenticationFilter(ObjectMapper objectMapper, ISysUserService userService) {
         this.objectMapper = objectMapper;
+        this.userService = userService;
     }
 
     @Override
@@ -49,8 +53,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (token != null) {
                     try {
                         Claims claims = JwtUtils.parseToken(token);
-                        String userId = claims.getSubject();
+                        String userName = claims.getSubject();
                         String tenantIdFromToken = toTenantId(claims.get("tenantId"));
+                        Integer tokenVersion = toInteger(claims.get("tokenVersion"));
 
                         if (StringUtils.hasText(tenantIdFromHeader) && StringUtils.hasText(tenantIdFromToken)
                                 && !tenantIdFromHeader.equals(tenantIdFromToken)) {
@@ -63,10 +68,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             return;
                         }
                         TenantContextHolder.setTenantId(tenantIdFromToken);
+                        SysUser user = userService.selectUserByUserName(userName);
+                        if (user == null || !tenantIdFromToken.equals(toTenantId(user.getTenantId()))) {
+                            writeUnauthorized(response, ResultCode.UNAUTHORIZED.getMessage());
+                            return;
+                        }
+                        if (!"0".equals(user.getStatus()) || "2".equals(user.getDelFlag())) {
+                            writeUnauthorized(response, "账号不可用");
+                            return;
+                        }
+                        if (!tokenVersionMatches(user.getTokenVersion(), tokenVersion)) {
+                            writeUnauthorized(response, "登录状态已失效，请重新登录");
+                            return;
+                        }
 
                         // 将用户信息存入 SecurityContext
                         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                                userId, null, new ArrayList<>());
+                                userName, null, new ArrayList<>());
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authentication);
                     } catch (Exception e) {
@@ -126,6 +144,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
+     * 规范化 Token 版本号。
+     *
+     * @param rawTokenVersion 原始版本号
+     * @return 版本号，缺失时返回 0
+     */
+    private Integer toInteger(Object rawTokenVersion) {
+        if (rawTokenVersion == null) {
+            return 0;
+        }
+        if (rawTokenVersion instanceof Number) {
+            return ((Number) rawTokenVersion).intValue();
+        }
+        String tokenVersion = String.valueOf(rawTokenVersion).trim();
+        if (!StringUtils.hasText(tokenVersion)) {
+            return 0;
+        }
+        return Integer.parseInt(tokenVersion);
+    }
+
+    /**
      * 解析 Bearer Token。
      *
      * @param request 请求对象
@@ -155,5 +193,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         R<Void> body = R.failed(ResultCode.UNAUTHORIZED, message);
         response.getWriter().write(objectMapper.writeValueAsString(body));
         response.getWriter().flush();
+    }
+
+    /**
+     * 校验令牌版本号与数据库当前版本是否一致。
+     *
+     * @param currentTokenVersion 数据库当前版本号
+     * @param tokenVersion        令牌中的版本号
+     * @return true 表示令牌仍然有效
+     */
+    private boolean tokenVersionMatches(Integer currentTokenVersion, Integer tokenVersion) {
+        int currentVersion = currentTokenVersion == null ? 0 : currentTokenVersion;
+        int requestVersion = tokenVersion == null ? 0 : tokenVersion;
+        return currentVersion == requestVersion;
     }
 }

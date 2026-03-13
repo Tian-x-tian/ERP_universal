@@ -1,12 +1,15 @@
 package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.erp.system.domain.MdmSupplier;
 import com.erp.system.mapper.MdmSupplierMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmAuditTrailService;
+import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IMdmSupplierService;
+import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmStatusSupport;
@@ -31,10 +34,14 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
 
     private final IMdmAuditTrailService auditTrailService;
     private final SecurityUserResolver securityUserResolver;
+    private final IMdmReferenceCheckService referenceCheckService;
 
-    public MdmSupplierServiceImpl(IMdmAuditTrailService auditTrailService, SecurityUserResolver securityUserResolver) {
+    public MdmSupplierServiceImpl(IMdmAuditTrailService auditTrailService,
+            SecurityUserResolver securityUserResolver,
+            IMdmReferenceCheckService referenceCheckService) {
         this.auditTrailService = auditTrailService;
         this.securityUserResolver = securityUserResolver;
+        this.referenceCheckService = referenceCheckService;
     }
 
     /**
@@ -98,16 +105,14 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         supplier.setContactPhone(MdmValueSupport.trimToNull(supplier.getContactPhone()));
         supplier.setContactEmail(MdmValueSupport.trimToNull(supplier.getContactEmail()));
         supplier.setAddress(MdmValueSupport.trimToNull(supplier.getAddress()));
-        supplier.setStatus(MdmStatusSupport.normalizeStatus(supplier.getStatus()));
+        supplier.setStatus(MdmStatusSupport.DRAFT);
         supplier.setVersionNo(1);
         supplier.setDelFlag(DEL_FLAG_EXIST);
         supplier.setCreateBy(operator);
         supplier.setUpdateBy(operator);
         supplier.setCreateTime(now);
         supplier.setUpdateTime(now);
-        if (MdmStatusSupport.isActive(supplier.getStatus())) {
-            supplier.setEffectiveTime(now);
-        }
+        supplier.setEffectiveTime(null);
         boolean saved = save(supplier);
         if (saved) {
             auditTrailService.record(MdmDomainTypeSupport.SUPPLIER,
@@ -138,6 +143,12 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
                 .eq(MdmSupplier::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null) {
             return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("供应商审批中，暂不允许直接修改");
+        }
+        if (!MdmStatusSupport.isDraft(existed.getStatus())) {
+            throw new IllegalStateException("已生效供应商请通过审批流程提交变更");
         }
         MdmSupplier before = new MdmSupplier();
         BeanUtils.copyProperties(existed, before);
@@ -171,7 +182,7 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         }
         supplier.setUpdateBy(resolveOperator());
         supplier.setUpdateTime(new Date());
-        boolean updated = updateById(supplier);
+        boolean updated = updateSupplierByVersion(supplier, existed.getVersionNo());
         if (updated) {
             MdmSupplier after = getById(supplier.getSupplierId());
             auditTrailService.record(MdmDomainTypeSupport.SUPPLIER,
@@ -197,11 +208,20 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         if (supplierId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.SUPPLIER, supplierId);
+
         MdmSupplier existed = getOne(new LambdaQueryWrapper<MdmSupplier>()
                 .eq(MdmSupplier::getSupplierId, supplierId)
                 .eq(MdmSupplier::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null) {
             return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("供应商审批中，暂不允许直接停用");
+        }
+        if (MdmStatusSupport.isActive(existed.getStatus())) {
+            throw new IllegalStateException("已生效供应商请通过审批流程提交停用");
         }
         if (MdmStatusSupport.DISABLED.equals(existed.getStatus())) {
             return true;
@@ -212,7 +232,7 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateSupplierByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmSupplier after = getById(supplierId);
             auditTrailService.record(MdmDomainTypeSupport.SUPPLIER,
@@ -238,10 +258,16 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         if (supplierId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.SUPPLIER, supplierId);
+
         MdmSupplier existed = getOne(new LambdaQueryWrapper<MdmSupplier>()
                 .eq(MdmSupplier::getSupplierId, supplierId)
                 .eq(MdmSupplier::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null || !MdmStatusSupport.isDraft(existed.getStatus())) {
+            return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
             return false;
         }
         MdmSupplier updateEntity = new MdmSupplier();
@@ -250,7 +276,7 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateSupplierByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.SUPPLIER,
                     supplierId,
@@ -278,6 +304,30 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
             queryWrapper.ne(MdmSupplier::getSupplierId, excludeId);
         }
         return count(queryWrapper) > 0;
+    }
+
+    /**
+     * 按版本号执行乐观锁更新。
+     *
+     * @param supplier         更新对象
+     * @param currentVersionNo 当前版本号
+     * @return true 表示更新成功
+     */
+    private boolean updateSupplierByVersion(MdmSupplier supplier, Integer currentVersionNo) {
+        if (supplier == null || supplier.getSupplierId() == null) {
+            return false;
+        }
+        LambdaUpdateWrapper<MdmSupplier> updateWrapper = new LambdaUpdateWrapper<MdmSupplier>()
+                .eq(MdmSupplier::getSupplierId, supplier.getSupplierId())
+                .eq(MdmSupplier::getDelFlag, DEL_FLAG_EXIST);
+        if (currentVersionNo != null) {
+            updateWrapper.eq(MdmSupplier::getVersionNo, currentVersionNo);
+        }
+        boolean updated = update(supplier, updateWrapper);
+        if (!updated) {
+            throw new IllegalStateException("供应商数据已被其他人更新，请刷新后重试");
+        }
+        return true;
     }
 
     /**

@@ -1,12 +1,16 @@
 package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.erp.system.domain.MdmItem;
 import com.erp.system.domain.MdmUom;
+import com.erp.system.mapper.MdmItemMapper;
 import com.erp.system.mapper.MdmUomMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IMdmUomService;
+import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmStatusSupport;
@@ -32,10 +36,17 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
 
     private final IMdmAuditTrailService auditTrailService;
     private final SecurityUserResolver securityUserResolver;
+    private final MdmItemMapper itemMapper;
+    private final IMdmReferenceCheckService referenceCheckService;
 
-    public MdmUomServiceImpl(IMdmAuditTrailService auditTrailService, SecurityUserResolver securityUserResolver) {
+    public MdmUomServiceImpl(IMdmAuditTrailService auditTrailService,
+            SecurityUserResolver securityUserResolver,
+            MdmItemMapper itemMapper,
+            IMdmReferenceCheckService referenceCheckService) {
         this.auditTrailService = auditTrailService;
         this.securityUserResolver = securityUserResolver;
+        this.itemMapper = itemMapper;
+        this.referenceCheckService = referenceCheckService;
     }
 
     /**
@@ -43,7 +54,7 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
      *
      * @param uomCode 单位编码
      * @param uomName 单位名称
-     * @param status 状态
+     * @param status  状态
      * @return 计量单位列表
      */
     @Override
@@ -89,7 +100,7 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
         uom.setUomCode(uomCode);
         uom.setUomName(uom.getUomName().trim());
         uom.setBaseUomCode(normalizeCode(uom.getBaseUomCode()));
-        uom.setStatus(MdmStatusSupport.normalizeStatus(uom.getStatus()));
+        uom.setStatus(MdmStatusSupport.DRAFT);
         uom.setVersionNo(1);
         uom.setDelFlag(DEL_FLAG_EXIST);
         uom.setCreateBy(operator);
@@ -127,6 +138,12 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
         if (existed == null) {
             return false;
         }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("计量单位审批中，暂不允许直接修改");
+        }
+        if (!MdmStatusSupport.isDraft(existed.getStatus())) {
+            throw new IllegalStateException("已生效计量单位请通过审批流程提交变更");
+        }
         MdmUom before = new MdmUom();
         BeanUtils.copyProperties(existed, before);
 
@@ -147,7 +164,7 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
         uom.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         uom.setUpdateBy(resolveOperator());
         uom.setUpdateTime(new Date());
-        boolean updated = updateById(uom);
+        boolean updated = updateUomByVersion(uom, existed.getVersionNo());
         if (updated) {
             MdmUom after = getById(uom.getUomId());
             auditTrailService.record(MdmDomainTypeSupport.UOM,
@@ -173,11 +190,20 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
         if (uomId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.UOM, uomId);
+
         MdmUom existed = getOne(new LambdaQueryWrapper<MdmUom>()
                 .eq(MdmUom::getUomId, uomId)
                 .eq(MdmUom::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null) {
             return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("计量单位审批中，暂不允许直接停用");
+        }
+        if (MdmStatusSupport.isActive(existed.getStatus())) {
+            throw new IllegalStateException("已生效计量单位请通过审批流程提交停用");
         }
         if (MdmStatusSupport.DISABLED.equals(existed.getStatus())) {
             return true;
@@ -188,7 +214,7 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateUomByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmUom after = getById(uomId);
             auditTrailService.record(MdmDomainTypeSupport.UOM,
@@ -214,10 +240,19 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
         if (uomId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.UOM, uomId);
+
+        if (isReferenced(uomId)) {
+            throw new IllegalStateException("计量单位已被物料引用，不能删除");
+        }
         MdmUom existed = getOne(new LambdaQueryWrapper<MdmUom>()
                 .eq(MdmUom::getUomId, uomId)
                 .eq(MdmUom::getDelFlag, DEL_FLAG_EXIST));
-        if (existed == null || MdmStatusSupport.isActive(existed.getStatus())) {
+        if (existed == null || !MdmStatusSupport.isDraft(existed.getStatus())) {
+            return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
             return false;
         }
         MdmUom updateEntity = new MdmUom();
@@ -226,7 +261,7 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateUomByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.UOM,
                     uomId,
@@ -242,7 +277,7 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
     /**
      * 判断编码是否重复。
      *
-     * @param code 编码
+     * @param code      编码
      * @param excludeId 排除主键
      * @return true 表示重复
      */
@@ -254,6 +289,46 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
             queryWrapper.ne(MdmUom::getUomId, excludeId);
         }
         return count(queryWrapper) > 0;
+    }
+
+    /**
+     * 按版本号执行乐观锁更新。
+     *
+     * @param uom              更新对象
+     * @param currentVersionNo 当前版本号
+     * @return true 表示更新成功
+     */
+    private boolean updateUomByVersion(MdmUom uom, Integer currentVersionNo) {
+        if (uom == null || uom.getUomId() == null) {
+            return false;
+        }
+        LambdaUpdateWrapper<MdmUom> updateWrapper = new LambdaUpdateWrapper<MdmUom>()
+                .eq(MdmUom::getUomId, uom.getUomId())
+                .eq(MdmUom::getDelFlag, DEL_FLAG_EXIST);
+        if (currentVersionNo != null) {
+            updateWrapper.eq(MdmUom::getVersionNo, currentVersionNo);
+        }
+        boolean updated = update(uom, updateWrapper);
+        if (!updated) {
+            throw new IllegalStateException("计量单位数据已被其他人更新，请刷新后重试");
+        }
+        return updated;
+    }
+
+    /**
+     * 判断计量单位是否已被物料引用。
+     *
+     * @param uomId 计量单位ID
+     * @return true 表示已引用
+     */
+    private boolean isReferenced(Long uomId) {
+        if (uomId == null) {
+            return false;
+        }
+        Long itemCount = itemMapper.selectCount(new LambdaQueryWrapper<MdmItem>()
+                .eq(MdmItem::getUnitId, uomId)
+                .eq(MdmItem::getDelFlag, DEL_FLAG_EXIST));
+        return itemCount != null && itemCount > 0;
     }
 
     /**

@@ -4,14 +4,12 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import lombok.Data;
 import java.io.Serializable;
 import java.util.Date;
 
 /**
  * 字典数据表 sys_dict_data
  */
-@Data
 @TableName(value = "sys_dict_data", autoResultMap = true)
 public class SysDictData implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -69,4 +67,117 @@ public class SysDictData implements Serializable {
 
     /** 备注 */
     private String remark;
+
+
+    public Long getDict_code() {
+        return dict_code;
+    }
+
+    public void setDict_code(Long dict_code) {
+        this.dict_code = dict_code;
+    }
+
+    public Integer getDict_sort() {
+        return dict_sort;
+    }
+
+    public void setDict_sort(Integer dict_sort) {
+        this.dict_sort = dict_sort;
+    }
+
+    public String getDict_label() {
+        return dict_label;
+    }
+
+    public void setDict_label(String dict_label) {
+        this.dict_label = dict_label;
+    }
+
+    public String getDict_value() {
+        return dict_value;
+    }
+
+    public void setDict_value(String dict_value) {
+        this.dict_value = dict_value;
+    }
+
+    public String getDict_type() {
+        return dict_type;
+    }
+
+    public void setDict_type(String dict_type) {
+        this.dict_type = dict_type;
+    }
+
+    public String getCss_class() {
+        return css_class;
+    }
+
+    public void setCss_class(String css_class) {
+        this.css_class = css_class;
+    }
+
+    public String getList_class() {
+        return list_class;
+    }
+
+    public void setList_class(String list_class) {
+        this.list_class = list_class;
+    }
+
+    public String getIs_default() {
+        return is_default;
+    }
+
+    public void setIs_default(String is_default) {
+        this.is_default = is_default;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getCreate_by() {
+        return create_by;
+    }
+
+    public void setCreate_by(String create_by) {
+        this.create_by = create_by;
+    }
+
+    public Date getCreate_time() {
+        return create_time;
+    }
+
+    public void setCreate_time(Date create_time) {
+        this.create_time = create_time;
+    }
+
+    public String getUpdate_by() {
+        return update_by;
+    }
+
+    public void setUpdate_by(String update_by) {
+        this.update_by = update_by;
+    }
+
+    public Date getUpdate_time() {
+        return update_time;
+    }
+
+    public void setUpdate_time(Date update_time) {
+        this.update_time = update_time;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
+    }
 }

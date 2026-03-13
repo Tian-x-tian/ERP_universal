@@ -167,6 +167,9 @@ public class SysUserController {
 
         String encodedPassword = passwordEncoder.encode(passwordBody.getNewPassword());
         boolean success = userService.updatePasswordByUserId(userId, encodedPassword);
+        if (success) {
+            userService.incrementTokenVersion(userId);
+        }
         return success ? R.success(true) : R.failed("修改密码失败");
     }
 
@@ -228,7 +231,16 @@ public class SysUserController {
     @PreAuthorize("@ss.hasPermi('system:user:add')")
     @PostMapping
     public R<Boolean> add(@RequestBody SysUser user) {
-        return R.success(userService.save(user));
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
+        if (!canWriteUser(dataScope, user)) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
+        boolean success = userService.save(user);
+        return success ? R.success(true) : R.failed("新增用户失败");
     }
 
     /**
@@ -237,7 +249,23 @@ public class SysUserController {
     @PreAuthorize("@ss.hasPermi('system:user:edit')")
     @PutMapping
     public R<Boolean> edit(@RequestBody SysUser user) {
-        return R.success(userService.updateById(user));
+        if (user == null || user.getUserId() == null) {
+            return R.failed("用户ID不能为空");
+        }
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
+        SysUser existedUser = userService.getById(user.getUserId());
+        if (existedUser == null) {
+            return R.failed("用户不存在");
+        }
+        if (!canAccessUser(dataScope, existedUser) || !canWriteUser(dataScope, user, existedUser)) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
+        boolean success = userService.updateById(user);
+        return success ? R.success(true) : R.failed("修改用户失败");
     }
 
     /**
@@ -246,6 +274,18 @@ public class SysUserController {
     @PreAuthorize("@ss.hasPermi('system:user:remove')")
     @DeleteMapping("/{userId}")
     public R<Boolean> remove(@PathVariable("userId") Long userId) {
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        DataPermissionScope dataScope = dataPermissionService.resolveDataScope(currentUserId);
+        SysUser user = userService.getById(userId);
+        if (user == null) {
+            return R.failed("用户不存在");
+        }
+        if (!canAccessUser(dataScope, user)) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         return R.success(userService.removeById(userId));
     }
 
@@ -277,6 +317,39 @@ public class SysUserController {
         }
         Long deptId = user.getDeptId();
         return deptId != null && dataScope.getDeptIds().contains(deptId);
+    }
+
+    /**
+     * 校验新增用户是否落在当前数据权限范围内。
+     *
+     * @param dataScope 数据权限范围
+     * @param user      待写入用户
+     * @return true 表示允许写入
+     */
+    private boolean canWriteUser(DataPermissionScope dataScope, SysUser user) {
+        return canWriteUser(dataScope, user, null);
+    }
+
+    /**
+     * 校验新增或修改用户是否落在当前数据权限范围内。
+     *
+     * @param dataScope   数据权限范围
+     * @param requestUser 请求用户对象
+     * @param existedUser 已存在用户对象
+     * @return true 表示允许写入
+     */
+    private boolean canWriteUser(DataPermissionScope dataScope, SysUser requestUser, SysUser existedUser) {
+        if (dataScope == null || requestUser == null) {
+            return false;
+        }
+        if (dataScope.isAllData()) {
+            return true;
+        }
+        Long targetDeptId = requestUser.getDeptId();
+        if (targetDeptId == null && existedUser != null) {
+            targetDeptId = existedUser.getDeptId();
+        }
+        return targetDeptId != null && dataScope.getDeptIds().contains(targetDeptId);
     }
 
     /**

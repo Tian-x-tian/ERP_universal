@@ -1,14 +1,21 @@
 package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.erp.system.domain.MdmEmployee;
+import com.erp.system.domain.MdmOrg;
 import com.erp.system.domain.MdmWarehouse;
+import com.erp.system.mapper.MdmEmployeeMapper;
+import com.erp.system.mapper.MdmOrgMapper;
 import com.erp.system.mapper.MdmWarehouseMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IMdmWarehouseService;
+import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
+import com.erp.system.support.MdmEmployeeStatusSupport;
 import com.erp.system.support.MdmStatusSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.TenantWriteGuard;
@@ -24,17 +31,28 @@ import java.util.List;
  * MDM 仓库主数据服务实现。
  */
 @Service
-public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, MdmWarehouse> implements IMdmWarehouseService {
+public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, MdmWarehouse>
+        implements IMdmWarehouseService {
     private static final String DEL_FLAG_EXIST = "0";
     private static final String DEL_FLAG_DELETED = "2";
     private static final String DEFAULT_OPERATOR = "system";
 
     private final IMdmAuditTrailService auditTrailService;
     private final SecurityUserResolver securityUserResolver;
+    private final MdmOrgMapper orgMapper;
+    private final MdmEmployeeMapper employeeMapper;
+    private final IMdmReferenceCheckService referenceCheckService;
 
-    public MdmWarehouseServiceImpl(IMdmAuditTrailService auditTrailService, SecurityUserResolver securityUserResolver) {
+    public MdmWarehouseServiceImpl(IMdmAuditTrailService auditTrailService,
+            SecurityUserResolver securityUserResolver,
+            MdmOrgMapper orgMapper,
+            MdmEmployeeMapper employeeMapper,
+            IMdmReferenceCheckService referenceCheckService) {
         this.auditTrailService = auditTrailService;
         this.securityUserResolver = securityUserResolver;
+        this.orgMapper = orgMapper;
+        this.employeeMapper = employeeMapper;
+        this.referenceCheckService = referenceCheckService;
     }
 
     /**
@@ -83,6 +101,9 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         if (existsWarehouseCode(whCode, null)) {
             return false;
         }
+        if (!isOrgValid(warehouse.getOrgId()) || !isManagerValid(warehouse.getManagerEmpId())) {
+            return false;
+        }
         String operator = resolveOperator();
         Date now = new Date();
         warehouse.setTenantId(tenantId);
@@ -91,16 +112,14 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         warehouse.setWhType(MdmValueSupport.trimToNull(warehouse.getWhType()));
         warehouse.setAddress(MdmValueSupport.trimToNull(warehouse.getAddress()));
         warehouse.setAllowNegativeStock(MdmValueSupport.normalizeYN(warehouse.getAllowNegativeStock(), "N"));
-        warehouse.setStatus(MdmStatusSupport.normalizeStatus(warehouse.getStatus()));
+        warehouse.setStatus(MdmStatusSupport.DRAFT);
         warehouse.setVersionNo(1);
         warehouse.setDelFlag(DEL_FLAG_EXIST);
         warehouse.setCreateBy(operator);
         warehouse.setUpdateBy(operator);
         warehouse.setCreateTime(now);
         warehouse.setUpdateTime(now);
-        if (MdmStatusSupport.isActive(warehouse.getStatus())) {
-            warehouse.setEffectiveTime(now);
-        }
+        warehouse.setEffectiveTime(null);
         boolean saved = save(warehouse);
         if (saved) {
             auditTrailService.record(MdmDomainTypeSupport.WAREHOUSE,
@@ -132,6 +151,12 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         if (existed == null) {
             return false;
         }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("仓库审批中，暂不允许直接修改");
+        }
+        if (!MdmStatusSupport.isDraft(existed.getStatus())) {
+            throw new IllegalStateException("已生效仓库请通过审批流程提交变更");
+        }
         MdmWarehouse before = new MdmWarehouse();
         BeanUtils.copyProperties(existed, before);
 
@@ -141,6 +166,12 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
                 return false;
             }
             warehouse.setWhCode(whCode);
+        }
+        Long orgId = warehouse.getOrgId() == null ? existed.getOrgId() : warehouse.getOrgId();
+        Long managerEmpId = warehouse.getManagerEmpId() == null ? existed.getManagerEmpId()
+                : warehouse.getManagerEmpId();
+        if (!isOrgValid(orgId) || !isManagerValid(managerEmpId)) {
+            return false;
         }
         warehouse.setWhName(MdmValueSupport.trimToNull(warehouse.getWhName()));
         warehouse.setWhType(MdmValueSupport.trimToNull(warehouse.getWhType()));
@@ -155,7 +186,7 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         }
         warehouse.setUpdateBy(resolveOperator());
         warehouse.setUpdateTime(new Date());
-        boolean updated = updateById(warehouse);
+        boolean updated = updateWarehouseByVersion(warehouse, existed.getVersionNo());
         if (updated) {
             MdmWarehouse after = getById(warehouse.getWarehouseId());
             auditTrailService.record(MdmDomainTypeSupport.WAREHOUSE,
@@ -181,11 +212,20 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         if (warehouseId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.WAREHOUSE, warehouseId);
+
         MdmWarehouse existed = getOne(new LambdaQueryWrapper<MdmWarehouse>()
                 .eq(MdmWarehouse::getWarehouseId, warehouseId)
                 .eq(MdmWarehouse::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null) {
             return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("仓库审批中，暂不允许直接停用");
+        }
+        if (MdmStatusSupport.isActive(existed.getStatus())) {
+            throw new IllegalStateException("已生效仓库请通过审批流程提交停用");
         }
         if (MdmStatusSupport.DISABLED.equals(existed.getStatus())) {
             return true;
@@ -196,7 +236,7 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateWarehouseByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmWarehouse after = getById(warehouseId);
             auditTrailService.record(MdmDomainTypeSupport.WAREHOUSE,
@@ -222,10 +262,16 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         if (warehouseId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.WAREHOUSE, warehouseId);
+
         MdmWarehouse existed = getOne(new LambdaQueryWrapper<MdmWarehouse>()
                 .eq(MdmWarehouse::getWarehouseId, warehouseId)
                 .eq(MdmWarehouse::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null || !MdmStatusSupport.isDraft(existed.getStatus())) {
+            return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
             return false;
         }
         MdmWarehouse updateEntity = new MdmWarehouse();
@@ -234,7 +280,7 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateWarehouseByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.WAREHOUSE,
                     warehouseId,
@@ -250,7 +296,7 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
     /**
      * 判断仓库编码是否重复。
      *
-     * @param whCode 仓库编码
+     * @param whCode    仓库编码
      * @param excludeId 排除主键
      * @return true 表示重复
      */
@@ -262,6 +308,60 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
             queryWrapper.ne(MdmWarehouse::getWarehouseId, excludeId);
         }
         return count(queryWrapper) > 0;
+    }
+
+    /**
+     * 按版本号执行乐观锁更新。
+     *
+     * @param warehouse        更新对象
+     * @param currentVersionNo 当前版本号
+     * @return true 表示更新成功
+     */
+    private boolean updateWarehouseByVersion(MdmWarehouse warehouse, Integer currentVersionNo) {
+        if (warehouse == null || warehouse.getWarehouseId() == null) {
+            return false;
+        }
+        LambdaUpdateWrapper<MdmWarehouse> updateWrapper = new LambdaUpdateWrapper<MdmWarehouse>()
+                .eq(MdmWarehouse::getWarehouseId, warehouse.getWarehouseId())
+                .eq(MdmWarehouse::getDelFlag, DEL_FLAG_EXIST);
+        if (currentVersionNo != null) {
+            updateWrapper.eq(MdmWarehouse::getVersionNo, currentVersionNo);
+        }
+        boolean updated = update(warehouse, updateWrapper);
+        if (!updated) {
+            throw new IllegalStateException("仓库数据已被其他人更新，请刷新后重试");
+        }
+        return true;
+    }
+
+    /**
+     * 校验组织引用是否有效。
+     *
+     * @param orgId 组织ID
+     * @return true 表示有效
+     */
+    private boolean isOrgValid(Long orgId) {
+        if (orgId == null || orgId < 1) {
+            return true;
+        }
+        MdmOrg org = orgMapper.selectById(orgId);
+        return org != null && DEL_FLAG_EXIST.equals(org.getDelFlag());
+    }
+
+    /**
+     * 校验负责人引用是否有效。
+     *
+     * @param managerEmpId 负责人ID
+     * @return true 表示有效
+     */
+    private boolean isManagerValid(Long managerEmpId) {
+        if (managerEmpId == null || managerEmpId < 1) {
+            return true;
+        }
+        MdmEmployee employee = employeeMapper.selectById(managerEmpId);
+        return employee != null
+                && DEL_FLAG_EXIST.equals(employee.getDelFlag())
+                && MdmEmployeeStatusSupport.isActive(employee.getStatus());
     }
 
     /**

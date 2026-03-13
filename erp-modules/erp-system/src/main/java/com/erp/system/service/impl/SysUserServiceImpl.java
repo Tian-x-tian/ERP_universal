@@ -102,6 +102,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             entity.setNickName(entity.getNickName().trim());
         }
         entity.setCreateTime(new Date());
+        if (entity.getTokenVersion() == null) {
+            entity.setTokenVersion(0);
+        }
         // 密码加密
         if (entity.getPassword() != null) {
             entity.setPassword(passwordEncoder.encode(entity.getPassword()));
@@ -149,6 +152,29 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             insertUserPost(entity);
         }
         return super.updateById(entity);
+    }
+
+    /**
+     * 递增用户 Token 版本号，使既有令牌失效。
+     *
+     * @param userId 用户ID
+     * @return 更新是否成功
+     */
+    @Override
+    @Transactional
+    public boolean incrementTokenVersion(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        SysUser existedUser = getById(userId);
+        if (existedUser == null) {
+            return false;
+        }
+        SysUser updateEntity = new SysUser();
+        updateEntity.setUserId(userId);
+        updateEntity.setTokenVersion((existedUser.getTokenVersion() == null ? 0 : existedUser.getTokenVersion()) + 1);
+        updateEntity.setUpdateTime(new Date());
+        return baseMapper.updateById(updateEntity) > 0;
     }
 
     /**

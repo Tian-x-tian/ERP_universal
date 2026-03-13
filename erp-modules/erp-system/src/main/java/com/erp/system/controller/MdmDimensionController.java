@@ -1,12 +1,18 @@
 package com.erp.system.controller;
 
+import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.MdmCostCenter;
 import com.erp.system.domain.MdmOrg;
 import com.erp.system.domain.MdmProject;
+import com.erp.system.domain.vo.MdmCostCenterWorkflowSubmitBody;
+import com.erp.system.domain.vo.MdmOrgWorkflowSubmitBody;
+import com.erp.system.domain.vo.MdmProjectWorkflowSubmitBody;
 import com.erp.system.service.IMdmCostCenterService;
+import com.erp.system.service.IMdmDimensionWorkflowSubmitService;
 import com.erp.system.service.IMdmOrgService;
 import com.erp.system.service.IMdmProjectService;
+import com.erp.system.support.MdmPageSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,8 +24,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
  * MDM 组织、成本中心、项目维度控制层。
  */
@@ -29,13 +33,16 @@ public class MdmDimensionController {
     private final IMdmOrgService orgService;
     private final IMdmCostCenterService costCenterService;
     private final IMdmProjectService projectService;
+    private final IMdmDimensionWorkflowSubmitService dimensionWorkflowSubmitService;
 
     public MdmDimensionController(IMdmOrgService orgService,
             IMdmCostCenterService costCenterService,
-            IMdmProjectService projectService) {
+            IMdmProjectService projectService,
+            IMdmDimensionWorkflowSubmitService dimensionWorkflowSubmitService) {
         this.orgService = orgService;
         this.costCenterService = costCenterService;
         this.projectService = projectService;
+        this.dimensionWorkflowSubmitService = dimensionWorkflowSubmitService;
     }
 
     /**
@@ -48,10 +55,12 @@ public class MdmDimensionController {
      */
     @GetMapping("/org/list")
     @PreAuthorize("@ss.hasPermi('system:mdm:org:list')")
-    public R<List<MdmOrg>> orgList(@RequestParam(value = "orgCode", required = false) String orgCode,
+    public R<PageData<MdmOrg>> orgList(@RequestParam(value = "orgCode", required = false) String orgCode,
             @RequestParam(value = "orgName", required = false) String orgName,
-            @RequestParam(value = "status", required = false) String status) {
-        return R.success(orgService.selectOrgList(orgCode, orgName, status));
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
+            @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
+        return R.success(MdmPageSupport.paginate(orgService.selectOrgList(orgCode, orgName, status), pageNum, pageSize));
     }
 
     /**
@@ -112,6 +121,40 @@ public class MdmDimensionController {
         return success ? R.success(true) : R.failed("停用组织失败");
     }
 
+    @PostMapping("/org/submit/{orgId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:org:edit')")
+    public R<Boolean> orgSubmit(@PathVariable("orgId") Long orgId,
+            @RequestBody MdmOrgWorkflowSubmitBody submitBody) {
+        boolean success = dimensionWorkflowSubmitService.submitOrgDraftActivation(
+                orgId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交组织审批失败");
+    }
+
+    @PostMapping("/org/change/{orgId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:org:edit')")
+    public R<Boolean> orgSubmitChange(@PathVariable("orgId") Long orgId,
+            @RequestBody MdmOrgWorkflowSubmitBody submitBody) {
+        boolean success = dimensionWorkflowSubmitService.submitOrgChange(
+                orgId,
+                submitBody == null ? null : submitBody.getOrg(),
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交组织变更审批失败");
+    }
+
+    @PostMapping("/org/disable/submit/{orgId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:org:disable')")
+    public R<Boolean> orgSubmitDisable(@PathVariable("orgId") Long orgId,
+            @RequestBody MdmOrgWorkflowSubmitBody submitBody) {
+        boolean success = dimensionWorkflowSubmitService.submitOrgDisable(
+                orgId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交组织停用审批失败");
+    }
+
     /**
      * 删除组织（逻辑删除）。
      *
@@ -135,10 +178,12 @@ public class MdmDimensionController {
      */
     @GetMapping("/cc/list")
     @PreAuthorize("@ss.hasPermi('system:mdm:cc:list')")
-    public R<List<MdmCostCenter>> ccList(@RequestParam(value = "ccCode", required = false) String ccCode,
+    public R<PageData<MdmCostCenter>> ccList(@RequestParam(value = "ccCode", required = false) String ccCode,
             @RequestParam(value = "ccName", required = false) String ccName,
-            @RequestParam(value = "status", required = false) String status) {
-        return R.success(costCenterService.selectCostCenterList(ccCode, ccName, status));
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
+            @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
+        return R.success(MdmPageSupport.paginate(costCenterService.selectCostCenterList(ccCode, ccName, status), pageNum, pageSize));
     }
 
     /**
@@ -199,6 +244,40 @@ public class MdmDimensionController {
         return success ? R.success(true) : R.failed("停用成本中心失败");
     }
 
+    @PostMapping("/cc/submit/{ccId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:cc:edit')")
+    public R<Boolean> ccSubmit(@PathVariable("ccId") Long ccId,
+            @RequestBody MdmCostCenterWorkflowSubmitBody submitBody) {
+        boolean success = dimensionWorkflowSubmitService.submitCostCenterDraftActivation(
+                ccId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交成本中心审批失败");
+    }
+
+    @PostMapping("/cc/change/{ccId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:cc:edit')")
+    public R<Boolean> ccSubmitChange(@PathVariable("ccId") Long ccId,
+            @RequestBody MdmCostCenterWorkflowSubmitBody submitBody) {
+        boolean success = dimensionWorkflowSubmitService.submitCostCenterChange(
+                ccId,
+                submitBody == null ? null : submitBody.getCostCenter(),
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交成本中心变更审批失败");
+    }
+
+    @PostMapping("/cc/disable/submit/{ccId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:cc:disable')")
+    public R<Boolean> ccSubmitDisable(@PathVariable("ccId") Long ccId,
+            @RequestBody MdmCostCenterWorkflowSubmitBody submitBody) {
+        boolean success = dimensionWorkflowSubmitService.submitCostCenterDisable(
+                ccId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交成本中心停用审批失败");
+    }
+
     /**
      * 删除成本中心（逻辑删除）。
      *
@@ -222,11 +301,13 @@ public class MdmDimensionController {
      */
     @GetMapping("/project/list")
     @PreAuthorize("@ss.hasPermi('system:mdm:project:list')")
-    public R<List<MdmProject>> projectList(
+    public R<PageData<MdmProject>> projectList(
             @RequestParam(value = "projectCode", required = false) String projectCode,
             @RequestParam(value = "projectName", required = false) String projectName,
-            @RequestParam(value = "status", required = false) String status) {
-        return R.success(projectService.selectProjectList(projectCode, projectName, status));
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
+            @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
+        return R.success(MdmPageSupport.paginate(projectService.selectProjectList(projectCode, projectName, status), pageNum, pageSize));
     }
 
     /**
@@ -285,6 +366,40 @@ public class MdmDimensionController {
     public R<Boolean> projectDisable(@PathVariable("projectId") Long projectId) {
         boolean success = projectService.disableProject(projectId);
         return success ? R.success(true) : R.failed("停用项目失败");
+    }
+
+    @PostMapping("/project/submit/{projectId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:project:edit')")
+    public R<Boolean> projectSubmit(@PathVariable("projectId") Long projectId,
+            @RequestBody MdmProjectWorkflowSubmitBody submitBody) {
+        boolean success = dimensionWorkflowSubmitService.submitProjectDraftActivation(
+                projectId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交项目审批失败");
+    }
+
+    @PostMapping("/project/change/{projectId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:project:edit')")
+    public R<Boolean> projectSubmitChange(@PathVariable("projectId") Long projectId,
+            @RequestBody MdmProjectWorkflowSubmitBody submitBody) {
+        boolean success = dimensionWorkflowSubmitService.submitProjectChange(
+                projectId,
+                submitBody == null ? null : submitBody.getProject(),
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交项目变更审批失败");
+    }
+
+    @PostMapping("/project/disable/submit/{projectId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:project:disable')")
+    public R<Boolean> projectSubmitDisable(@PathVariable("projectId") Long projectId,
+            @RequestBody MdmProjectWorkflowSubmitBody submitBody) {
+        boolean success = dimensionWorkflowSubmitService.submitProjectDisable(
+                projectId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交项目停用审批失败");
     }
 
     /**

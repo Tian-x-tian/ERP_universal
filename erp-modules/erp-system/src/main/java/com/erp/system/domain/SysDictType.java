@@ -4,14 +4,12 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import lombok.Data;
 import java.io.Serializable;
 import java.util.Date;
 
 /**
  * 字典类型表 sys_dict_type
  */
-@Data
 @TableName(value = "sys_dict_type", autoResultMap = true)
 public class SysDictType implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -49,4 +47,77 @@ public class SysDictType implements Serializable {
 
     /** 备注 */
     private String remark;
+
+
+    public Long getDict_id() {
+        return dict_id;
+    }
+
+    public void setDict_id(Long dict_id) {
+        this.dict_id = dict_id;
+    }
+
+    public String getDict_name() {
+        return dict_name;
+    }
+
+    public void setDict_name(String dict_name) {
+        this.dict_name = dict_name;
+    }
+
+    public String getDict_type() {
+        return dict_type;
+    }
+
+    public void setDict_type(String dict_type) {
+        this.dict_type = dict_type;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getCreate_by() {
+        return create_by;
+    }
+
+    public void setCreate_by(String create_by) {
+        this.create_by = create_by;
+    }
+
+    public Date getCreate_time() {
+        return create_time;
+    }
+
+    public void setCreate_time(Date create_time) {
+        this.create_time = create_time;
+    }
+
+    public String getUpdate_by() {
+        return update_by;
+    }
+
+    public void setUpdate_by(String update_by) {
+        this.update_by = update_by;
+    }
+
+    public Date getUpdate_time() {
+        return update_time;
+    }
+
+    public void setUpdate_time(Date update_time) {
+        this.update_time = update_time;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
+    }
 }

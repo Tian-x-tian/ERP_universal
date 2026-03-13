@@ -25,7 +25,7 @@ import java.util.Map;
  */
 @RestController
 public class LoginController {
-    private static final String DEFAULT_LOG_TENANT_ID = "000000";
+    private static final String DEFAULT_LOG_TENANT_ID = "UNKNOWN";
 
     private final ISysUserService userService;
     private final ISysLoginLogService loginLogService;
@@ -79,7 +79,7 @@ public class LoginController {
             }
 
             String tenantId = resolveTenantId(user.getTenantId());
-            String token = JwtUtils.createToken(user.getUserName(), tenantId);
+            String token = JwtUtils.createToken(user.getUserName(), tenantId, user.getTokenVersion());
             updateLoginInfo(user.getUserId(), requestIp);
             recordLogin(tenantId, user.getUserName(), "0", "登录成功", requestIp);
 
@@ -99,6 +99,10 @@ public class LoginController {
      */
     @PostMapping("/logout")
     public R<Void> logout() {
+        Long currentUserId = resolveCurrentUserId();
+        if (currentUserId != null) {
+            userService.incrementTokenVersion(currentUserId);
+        }
         SecurityContextHolder.clearContext();
         TenantContextHolder.clear();
         return R.success();
@@ -214,5 +218,21 @@ public class LoginController {
      */
     private String trim(String value) {
         return value == null ? null : value.trim();
+    }
+
+    /**
+     * 解析当前登录用户ID。
+     *
+     * @return 用户ID，未登录时返回 null
+     */
+    private Long resolveCurrentUserId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication() == null
+                ? null
+                : SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (!(principal instanceof String) || !StringUtils.hasText((String) principal)) {
+            return null;
+        }
+        SysUser user = userService.selectUserByUserName(((String) principal).trim());
+        return user == null ? null : user.getUserId();
     }
 }

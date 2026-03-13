@@ -28,6 +28,8 @@ import java.util.Map;
 @Aspect
 @Component
 public class AuditLogAspect {
+    private static final String UNKNOWN_TENANT_ID = "UNKNOWN";
+
 
     private final ISysAuditLogService auditLogService;
     private final SecurityUserResolver securityUserResolver;
@@ -86,6 +88,9 @@ public class AuditLogAspect {
         String requestUri = request.getRequestURI();
         return !"/login".equals(requestUri)
                 && !"/logout".equals(requestUri)
+                && !requestUri.startsWith("/system/audit/log")
+                && !requestUri.startsWith("/system/login/log")
+                && !requestUri.startsWith("/system/mdm/trace")
                 && !requestUri.startsWith("/system/oper/log");
     }
 
@@ -168,7 +173,7 @@ public class AuditLogAspect {
         if (tenantId == null) {
             tenantId = TenantContextHolder.getTenantId();
         }
-        return tenantId == null ? "000000" : tenantId;
+        return tenantId == null ? UNKNOWN_TENANT_ID : tenantId;
     }
 
     /**

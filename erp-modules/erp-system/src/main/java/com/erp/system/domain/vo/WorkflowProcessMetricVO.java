@@ -1,13 +1,11 @@
 package com.erp.system.domain.vo;
 
-import lombok.Data;
 
 import java.io.Serializable;
 
 /**
  * 流程维度效率指标。
  */
-@Data
 public class WorkflowProcessMetricVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -28,4 +26,53 @@ public class WorkflowProcessMetricVO implements Serializable {
 
     /** 超时率 */
     private double overtimeRate;
+
+
+    public String getProcessKey() {
+        return processKey;
+    }
+
+    public void setProcessKey(String processKey) {
+        this.processKey = processKey;
+    }
+
+    public String getProcessName() {
+        return processName;
+    }
+
+    public void setProcessName(String processName) {
+        this.processName = processName;
+    }
+
+    public long getInstanceCount() {
+        return instanceCount;
+    }
+
+    public void setInstanceCount(long instanceCount) {
+        this.instanceCount = instanceCount;
+    }
+
+    public double getAverageHours() {
+        return averageHours;
+    }
+
+    public void setAverageHours(double averageHours) {
+        this.averageHours = averageHours;
+    }
+
+    public double getRejectRate() {
+        return rejectRate;
+    }
+
+    public void setRejectRate(double rejectRate) {
+        this.rejectRate = rejectRate;
+    }
+
+    public double getOvertimeRate() {
+        return overtimeRate;
+    }
+
+    public void setOvertimeRate(double overtimeRate) {
+        this.overtimeRate = overtimeRate;
+    }
 }

@@ -7,11 +7,12 @@ import java.util.Locale;
 /**
  * MDM 状态字段处理工具。
  * 约定：
- * DRAFT 表示草稿，ACTIVE 表示生效，DISABLED 表示停用。
+ * DRAFT 表示草稿，SUBMITTED 表示审批中，ACTIVE 表示生效，DISABLED 表示停用。
  */
 public final class MdmStatusSupport {
 
     public static final String DRAFT = "DRAFT";
+    public static final String SUBMITTED = "SUBMITTED";
     public static final String ACTIVE = "ACTIVE";
     public static final String DISABLED = "DISABLED";
 
@@ -29,6 +30,9 @@ public final class MdmStatusSupport {
             return DRAFT;
         }
         String normalizedStatus = status.trim().toUpperCase(Locale.ROOT);
+        if (SUBMITTED.equals(normalizedStatus)) {
+            return SUBMITTED;
+        }
         if (ACTIVE.equals(normalizedStatus)) {
             return ACTIVE;
         }
@@ -71,5 +75,15 @@ public final class MdmStatusSupport {
      */
     public static boolean isActive(String status) {
         return ACTIVE.equals(normalizeStatus(status));
+    }
+
+    /**
+     * 判断是否为审批中状态。
+     *
+     * @param status 状态值
+     * @return true 表示审批中
+     */
+    public static boolean isSubmitted(String status) {
+        return SUBMITTED.equals(normalizeStatus(status));
     }
 }

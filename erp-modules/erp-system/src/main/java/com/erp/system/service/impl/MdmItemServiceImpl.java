@@ -1,12 +1,15 @@
 package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.erp.system.domain.MdmItem;
 import com.erp.system.mapper.MdmItemMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmAuditTrailService;
+import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IMdmItemService;
+import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmStatusSupport;
@@ -32,10 +35,14 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
 
     private final IMdmAuditTrailService auditTrailService;
     private final SecurityUserResolver securityUserResolver;
+    private final IMdmReferenceCheckService referenceCheckService;
 
-    public MdmItemServiceImpl(IMdmAuditTrailService auditTrailService, SecurityUserResolver securityUserResolver) {
+    public MdmItemServiceImpl(IMdmAuditTrailService auditTrailService,
+            SecurityUserResolver securityUserResolver,
+            IMdmReferenceCheckService referenceCheckService) {
         this.auditTrailService = auditTrailService;
         this.securityUserResolver = securityUserResolver;
+        this.referenceCheckService = referenceCheckService;
     }
 
     /**
@@ -97,16 +104,14 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         item.setBatchControl(MdmValueSupport.normalizeYN(item.getBatchControl(), "N"));
         item.setSerialControl(MdmValueSupport.normalizeYN(item.getSerialControl(), "N"));
         item.setCostingMethod(MdmValueSupport.trimToNull(item.getCostingMethod()));
-        item.setStatus(MdmStatusSupport.normalizeStatus(item.getStatus()));
+        item.setStatus(MdmStatusSupport.DRAFT);
         item.setVersionNo(1);
         item.setDelFlag(DEL_FLAG_EXIST);
         item.setCreateBy(operator);
         item.setUpdateBy(operator);
         item.setCreateTime(now);
         item.setUpdateTime(now);
-        if (MdmStatusSupport.isActive(item.getStatus())) {
-            item.setEffectiveTime(now);
-        }
+        item.setEffectiveTime(null);
         boolean saved = save(item);
         if (saved) {
             auditTrailService.record(MdmDomainTypeSupport.ITEM,
@@ -137,6 +142,12 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
                 .eq(MdmItem::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null) {
             return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("物料审批中，暂不允许直接修改");
+        }
+        if (!MdmStatusSupport.isDraft(existed.getStatus())) {
+            throw new IllegalStateException("已生效物料请通过审批流程提交变更");
         }
         if (StringUtils.hasText(item.getItemCode())
                 && !item.getItemCode().trim().equalsIgnoreCase(existed.getItemCode())) {
@@ -171,7 +182,7 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         }
         item.setUpdateBy(resolveOperator());
         item.setUpdateTime(new Date());
-        boolean updated = updateById(item);
+        boolean updated = updateItemByVersion(item, existed.getVersionNo());
         if (updated) {
             MdmItem after = getById(item.getItemId());
             auditTrailService.record(MdmDomainTypeSupport.ITEM,
@@ -197,11 +208,20 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         if (itemId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.ITEM, itemId);
+
         MdmItem existed = getOne(new LambdaQueryWrapper<MdmItem>()
                 .eq(MdmItem::getItemId, itemId)
                 .eq(MdmItem::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null) {
             return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("物料审批中，暂不允许直接停用");
+        }
+        if (MdmStatusSupport.isActive(existed.getStatus())) {
+            throw new IllegalStateException("已生效物料请通过审批流程提交停用");
         }
         if (MdmStatusSupport.DISABLED.equals(existed.getStatus())) {
             return true;
@@ -212,7 +232,7 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateItemByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmItem after = getById(itemId);
             auditTrailService.record(MdmDomainTypeSupport.ITEM,
@@ -238,10 +258,16 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         if (itemId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.ITEM, itemId);
+
         MdmItem existed = getOne(new LambdaQueryWrapper<MdmItem>()
                 .eq(MdmItem::getItemId, itemId)
                 .eq(MdmItem::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null || !MdmStatusSupport.isDraft(existed.getStatus())) {
+            return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
             return false;
         }
         MdmItem updateEntity = new MdmItem();
@@ -250,7 +276,7 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateItemByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.ITEM,
                     itemId,
@@ -266,7 +292,7 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
     /**
      * 判断物料编码是否重复。
      *
-     * @param itemCode 物料编码
+     * @param itemCode  物料编码
      * @param excludeId 排除主键
      * @return true 表示重复
      */
@@ -278,6 +304,30 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
             queryWrapper.ne(MdmItem::getItemId, excludeId);
         }
         return count(queryWrapper) > 0;
+    }
+
+    /**
+     * 按版本号执行乐观锁更新。
+     *
+     * @param item             更新对象
+     * @param currentVersionNo 当前版本号
+     * @return true 表示更新成功
+     */
+    private boolean updateItemByVersion(MdmItem item, Integer currentVersionNo) {
+        if (item == null || item.getItemId() == null) {
+            return false;
+        }
+        LambdaUpdateWrapper<MdmItem> updateWrapper = new LambdaUpdateWrapper<MdmItem>()
+                .eq(MdmItem::getItemId, item.getItemId())
+                .eq(MdmItem::getDelFlag, DEL_FLAG_EXIST);
+        if (currentVersionNo != null) {
+            updateWrapper.eq(MdmItem::getVersionNo, currentVersionNo);
+        }
+        boolean updated = update(item, updateWrapper);
+        if (!updated) {
+            throw new IllegalStateException("物料数据已被其他人更新，请刷新后重试");
+        }
+        return true;
     }
 
     /**

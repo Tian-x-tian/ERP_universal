@@ -1,12 +1,14 @@
 package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.erp.system.domain.MdmSettleMethod;
 import com.erp.system.mapper.MdmSettleMethodMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IMdmSettleMethodService;
+import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmStatusSupport;
@@ -32,11 +34,14 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
 
     private final IMdmAuditTrailService auditTrailService;
     private final SecurityUserResolver securityUserResolver;
+    private final IMdmReferenceCheckService referenceCheckService;
 
     public MdmSettleMethodServiceImpl(IMdmAuditTrailService auditTrailService,
-            SecurityUserResolver securityUserResolver) {
+            SecurityUserResolver securityUserResolver,
+            IMdmReferenceCheckService referenceCheckService) {
         this.auditTrailService = auditTrailService;
         this.securityUserResolver = securityUserResolver;
+        this.referenceCheckService = referenceCheckService;
     }
 
     /**
@@ -90,7 +95,7 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
         settleMethod.setTenantId(tenantId);
         settleMethod.setSettleCode(settleCode);
         settleMethod.setSettleName(settleMethod.getSettleName().trim());
-        settleMethod.setStatus(MdmStatusSupport.normalizeStatus(settleMethod.getStatus()));
+        settleMethod.setStatus(MdmStatusSupport.DRAFT);
         settleMethod.setVersionNo(1);
         settleMethod.setDelFlag(DEL_FLAG_EXIST);
         settleMethod.setCreateBy(operator);
@@ -128,6 +133,12 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
         if (existed == null) {
             return false;
         }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("结算方式审批中，暂不允许直接修改");
+        }
+        if (!MdmStatusSupport.isDraft(existed.getStatus())) {
+            throw new IllegalStateException("已生效结算方式请通过审批流程提交变更");
+        }
         MdmSettleMethod before = new MdmSettleMethod();
         BeanUtils.copyProperties(existed, before);
 
@@ -141,11 +152,12 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
         if (StringUtils.hasText(settleMethod.getSettleName())) {
             settleMethod.setSettleName(settleMethod.getSettleName().trim());
         }
-        settleMethod.setStatus(MdmStatusSupport.normalizeStatusForUpdate(settleMethod.getStatus(), existed.getStatus()));
+        settleMethod
+                .setStatus(MdmStatusSupport.normalizeStatusForUpdate(settleMethod.getStatus(), existed.getStatus()));
         settleMethod.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         settleMethod.setUpdateBy(resolveOperator());
         settleMethod.setUpdateTime(new Date());
-        boolean updated = updateById(settleMethod);
+        boolean updated = updateSettleMethodByVersion(settleMethod, existed.getVersionNo());
         if (updated) {
             MdmSettleMethod after = getById(settleMethod.getSettleMethodId());
             auditTrailService.record(MdmDomainTypeSupport.SETTLE_METHOD,
@@ -171,11 +183,20 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
         if (settleMethodId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.SETTLE_METHOD, settleMethodId);
+
         MdmSettleMethod existed = getOne(new LambdaQueryWrapper<MdmSettleMethod>()
                 .eq(MdmSettleMethod::getSettleMethodId, settleMethodId)
                 .eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null) {
             return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("结算方式审批中，暂不允许直接停用");
+        }
+        if (MdmStatusSupport.isActive(existed.getStatus())) {
+            throw new IllegalStateException("已生效结算方式请通过审批流程提交停用");
         }
         if (MdmStatusSupport.DISABLED.equals(existed.getStatus())) {
             return true;
@@ -186,7 +207,7 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateSettleMethodByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmSettleMethod after = getById(settleMethodId);
             auditTrailService.record(MdmDomainTypeSupport.SETTLE_METHOD,
@@ -212,10 +233,16 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
         if (settleMethodId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.SETTLE_METHOD, settleMethodId);
+
         MdmSettleMethod existed = getOne(new LambdaQueryWrapper<MdmSettleMethod>()
                 .eq(MdmSettleMethod::getSettleMethodId, settleMethodId)
                 .eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST));
-        if (existed == null || MdmStatusSupport.isActive(existed.getStatus())) {
+        if (existed == null || !MdmStatusSupport.isDraft(existed.getStatus())) {
+            return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
             return false;
         }
         MdmSettleMethod updateEntity = new MdmSettleMethod();
@@ -224,7 +251,7 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateSettleMethodByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.SETTLE_METHOD,
                     settleMethodId,
@@ -240,7 +267,7 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
     /**
      * 判断编码是否重复。
      *
-     * @param code 编码
+     * @param code      编码
      * @param excludeId 排除主键
      * @return true 表示重复
      */
@@ -252,6 +279,30 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
             queryWrapper.ne(MdmSettleMethod::getSettleMethodId, excludeId);
         }
         return count(queryWrapper) > 0;
+    }
+
+    /**
+     * 按版本号执行乐观锁更新。
+     *
+     * @param settleMethod     更新对象
+     * @param currentVersionNo 当前版本号
+     * @return true 表示更新成功
+     */
+    private boolean updateSettleMethodByVersion(MdmSettleMethod settleMethod, Integer currentVersionNo) {
+        if (settleMethod == null || settleMethod.getSettleMethodId() == null) {
+            return false;
+        }
+        LambdaUpdateWrapper<MdmSettleMethod> updateWrapper = new LambdaUpdateWrapper<MdmSettleMethod>()
+                .eq(MdmSettleMethod::getSettleMethodId, settleMethod.getSettleMethodId())
+                .eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST);
+        if (currentVersionNo != null) {
+            updateWrapper.eq(MdmSettleMethod::getVersionNo, currentVersionNo);
+        }
+        boolean updated = update(settleMethod, updateWrapper);
+        if (!updated) {
+            throw new IllegalStateException("结算方式数据已被其他人更新，请刷新后重试");
+        }
+        return updated;
     }
 
     /**

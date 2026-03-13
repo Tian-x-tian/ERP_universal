@@ -33,6 +33,7 @@ import com.erp.system.service.ISysUserRoleService;
 import com.erp.system.service.ISysUserService;
 import com.erp.system.service.ISysWorkflowDefinitionService;
 import com.erp.system.service.ISysWorkflowEngineService;
+import com.erp.system.service.IWorkflowBusinessCallback;
 import com.erp.system.support.TenantWriteGuard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -103,6 +104,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
     private final ISysUserRoleService userRoleService;
     private final ISysUserPostService userPostService;
     private final ObjectMapper objectMapper;
+    private final List<IWorkflowBusinessCallback> workflowBusinessCallbacks;
 
     public SysWorkflowEngineServiceImpl(
             SysWorkflowInstanceMapper workflowInstanceMapper,
@@ -114,7 +116,8 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             ISysUserService userService,
             ISysDeptService deptService,
             ISysUserRoleService userRoleService,
-            ISysUserPostService userPostService) {
+            ISysUserPostService userPostService,
+            List<IWorkflowBusinessCallback> workflowBusinessCallbacks) {
         this.workflowInstanceMapper = workflowInstanceMapper;
         this.workflowTaskMapper = workflowTaskMapper;
         this.workflowTaskActionMapper = workflowTaskActionMapper;
@@ -126,6 +129,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         this.userRoleService = userRoleService;
         this.userPostService = userPostService;
         this.objectMapper = new ObjectMapper();
+        this.workflowBusinessCallbacks = workflowBusinessCallbacks == null ? Collections.emptyList() : workflowBusinessCallbacks;
     }
 
     /**
@@ -432,6 +436,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             return true;
         }
         updateInstanceStatus(task.getInstanceId(), INSTANCE_STATUS_COMPLETED, "完成", ACTION_APPROVE, actionUserId, actionUserName, now);
+        notifyBusinessCallbacks(instance, INSTANCE_STATUS_COMPLETED);
         pushNoticeToUser(instance.getTenantId(), instance.getInitiatorUserId(),
                 "审批结果通知：" + instance.getProcessName(),
                 "审批通知",
@@ -495,6 +500,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             finishTodoTask(pendingTask.getTodoId(), actionUserId, "流程驳回关闭");
         }
         updateInstanceStatus(task.getInstanceId(), INSTANCE_STATUS_REJECTED, "已驳回", ACTION_REJECT, actionUserId, actionUserName, now);
+        notifyBusinessCallbacks(instance, INSTANCE_STATUS_REJECTED);
 
         recordTaskAction(instance, task, ACTION_REJECT, actionUserId, actionUserName, actionUserNick, null, null, actionComment);
         pushNoticeToUser(instance.getTenantId(), instance.getInitiatorUserId(),
@@ -628,6 +634,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             finishTodoTask(pendingTask.getTodoId(), actionUserId, "发起人撤回");
         }
         updateInstanceStatus(instanceId, INSTANCE_STATUS_WITHDRAWN, "已撤回", ACTION_WITHDRAW, actionUserId, actionUserName, now);
+        notifyBusinessCallbacks(instance, INSTANCE_STATUS_WITHDRAWN);
         recordTaskAction(instance, null, ACTION_WITHDRAW, actionUserId, actionUserName, actionUserNick, null, null,
                 normalizeText(actionBody == null ? null : actionBody.getActionComment()));
         return true;
@@ -1733,6 +1740,34 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             updateInstance.setFinishTime(actionTime);
         }
         workflowInstanceMapper.updateById(updateInstance);
+    }
+
+    /**
+     * 通知业务回调处理流程终态事件。
+     *
+     * @param instance 流程实例
+     * @param status   流程状态
+     */
+    private void notifyBusinessCallbacks(SysWorkflowInstance instance, String status) {
+        if (instance == null || !StringUtils.hasText(instance.getBusinessType()) || workflowBusinessCallbacks.isEmpty()) {
+            return;
+        }
+        for (IWorkflowBusinessCallback callback : workflowBusinessCallbacks) {
+            if (callback == null || !callback.supports(instance.getBusinessType())) {
+                continue;
+            }
+            if (INSTANCE_STATUS_COMPLETED.equals(status)) {
+                callback.onWorkflowCompleted(instance);
+                continue;
+            }
+            if (INSTANCE_STATUS_REJECTED.equals(status)) {
+                callback.onWorkflowRejected(instance);
+                continue;
+            }
+            if (INSTANCE_STATUS_WITHDRAWN.equals(status)) {
+                callback.onWorkflowWithdrawn(instance);
+            }
+        }
     }
 
     /**

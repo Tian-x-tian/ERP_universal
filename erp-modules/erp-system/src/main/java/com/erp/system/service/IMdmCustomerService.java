@@ -1,6 +1,7 @@
 package com.erp.system.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.erp.system.domain.MdmCustomer;
 
 import java.util.List;
@@ -19,6 +20,17 @@ public interface IMdmCustomerService extends IService<MdmCustomer> {
      * @return 客户列表
      */
     List<MdmCustomer> selectCustomerList(String customerCode, String customerName, String status);
+
+    /**
+     * 查询客户分页列表。
+     *
+     * @param page         分页参数
+     * @param customerCode 客户编码
+     * @param customerName 客户名称
+     * @param status       状态
+     * @return 客户分页结果
+     */
+    Page<MdmCustomer> selectCustomerPage(Page<MdmCustomer> page, String customerCode, String customerName, String status);
 
     /**
      * 新增客户。

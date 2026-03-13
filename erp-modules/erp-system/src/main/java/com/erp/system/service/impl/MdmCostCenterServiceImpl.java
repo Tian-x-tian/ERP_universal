@@ -1,12 +1,18 @@
 package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.erp.system.domain.MdmEmployee;
 import com.erp.system.domain.MdmCostCenter;
+import com.erp.system.domain.MdmOrg;
+import com.erp.system.mapper.MdmEmployeeMapper;
 import com.erp.system.mapper.MdmCostCenterMapper;
+import com.erp.system.mapper.MdmOrgMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IMdmCostCenterService;
+import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmStatusSupport;
@@ -33,11 +39,20 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
 
     private final IMdmAuditTrailService auditTrailService;
     private final SecurityUserResolver securityUserResolver;
+    private final MdmOrgMapper orgMapper;
+    private final MdmEmployeeMapper employeeMapper;
+    private final IMdmReferenceCheckService referenceCheckService;
 
     public MdmCostCenterServiceImpl(IMdmAuditTrailService auditTrailService,
-            SecurityUserResolver securityUserResolver) {
+            SecurityUserResolver securityUserResolver,
+            MdmOrgMapper orgMapper,
+            MdmEmployeeMapper employeeMapper,
+            IMdmReferenceCheckService referenceCheckService) {
         this.auditTrailService = auditTrailService;
         this.securityUserResolver = securityUserResolver;
+        this.orgMapper = orgMapper;
+        this.employeeMapper = employeeMapper;
+        this.referenceCheckService = referenceCheckService;
     }
 
     /**
@@ -86,6 +101,9 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
         if (existsCostCenterCode(ccCode, null)) {
             return false;
         }
+        if (!isOrgValid(costCenter.getOrgId())) {
+            return false;
+        }
         Long parentId = normalizeParentId(costCenter.getParentId());
         if (!isParentValid(parentId) || parentId.equals(costCenter.getCcId())) {
             return false;
@@ -96,7 +114,7 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
         costCenter.setCcCode(ccCode);
         costCenter.setCcName(costCenter.getCcName().trim());
         costCenter.setParentId(parentId);
-        costCenter.setStatus(MdmStatusSupport.normalizeStatus(costCenter.getStatus()));
+        costCenter.setStatus(MdmStatusSupport.DRAFT);
         costCenter.setVersionNo(1);
         costCenter.setDelFlag(DEL_FLAG_EXIST);
         costCenter.setCreateBy(operator);
@@ -134,6 +152,12 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
         if (existed == null) {
             return false;
         }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("成本中心审批中，暂不允许直接修改");
+        }
+        if (!MdmStatusSupport.isDraft(existed.getStatus())) {
+            throw new IllegalStateException("已生效成本中心请通过审批流程提交变更");
+        }
         MdmCostCenter before = new MdmCostCenter();
         BeanUtils.copyProperties(existed, before);
 
@@ -144,20 +168,23 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
             }
             costCenter.setCcCode(ccCode);
         }
-        Long parentId = normalizeParentId(costCenter.getParentId() == null ? existed.getParentId() : costCenter.getParentId());
-        if (parentId.equals(costCenter.getCcId()) || !isParentValid(parentId) || hasCycle(parentId, costCenter.getCcId())) {
+        Long parentId = normalizeParentId(
+                costCenter.getParentId() == null ? existed.getParentId() : costCenter.getParentId());
+        if (parentId.equals(costCenter.getCcId()) || !isParentValid(parentId)
+                || hasCycle(parentId, costCenter.getCcId())) {
             return false;
         }
         costCenter.setParentId(parentId);
         costCenter.setCcName(MdmValueSupport.trimToNull(costCenter.getCcName()));
-        if (costCenter.getOrgId() == null) {
-            costCenter.setOrgId(existed.getOrgId());
+        costCenter.setOrgId(costCenter.getOrgId() == null ? existed.getOrgId() : costCenter.getOrgId());
+        if (!isOrgValid(costCenter.getOrgId())) {
+            return false;
         }
         costCenter.setStatus(MdmStatusSupport.normalizeStatusForUpdate(costCenter.getStatus(), existed.getStatus()));
         costCenter.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         costCenter.setUpdateBy(resolveOperator());
         costCenter.setUpdateTime(new Date());
-        boolean updated = updateById(costCenter);
+        boolean updated = updateCostCenterByVersion(costCenter, existed.getVersionNo());
         if (updated) {
             MdmCostCenter after = getById(costCenter.getCcId());
             auditTrailService.record(MdmDomainTypeSupport.COST_CENTER,
@@ -183,11 +210,20 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
         if (ccId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.COST_CENTER, ccId);
+
         MdmCostCenter existed = getOne(new LambdaQueryWrapper<MdmCostCenter>()
                 .eq(MdmCostCenter::getCcId, ccId)
                 .eq(MdmCostCenter::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null) {
             return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("成本中心审批中，暂不允许直接停用");
+        }
+        if (MdmStatusSupport.isActive(existed.getStatus())) {
+            throw new IllegalStateException("已生效成本中心请通过审批流程提交停用");
         }
         if (MdmStatusSupport.DISABLED.equals(existed.getStatus())) {
             return true;
@@ -198,7 +234,7 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateCostCenterByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmCostCenter after = getById(ccId);
             auditTrailService.record(MdmDomainTypeSupport.COST_CENTER,
@@ -224,10 +260,19 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
         if (ccId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.COST_CENTER, ccId);
+
+        if (isReferenced(ccId)) {
+            throw new IllegalStateException("成本中心已被员工引用，不能删除");
+        }
         MdmCostCenter existed = getOne(new LambdaQueryWrapper<MdmCostCenter>()
                 .eq(MdmCostCenter::getCcId, ccId)
                 .eq(MdmCostCenter::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null || !MdmStatusSupport.isDraft(existed.getStatus())) {
+            return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
             return false;
         }
         if (count(new LambdaQueryWrapper<MdmCostCenter>()
@@ -241,7 +286,7 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateCostCenterByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.COST_CENTER,
                     ccId,
@@ -257,7 +302,7 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
     /**
      * 判断成本中心编码是否重复。
      *
-     * @param ccCode 成本中心编码
+     * @param ccCode    成本中心编码
      * @param excludeId 排除主键
      * @return true 表示重复
      */
@@ -269,6 +314,60 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
             queryWrapper.ne(MdmCostCenter::getCcId, excludeId);
         }
         return count(queryWrapper) > 0;
+    }
+
+    /**
+     * 校验组织引用是否有效。
+     *
+     * @param orgId 组织ID
+     * @return true 表示有效
+     */
+    private boolean isOrgValid(Long orgId) {
+        if (orgId == null || orgId < 1) {
+            return false;
+        }
+        MdmOrg org = orgMapper.selectById(orgId);
+        return org != null && DEL_FLAG_EXIST.equals(org.getDelFlag());
+    }
+
+    /**
+     * 按版本号执行乐观锁更新。
+     *
+     * @param costCenter       更新对象
+     * @param currentVersionNo 当前版本号
+     * @return true 表示更新成功
+     */
+    private boolean updateCostCenterByVersion(MdmCostCenter costCenter, Integer currentVersionNo) {
+        if (costCenter == null || costCenter.getCcId() == null) {
+            return false;
+        }
+        LambdaUpdateWrapper<MdmCostCenter> updateWrapper = new LambdaUpdateWrapper<MdmCostCenter>()
+                .eq(MdmCostCenter::getCcId, costCenter.getCcId())
+                .eq(MdmCostCenter::getDelFlag, DEL_FLAG_EXIST);
+        if (currentVersionNo != null) {
+            updateWrapper.eq(MdmCostCenter::getVersionNo, currentVersionNo);
+        }
+        boolean updated = update(costCenter, updateWrapper);
+        if (!updated) {
+            throw new IllegalStateException("成本中心数据已被其他人更新，请刷新后重试");
+        }
+        return updated;
+    }
+
+    /**
+     * 判断成本中心是否已被员工引用。
+     *
+     * @param ccId 成本中心ID
+     * @return true 表示已引用
+     */
+    private boolean isReferenced(Long ccId) {
+        if (ccId == null) {
+            return false;
+        }
+        Long employeeCount = employeeMapper.selectCount(new LambdaQueryWrapper<MdmEmployee>()
+                .eq(MdmEmployee::getCostCenterId, ccId)
+                .eq(MdmEmployee::getDelFlag, DEL_FLAG_EXIST));
+        return employeeCount != null && employeeCount > 0;
     }
 
     /**

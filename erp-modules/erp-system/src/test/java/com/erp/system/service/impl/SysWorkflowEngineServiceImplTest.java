@@ -95,7 +95,8 @@ class SysWorkflowEngineServiceImplTest {
                 userService,
                 deptService,
                 userRoleService,
-                userPostService);
+                userPostService,
+                Collections.emptyList());
     }
 
     /**

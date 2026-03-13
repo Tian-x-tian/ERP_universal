@@ -28,4 +28,12 @@ public interface ISysUserService extends IService<SysUser> {
      * @return 更新是否成功
      */
     boolean updatePasswordByUserId(Long userId, String encodedPassword);
+
+    /**
+     * 递增用户 Token 版本号，使既有令牌失效。
+     *
+     * @param userId 用户ID
+     * @return 更新是否成功
+     */
+    boolean incrementTokenVersion(Long userId);
 }

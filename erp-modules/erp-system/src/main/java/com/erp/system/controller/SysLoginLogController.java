@@ -1,6 +1,8 @@
 package com.erp.system.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.SysLoginLog;
 import com.erp.system.service.ISysLoginLogService;
@@ -38,17 +40,21 @@ public class SysLoginLogController {
      * @param status    登录状态（0成功 1失败）
      * @param startTime 开始时间
      * @param endTime   结束时间
+     * @param pageNum   当前页码
+     * @param pageSize  每页条数
      * @return 登录日志列表
      */
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:loginLog:list')")
-    public R<List<SysLoginLog>> list(
+    public R<PageData<SysLoginLog>> list(
             @RequestParam(value = "userName", required = false) String userName,
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "startTime", required = false)
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @RequestParam(value = "endTime", required = false)
-            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
+            @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
+            @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
         LambdaQueryWrapper<SysLoginLog> queryWrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(userName)) {
             queryWrapper.like(SysLoginLog::getUserName, userName.trim());
@@ -63,7 +69,9 @@ public class SysLoginLogController {
             queryWrapper.le(SysLoginLog::getLoginTime, toDate(endTime));
         }
         queryWrapper.orderByDesc(SysLoginLog::getLoginTime);
-        return R.success(loginLogService.list(queryWrapper));
+        Page<SysLoginLog> page = new Page<>(normalizePageNum(pageNum), normalizePageSize(pageSize));
+        Page<SysLoginLog> resultPage = loginLogService.page(page, queryWrapper);
+        return R.page(resultPage.getRecords(), resultPage.getCurrent(), resultPage.getSize(), resultPage.getTotal());
     }
 
     /**
@@ -86,5 +94,28 @@ public class SysLoginLogController {
      */
     private Date toDate(LocalDateTime localDateTime) {
         return java.sql.Timestamp.valueOf(localDateTime);
+    }
+
+    /**
+     * 规范化页码，避免非法页码导致分页异常。
+     *
+     * @param pageNum 原始页码
+     * @return 规范化后的页码
+     */
+    private long normalizePageNum(Long pageNum) {
+        return pageNum == null || pageNum < 1 ? 1L : pageNum;
+    }
+
+    /**
+     * 规范化分页大小，统一限制最大页长。
+     *
+     * @param pageSize 原始分页大小
+     * @return 规范化后的分页大小
+     */
+    private long normalizePageSize(Long pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return 20L;
+        }
+        return Math.min(pageSize, 200L);
     }
 }

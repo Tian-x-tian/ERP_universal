@@ -1,8 +1,12 @@
 package com.erp.system.controller;
 
+import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.MdmItem;
+import com.erp.system.domain.vo.MdmItemWorkflowSubmitBody;
 import com.erp.system.service.IMdmItemService;
+import com.erp.system.service.IMdmItemWorkflowSubmitService;
+import com.erp.system.support.MdmPageSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,8 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
  * MDM 物料主数据控制层。
  */
@@ -23,9 +25,12 @@ import java.util.List;
 @RequestMapping("/system/mdm/item")
 public class MdmItemController {
     private final IMdmItemService itemService;
+    private final IMdmItemWorkflowSubmitService itemWorkflowSubmitService;
 
-    public MdmItemController(IMdmItemService itemService) {
+    public MdmItemController(IMdmItemService itemService,
+                             IMdmItemWorkflowSubmitService itemWorkflowSubmitService) {
         this.itemService = itemService;
+        this.itemWorkflowSubmitService = itemWorkflowSubmitService;
     }
 
     /**
@@ -38,10 +43,12 @@ public class MdmItemController {
      */
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:mdm:item:list')")
-    public R<List<MdmItem>> list(@RequestParam(value = "itemCode", required = false) String itemCode,
+    public R<PageData<MdmItem>> list(@RequestParam(value = "itemCode", required = false) String itemCode,
             @RequestParam(value = "itemName", required = false) String itemName,
-            @RequestParam(value = "status", required = false) String status) {
-        return R.success(itemService.selectItemList(itemCode, itemName, status));
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
+            @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
+        return R.success(MdmPageSupport.paginate(itemService.selectItemList(itemCode, itemName, status), pageNum, pageSize));
     }
 
     /**
@@ -100,6 +107,61 @@ public class MdmItemController {
     public R<Boolean> disable(@PathVariable("itemId") Long itemId) {
         boolean success = itemService.disableItem(itemId);
         return success ? R.success(true) : R.failed("停用物料失败");
+    }
+
+    /**
+     * 提交物料草稿生效审批。
+     *
+     * @param itemId     物料ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/submit/{itemId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:item:edit')")
+    public R<Boolean> submit(@PathVariable("itemId") Long itemId,
+                             @RequestBody MdmItemWorkflowSubmitBody submitBody) {
+        boolean success = itemWorkflowSubmitService.submitDraftActivation(
+                itemId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交物料审批失败");
+    }
+
+    /**
+     * 提交物料变更审批。
+     *
+     * @param itemId     物料ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/change/{itemId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:item:edit')")
+    public R<Boolean> submitChange(@PathVariable("itemId") Long itemId,
+                                   @RequestBody MdmItemWorkflowSubmitBody submitBody) {
+        boolean success = itemWorkflowSubmitService.submitChange(
+                itemId,
+                submitBody == null ? null : submitBody.getItem(),
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交物料变更审批失败");
+    }
+
+    /**
+     * 提交物料停用审批。
+     *
+     * @param itemId     物料ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/disable/submit/{itemId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:item:disable')")
+    public R<Boolean> submitDisable(@PathVariable("itemId") Long itemId,
+                                    @RequestBody MdmItemWorkflowSubmitBody submitBody) {
+        boolean success = itemWorkflowSubmitService.submitDisable(
+                itemId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交物料停用审批失败");
     }
 
     /**

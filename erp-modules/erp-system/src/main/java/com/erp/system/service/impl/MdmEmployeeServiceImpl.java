@@ -1,12 +1,26 @@
 package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.erp.system.domain.MdmCostCenter;
 import com.erp.system.domain.MdmEmployee;
+import com.erp.system.domain.MdmOrg;
+import com.erp.system.domain.MdmProject;
+import com.erp.system.domain.MdmWarehouse;
+import com.erp.system.domain.SysDept;
+import com.erp.system.domain.SysUser;
+import com.erp.system.mapper.MdmCostCenterMapper;
 import com.erp.system.mapper.MdmEmployeeMapper;
+import com.erp.system.mapper.MdmOrgMapper;
+import com.erp.system.mapper.MdmProjectMapper;
+import com.erp.system.mapper.MdmWarehouseMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IMdmEmployeeService;
+import com.erp.system.service.ISysDeptService;
+import com.erp.system.service.ISysUserService;
+import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmEmployeeStatusSupport;
@@ -31,10 +45,32 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
 
     private final IMdmAuditTrailService auditTrailService;
     private final SecurityUserResolver securityUserResolver;
+    private final MdmOrgMapper orgMapper;
+    private final MdmCostCenterMapper costCenterMapper;
+    private final MdmWarehouseMapper warehouseMapper;
+    private final MdmProjectMapper projectMapper;
+    private final ISysDeptService deptService;
+    private final ISysUserService userService;
+    private final IMdmReferenceCheckService referenceCheckService;
 
-    public MdmEmployeeServiceImpl(IMdmAuditTrailService auditTrailService, SecurityUserResolver securityUserResolver) {
+    public MdmEmployeeServiceImpl(IMdmAuditTrailService auditTrailService,
+            SecurityUserResolver securityUserResolver,
+            MdmOrgMapper orgMapper,
+            MdmCostCenterMapper costCenterMapper,
+            MdmWarehouseMapper warehouseMapper,
+            MdmProjectMapper projectMapper,
+            ISysDeptService deptService,
+            ISysUserService userService,
+            IMdmReferenceCheckService referenceCheckService) {
         this.auditTrailService = auditTrailService;
         this.securityUserResolver = securityUserResolver;
+        this.orgMapper = orgMapper;
+        this.costCenterMapper = costCenterMapper;
+        this.warehouseMapper = warehouseMapper;
+        this.projectMapper = projectMapper;
+        this.deptService = deptService;
+        this.userService = userService;
+        this.referenceCheckService = referenceCheckService;
     }
 
     /**
@@ -80,7 +116,7 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
             return false;
         }
         String empCode = employee.getEmpCode().trim();
-        if (existsEmpCode(empCode, null)) {
+        if (existsEmpCode(empCode, null) || !isReferenceValid(employee)) {
             return false;
         }
         String operator = resolveOperator();
@@ -91,14 +127,14 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         employee.setMobile(MdmValueSupport.trimToNull(employee.getMobile()));
         employee.setEmail(MdmValueSupport.trimToNull(employee.getEmail()));
         employee.setPosition(MdmValueSupport.trimToNull(employee.getPosition()));
-        employee.setStatus(MdmEmployeeStatusSupport.normalizeStatus(employee.getStatus()));
+        employee.setStatus(MdmEmployeeStatusSupport.DRAFT);
         employee.setVersionNo(1);
         employee.setDelFlag(DEL_FLAG_EXIST);
         employee.setCreateBy(operator);
         employee.setUpdateBy(operator);
         employee.setCreateTime(now);
         employee.setUpdateTime(now);
-        employee.setEffectiveTime(now);
+        employee.setEffectiveTime(null);
         boolean saved = save(employee);
         if (saved) {
             auditTrailService.record(MdmDomainTypeSupport.EMPLOYEE,
@@ -130,9 +166,12 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         if (existed == null) {
             return false;
         }
-        MdmEmployee before = new MdmEmployee();
-        BeanUtils.copyProperties(existed, before);
-
+        if (MdmEmployeeStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("员工审批中，暂不允许直接修改");
+        }
+        if (!MdmEmployeeStatusSupport.isDraft(existed.getStatus())) {
+            throw new IllegalStateException("已生效员工请通过审批流程提交变更");
+        }
         if (StringUtils.hasText(employee.getEmpCode())) {
             String empCode = employee.getEmpCode().trim();
             if (existsEmpCode(empCode, employee.getEmployeeId())) {
@@ -140,15 +179,27 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
             }
             employee.setEmpCode(empCode);
         }
+        employee.setOrgId(employee.getOrgId() == null ? existed.getOrgId() : employee.getOrgId());
+        employee.setDeptId(employee.getDeptId() == null ? existed.getDeptId() : employee.getDeptId());
+        employee.setUserId(employee.getUserId() == null ? existed.getUserId() : employee.getUserId());
+        employee.setCostCenterId(
+                employee.getCostCenterId() == null ? existed.getCostCenterId() : employee.getCostCenterId());
+        if (!isReferenceValid(employee)) {
+            return false;
+        }
+        MdmEmployee before = new MdmEmployee();
+        BeanUtils.copyProperties(existed, before);
+
         employee.setEmpName(MdmValueSupport.trimToNull(employee.getEmpName()));
         employee.setMobile(MdmValueSupport.trimToNull(employee.getMobile()));
         employee.setEmail(MdmValueSupport.trimToNull(employee.getEmail()));
         employee.setPosition(MdmValueSupport.trimToNull(employee.getPosition()));
-        employee.setStatus(MdmEmployeeStatusSupport.normalizeStatusForUpdate(employee.getStatus(), existed.getStatus()));
+        employee.setStatus(
+                MdmEmployeeStatusSupport.normalizeStatusForUpdate(employee.getStatus(), existed.getStatus()));
         employee.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         employee.setUpdateBy(resolveOperator());
         employee.setUpdateTime(new Date());
-        boolean updated = updateById(employee);
+        boolean updated = updateEmployeeByVersion(employee, existed.getVersionNo());
         if (updated) {
             MdmEmployee after = getById(employee.getEmployeeId());
             auditTrailService.record(MdmDomainTypeSupport.EMPLOYEE,
@@ -174,11 +225,20 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         if (employeeId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.EMPLOYEE, employeeId);
+
         MdmEmployee existed = getOne(new LambdaQueryWrapper<MdmEmployee>()
                 .eq(MdmEmployee::getEmployeeId, employeeId)
                 .eq(MdmEmployee::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null) {
             return false;
+        }
+        if (MdmEmployeeStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("员工审批中，暂不允许直接发起离职");
+        }
+        if (MdmEmployeeStatusSupport.isActive(existed.getStatus())) {
+            throw new IllegalStateException("在职员工请通过审批流程提交离职");
         }
         if (MdmEmployeeStatusSupport.isLeave(existed.getStatus())) {
             return true;
@@ -189,7 +249,7 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateEmployeeByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmEmployee after = getById(employeeId);
             auditTrailService.record(MdmDomainTypeSupport.EMPLOYEE,
@@ -215,10 +275,23 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         if (employeeId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.EMPLOYEE, employeeId);
+
+        if (isReferenced(employeeId)) {
+            throw new IllegalStateException("员工已被仓库或项目引用，不能删除");
+        }
         MdmEmployee existed = getOne(new LambdaQueryWrapper<MdmEmployee>()
                 .eq(MdmEmployee::getEmployeeId, employeeId)
                 .eq(MdmEmployee::getDelFlag, DEL_FLAG_EXIST));
-        if (existed == null || !MdmEmployeeStatusSupport.isLeave(existed.getStatus())) {
+        if (existed == null) {
+            return false;
+        }
+        if (MdmEmployeeStatusSupport.isSubmitted(existed.getStatus())) {
+            return false;
+        }
+        if (!MdmEmployeeStatusSupport.isDraft(existed.getStatus())
+                && !MdmEmployeeStatusSupport.isLeave(existed.getStatus())) {
             return false;
         }
         MdmEmployee updateEntity = new MdmEmployee();
@@ -227,7 +300,7 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateEmployeeByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.EMPLOYEE,
                     employeeId,
@@ -243,7 +316,7 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
     /**
      * 判断员工编码是否重复。
      *
-     * @param empCode 员工编码
+     * @param empCode   员工编码
      * @param excludeId 排除主键
      * @return true 表示重复
      */
@@ -255,6 +328,124 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
             queryWrapper.ne(MdmEmployee::getEmployeeId, excludeId);
         }
         return count(queryWrapper) > 0;
+    }
+
+    /**
+     * 校验员工引用字段是否有效。
+     *
+     * @param employee 员工对象
+     * @return true 表示有效
+     */
+    private boolean isReferenceValid(MdmEmployee employee) {
+        if (employee == null) {
+            return false;
+        }
+        return isOrgValid(employee.getOrgId())
+                && isCostCenterValid(employee.getCostCenterId())
+                && isDeptValid(employee.getDeptId())
+                && isUserValid(employee.getUserId());
+    }
+
+    /**
+     * 校验组织引用是否有效。
+     *
+     * @param orgId 组织ID
+     * @return true 表示有效
+     */
+    private boolean isOrgValid(Long orgId) {
+        if (orgId == null || orgId < 1) {
+            return true;
+        }
+        MdmOrg org = orgMapper.selectById(orgId);
+        return org != null && DEL_FLAG_EXIST.equals(org.getDelFlag());
+    }
+
+    /**
+     * 校验成本中心引用是否有效。
+     *
+     * @param costCenterId 成本中心ID
+     * @return true 表示有效
+     */
+    private boolean isCostCenterValid(Long costCenterId) {
+        if (costCenterId == null || costCenterId < 1) {
+            return true;
+        }
+        MdmCostCenter costCenter = costCenterMapper.selectById(costCenterId);
+        return costCenter != null && DEL_FLAG_EXIST.equals(costCenter.getDelFlag());
+    }
+
+    /**
+     * 校验部门引用是否有效。
+     *
+     * @param deptId 部门ID
+     * @return true 表示有效
+     */
+    private boolean isDeptValid(Long deptId) {
+        if (deptId == null || deptId < 1) {
+            return true;
+        }
+        SysDept dept = deptService.getById(deptId);
+        return dept != null;
+    }
+
+    /**
+     * 校验用户引用是否有效。
+     *
+     * @param userId 用户ID
+     * @return true 表示有效
+     */
+    private boolean isUserValid(Long userId) {
+        if (userId == null || userId < 1) {
+            return true;
+        }
+        SysUser user = userService.getById(userId);
+        return user != null;
+    }
+
+    /**
+     * 判断员工是否已被其他主数据引用。
+     *
+     * @param employeeId 员工ID
+     * @return true 表示已引用
+     */
+    private boolean isReferenced(Long employeeId) {
+        if (employeeId == null) {
+            return false;
+        }
+        Long warehouseCount = warehouseMapper.selectCount(new LambdaQueryWrapper<MdmWarehouse>()
+                .eq(MdmWarehouse::getManagerEmpId, employeeId)
+                .eq(MdmWarehouse::getDelFlag, DEL_FLAG_EXIST));
+        if (warehouseCount != null && warehouseCount > 0) {
+            return true;
+        }
+        Long projectCount = projectMapper.selectCount(new LambdaQueryWrapper<MdmProject>()
+                .eq(MdmProject::getManagerEmpId, employeeId)
+                .eq(MdmProject::getDelFlag, DEL_FLAG_EXIST));
+        return projectCount != null && projectCount > 0;
+    }
+
+    /**
+     * 按版本号执行乐观锁更新。
+     *
+     * @param employee         更新对象
+     * @param currentVersionNo 当前版本号
+     * @return true 表示更新成功
+     */
+    private boolean updateEmployeeByVersion(MdmEmployee employee, Integer currentVersionNo) {
+        if (employee == null || employee.getEmployeeId() == null) {
+            return false;
+        }
+        LambdaUpdateWrapper<MdmEmployee> updateWrapper = new LambdaUpdateWrapper<MdmEmployee>()
+                .eq(MdmEmployee::getEmployeeId, employee.getEmployeeId())
+                .eq(MdmEmployee::getDelFlag, DEL_FLAG_EXIST);
+        if (currentVersionNo != null) {
+            updateWrapper.eq(MdmEmployee::getVersionNo, currentVersionNo);
+        }
+        boolean updated = update(employee, updateWrapper);
+        if (!updated) {
+            throw new IllegalStateException("员工数据已被其他人更新，请刷新后重试");
+        }
+        return updated;
     }
 
     /**

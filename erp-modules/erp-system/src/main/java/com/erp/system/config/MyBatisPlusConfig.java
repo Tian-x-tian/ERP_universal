@@ -1,7 +1,9 @@
 package com.erp.system.config;
 
+import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
+import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
 import com.erp.common.core.context.TenantContextHolder;
 import net.sf.jsqlparser.expression.Expression;
@@ -77,6 +79,7 @@ public class MyBatisPlusConfig {
                 return !hasTenantColumn(normalizedTableName);
             }
         }));
+        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
         return interceptor;
     }
 

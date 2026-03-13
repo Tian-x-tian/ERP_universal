@@ -14,6 +14,15 @@ public interface ISysRoleService extends IService<SysRole> {
     Set<String> selectRoleKeysByUserId(Long userId);
 
     /**
+     * 判断用户是否拥有平台超级管理员角色。
+     * 平台超级管理员限定为平台租户下 roleKey=admin 的角色。
+     *
+     * @param userId 用户ID
+     * @return true 表示平台超级管理员
+     */
+    boolean isPlatformSuperAdmin(Long userId);
+
+    /**
      * 查询角色详情并回填菜单与部门权限。
      *
      * @param roleId 角色ID

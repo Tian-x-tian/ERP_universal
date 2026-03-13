@@ -1,8 +1,12 @@
 package com.erp.system.controller;
 
+import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.MdmEmployee;
+import com.erp.system.domain.vo.MdmEmployeeWorkflowSubmitBody;
 import com.erp.system.service.IMdmEmployeeService;
+import com.erp.system.service.IMdmEmployeeWorkflowSubmitService;
+import com.erp.system.support.MdmPageSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,8 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
  * MDM 员工主数据控制层。
  */
@@ -23,9 +25,12 @@ import java.util.List;
 @RequestMapping("/system/mdm/employee")
 public class MdmEmployeeController {
     private final IMdmEmployeeService employeeService;
+    private final IMdmEmployeeWorkflowSubmitService employeeWorkflowSubmitService;
 
-    public MdmEmployeeController(IMdmEmployeeService employeeService) {
+    public MdmEmployeeController(IMdmEmployeeService employeeService,
+            IMdmEmployeeWorkflowSubmitService employeeWorkflowSubmitService) {
         this.employeeService = employeeService;
+        this.employeeWorkflowSubmitService = employeeWorkflowSubmitService;
     }
 
     /**
@@ -38,10 +43,12 @@ public class MdmEmployeeController {
      */
     @GetMapping("/list")
     @PreAuthorize("@ss.hasPermi('system:mdm:employee:list')")
-    public R<List<MdmEmployee>> list(@RequestParam(value = "empCode", required = false) String empCode,
+    public R<PageData<MdmEmployee>> list(@RequestParam(value = "empCode", required = false) String empCode,
             @RequestParam(value = "empName", required = false) String empName,
-            @RequestParam(value = "status", required = false) String status) {
-        return R.success(employeeService.selectEmployeeList(empCode, empName, status));
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
+            @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
+        return R.success(MdmPageSupport.paginate(employeeService.selectEmployeeList(empCode, empName, status), pageNum, pageSize));
     }
 
     /**
@@ -100,6 +107,61 @@ public class MdmEmployeeController {
     public R<Boolean> leave(@PathVariable("employeeId") Long employeeId) {
         boolean success = employeeService.leaveEmployee(employeeId);
         return success ? R.success(true) : R.failed("员工离职处理失败");
+    }
+
+    /**
+     * 提交员工草稿生效审批。
+     *
+     * @param employeeId 员工ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/submit/{employeeId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:employee:edit')")
+    public R<Boolean> submit(@PathVariable("employeeId") Long employeeId,
+            @RequestBody MdmEmployeeWorkflowSubmitBody submitBody) {
+        boolean success = employeeWorkflowSubmitService.submitDraftActivation(
+                employeeId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交员工审批失败");
+    }
+
+    /**
+     * 提交员工变更审批。
+     *
+     * @param employeeId 员工ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/change/{employeeId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:employee:edit')")
+    public R<Boolean> submitChange(@PathVariable("employeeId") Long employeeId,
+            @RequestBody MdmEmployeeWorkflowSubmitBody submitBody) {
+        boolean success = employeeWorkflowSubmitService.submitChange(
+                employeeId,
+                submitBody == null ? null : submitBody.getEmployee(),
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交员工变更审批失败");
+    }
+
+    /**
+     * 提交员工离职审批。
+     *
+     * @param employeeId 员工ID
+     * @param submitBody 审批提交参数
+     * @return 提交结果
+     */
+    @PostMapping("/leave/submit/{employeeId}")
+    @PreAuthorize("@ss.hasPermi('system:mdm:employee:leave')")
+    public R<Boolean> submitLeave(@PathVariable("employeeId") Long employeeId,
+            @RequestBody MdmEmployeeWorkflowSubmitBody submitBody) {
+        boolean success = employeeWorkflowSubmitService.submitLeave(
+                employeeId,
+                submitBody == null ? null : submitBody.getProcessKey(),
+                submitBody == null ? null : submitBody.getRemark());
+        return success ? R.success(true) : R.failed("提交员工离职审批失败");
     }
 
     /**

@@ -91,6 +91,13 @@ public class SysCompanyController {
         if (company == null) {
             return R.failed("公司参数不能为空");
         }
+        DataPermissionScope dataScope = resolveCompanyDataScope();
+        if (dataScope == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        if (!canWriteCompany(dataScope, company, null)) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         company.setStatus(StatusFieldSupport.normalizeBinaryStatus(company.getStatus()));
         boolean success = companyService.createCompany(company);
         return success ? R.success(true) : R.failed("新增公司失败，请检查公司编码、名称和上级公司配置");
@@ -103,6 +110,18 @@ public class SysCompanyController {
         if (company == null || company.getCompanyId() == null) {
             return R.failed("公司ID不能为空");
         }
+        DataPermissionScope dataScope = resolveCompanyDataScope();
+        if (dataScope == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        SysCompany existedCompany = companyService.getById(company.getCompanyId());
+        if (existedCompany == null) {
+            return R.failed("公司不存在");
+        }
+        if (!canAccessCompany(dataScope, existedCompany.getCompanyId())
+                || !canWriteCompany(dataScope, company, existedCompany)) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         boolean success = companyService.updateCompany(company);
         return success ? R.success(true) : R.failed("修改公司失败，请检查上级公司配置");
     }
@@ -111,6 +130,13 @@ public class SysCompanyController {
     @PreAuthorize("@ss.hasPermi('system:company:remove')")
     @DeleteMapping("/{companyId}")
     public R<Boolean> remove(@PathVariable("companyId") Long companyId) {
+        DataPermissionScope dataScope = resolveCompanyDataScope();
+        if (dataScope == null) {
+            return R.failed(ResultCode.UNAUTHORIZED);
+        }
+        if (!canAccessCompany(dataScope, companyId)) {
+            return R.failed(ResultCode.FORBIDDEN);
+        }
         long childCount = companyService.count(new LambdaQueryWrapper<SysCompany>()
                 .eq(SysCompany::getParentCompanyId, companyId));
         if (childCount > 0) {
@@ -159,5 +185,44 @@ public class SysCompanyController {
             return null;
         }
         return dataPermissionService.resolveDataScope(currentUserId);
+    }
+
+    /**
+     * 校验公司是否在当前数据权限范围内。
+     *
+     * @param dataScope 数据权限范围
+     * @param companyId 公司ID
+     * @return true 表示允许访问
+     */
+    private boolean canAccessCompany(DataPermissionScope dataScope, Long companyId) {
+        if (companyId == null || dataScope == null) {
+            return false;
+        }
+        return dataScope.isAllData() || dataScope.getCompanyIds().contains(companyId);
+    }
+
+    /**
+     * 校验公司写操作是否落在当前数据权限范围内。
+     *
+     * @param dataScope      数据权限范围
+     * @param requestCompany 请求公司对象
+     * @param existedCompany 已存在公司对象
+     * @return true 表示允许写入
+     */
+    private boolean canWriteCompany(DataPermissionScope dataScope, SysCompany requestCompany, SysCompany existedCompany) {
+        if (dataScope == null || requestCompany == null) {
+            return false;
+        }
+        if (dataScope.isAllData()) {
+            return true;
+        }
+        Long parentCompanyId = requestCompany.getParentCompanyId();
+        if (parentCompanyId == null && existedCompany != null) {
+            parentCompanyId = existedCompany.getParentCompanyId();
+        }
+        if (parentCompanyId == null || parentCompanyId == 0L) {
+            return false;
+        }
+        return dataScope.getCompanyIds().contains(parentCompanyId);
     }
 }

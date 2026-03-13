@@ -3,6 +3,9 @@ server:
   port: 9092
 
 spring:
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:never}
   datasource:
     url: jdbc:mysql://192.168.0.22:3306/erp_system?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
     username: root

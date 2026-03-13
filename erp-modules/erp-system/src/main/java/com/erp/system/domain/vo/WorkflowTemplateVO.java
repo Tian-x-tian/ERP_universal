@@ -1,6 +1,5 @@
 package com.erp.system.domain.vo;
 
-import lombok.Data;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -9,7 +8,6 @@ import java.util.List;
 /**
  * 流程模板对象。
  */
-@Data
 public class WorkflowTemplateVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -42,4 +40,85 @@ public class WorkflowTemplateVO implements Serializable {
 
     /** 流程模型 JSON */
     private String modelContent;
+
+
+    public String getTemplateCode() {
+        return templateCode;
+    }
+
+    public void setTemplateCode(String templateCode) {
+        this.templateCode = templateCode;
+    }
+
+    public String getTemplateName() {
+        return templateName;
+    }
+
+    public void setTemplateName(String templateName) {
+        this.templateName = templateName;
+    }
+
+    public String getIndustry() {
+        return industry;
+    }
+
+    public void setIndustry(String industry) {
+        this.industry = industry;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getSuggestedProcessKey() {
+        return suggestedProcessKey;
+    }
+
+    public void setSuggestedProcessKey(String suggestedProcessKey) {
+        this.suggestedProcessKey = suggestedProcessKey;
+    }
+
+    public String getSuggestedProcessName() {
+        return suggestedProcessName;
+    }
+
+    public void setSuggestedProcessName(String suggestedProcessName) {
+        this.suggestedProcessName = suggestedProcessName;
+    }
+
+    public List<String> getTags() {
+        return tags;
+    }
+
+    public void setTags(List<String> tags) {
+        this.tags = tags;
+    }
+
+    public String getFormSchema() {
+        return formSchema;
+    }
+
+    public void setFormSchema(String formSchema) {
+        this.formSchema = formSchema;
+    }
+
+    public String getModelContent() {
+        return modelContent;
+    }
+
+    public void setModelContent(String modelContent) {
+        this.modelContent = modelContent;
+    }
 }

@@ -1,12 +1,18 @@
 package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.erp.system.domain.MdmCustomer;
 import com.erp.system.domain.MdmCurrency;
+import com.erp.system.domain.MdmSupplier;
+import com.erp.system.mapper.MdmCustomerMapper;
 import com.erp.system.mapper.MdmCurrencyMapper;
+import com.erp.system.mapper.MdmSupplierMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IMdmCurrencyService;
+import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmStatusSupport;
@@ -32,10 +38,20 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
 
     private final IMdmAuditTrailService auditTrailService;
     private final SecurityUserResolver securityUserResolver;
+    private final MdmCustomerMapper customerMapper;
+    private final MdmSupplierMapper supplierMapper;
+    private final IMdmReferenceCheckService referenceCheckService;
 
-    public MdmCurrencyServiceImpl(IMdmAuditTrailService auditTrailService, SecurityUserResolver securityUserResolver) {
+    public MdmCurrencyServiceImpl(IMdmAuditTrailService auditTrailService,
+            SecurityUserResolver securityUserResolver,
+            MdmCustomerMapper customerMapper,
+            MdmSupplierMapper supplierMapper,
+            IMdmReferenceCheckService referenceCheckService) {
         this.auditTrailService = auditTrailService;
         this.securityUserResolver = securityUserResolver;
+        this.customerMapper = customerMapper;
+        this.supplierMapper = supplierMapper;
+        this.referenceCheckService = referenceCheckService;
     }
 
     /**
@@ -43,7 +59,7 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
      *
      * @param currencyCode 币种编码
      * @param currencyName 币种名称
-     * @param status 状态
+     * @param status       状态
      * @return 币种列表
      */
     @Override
@@ -94,7 +110,7 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
         currency.setCurrencyName(currency.getCurrencyName().trim());
         currency.setSymbol(MdmValueSupport.trimToNull(currency.getSymbol()));
         currency.setPrecisionScale(currency.getPrecisionScale() == null ? 2 : currency.getPrecisionScale());
-        currency.setStatus(MdmStatusSupport.normalizeStatus(currency.getStatus()));
+        currency.setStatus(MdmStatusSupport.DRAFT);
         currency.setVersionNo(1);
         currency.setDelFlag(DEL_FLAG_EXIST);
         currency.setCreateBy(operator);
@@ -132,7 +148,14 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
         if (existed == null) {
             return false;
         }
-        Date effectiveFrom = currency.getEffectiveFrom() != null ? currency.getEffectiveFrom() : existed.getEffectiveFrom();
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("币种审批中，暂不允许直接修改");
+        }
+        if (!MdmStatusSupport.isDraft(existed.getStatus())) {
+            throw new IllegalStateException("已生效币种请通过审批流程提交变更");
+        }
+        Date effectiveFrom = currency.getEffectiveFrom() != null ? currency.getEffectiveFrom()
+                : existed.getEffectiveFrom();
         Date effectiveTo = currency.getEffectiveTo() != null ? currency.getEffectiveTo() : existed.getEffectiveTo();
         if (!isValidEffectiveRange(effectiveFrom, effectiveTo)) {
             return false;
@@ -157,7 +180,7 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
         currency.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         currency.setUpdateBy(resolveOperator());
         currency.setUpdateTime(new Date());
-        boolean updated = updateById(currency);
+        boolean updated = updateCurrencyByVersion(currency, existed.getVersionNo());
         if (updated) {
             MdmCurrency after = getById(currency.getCurrencyId());
             auditTrailService.record(MdmDomainTypeSupport.CURRENCY,
@@ -183,11 +206,20 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
         if (currencyId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.CURRENCY, currencyId);
+
         MdmCurrency existed = getOne(new LambdaQueryWrapper<MdmCurrency>()
                 .eq(MdmCurrency::getCurrencyId, currencyId)
                 .eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST));
         if (existed == null) {
             return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
+            throw new IllegalStateException("币种审批中，暂不允许直接停用");
+        }
+        if (MdmStatusSupport.isActive(existed.getStatus())) {
+            throw new IllegalStateException("已生效币种请通过审批流程提交停用");
         }
         if (MdmStatusSupport.DISABLED.equals(existed.getStatus())) {
             return true;
@@ -198,7 +230,7 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateCurrencyByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmCurrency after = getById(currencyId);
             auditTrailService.record(MdmDomainTypeSupport.CURRENCY,
@@ -224,10 +256,19 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
         if (currencyId == null) {
             return false;
         }
+
+        referenceCheckService.check(MdmDomainTypeSupport.CURRENCY, currencyId);
+
+        if (isReferenced(currencyId)) {
+            throw new IllegalStateException("币种已被客户或供应商引用，不能删除");
+        }
         MdmCurrency existed = getOne(new LambdaQueryWrapper<MdmCurrency>()
                 .eq(MdmCurrency::getCurrencyId, currencyId)
                 .eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST));
-        if (existed == null || MdmStatusSupport.isActive(existed.getStatus())) {
+        if (existed == null || !MdmStatusSupport.isDraft(existed.getStatus())) {
+            return false;
+        }
+        if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
             return false;
         }
         MdmCurrency updateEntity = new MdmCurrency();
@@ -236,7 +277,7 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateById(updateEntity);
+        boolean updated = updateCurrencyByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.CURRENCY,
                     currencyId,
@@ -252,7 +293,7 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
     /**
      * 判断编码是否重复。
      *
-     * @param code 编码
+     * @param code      编码
      * @param excludeId 排除主键
      * @return true 表示重复
      */
@@ -267,10 +308,61 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
     }
 
     /**
+     * 按版本号执行乐观锁更新。
+     *
+     * @param currency         更新对象
+     * @param currentVersionNo 当前版本号
+     * @return true 表示更新成功
+     */
+    private boolean updateCurrencyByVersion(MdmCurrency currency, Integer currentVersionNo) {
+        if (currency == null || currency.getCurrencyId() == null) {
+            return false;
+        }
+        LambdaUpdateWrapper<MdmCurrency> updateWrapper = new LambdaUpdateWrapper<MdmCurrency>()
+                .eq(MdmCurrency::getCurrencyId, currency.getCurrencyId())
+                .eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST);
+        if (currentVersionNo != null) {
+            updateWrapper.eq(MdmCurrency::getVersionNo, currentVersionNo);
+        }
+        boolean updated = update(currency, updateWrapper);
+        if (!updated) {
+            throw new IllegalStateException("币种数据已被其他人更新，请刷新后重试");
+        }
+        return updated;
+    }
+
+    /**
+     * 判断币种是否已被客户或供应商引用。
+     *
+     * @param currencyId 币种ID
+     * @return true 表示已引用
+     */
+    private boolean isReferenced(Long currencyId) {
+        if (currencyId == null) {
+            return false;
+        }
+        MdmCurrency existed = getById(currencyId);
+        if (existed == null || !StringUtils.hasText(existed.getCurrencyCode())) {
+            return false;
+        }
+        String currencyCode = existed.getCurrencyCode().trim();
+        Long customerCount = customerMapper.selectCount(new LambdaQueryWrapper<MdmCustomer>()
+                .eq(MdmCustomer::getDefaultCurrency, currencyCode)
+                .eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST));
+        if (customerCount != null && customerCount > 0) {
+            return true;
+        }
+        Long supplierCount = supplierMapper.selectCount(new LambdaQueryWrapper<MdmSupplier>()
+                .eq(MdmSupplier::getDefaultCurrency, currencyCode)
+                .eq(MdmSupplier::getDelFlag, DEL_FLAG_EXIST));
+        return supplierCount != null && supplierCount > 0;
+    }
+
+    /**
      * 校验生效区间。
      *
      * @param effectiveFrom 生效开始
-     * @param effectiveTo 生效结束
+     * @param effectiveTo   生效结束
      * @return true 表示合法
      */
     private boolean isValidEffectiveRange(Date effectiveFrom, Date effectiveTo) {

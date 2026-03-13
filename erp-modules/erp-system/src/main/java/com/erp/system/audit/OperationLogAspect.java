@@ -54,6 +54,9 @@ public class OperationLogAspect {
         if (request == null) {
             return joinPoint.proceed();
         }
+        if (Boolean.TRUE.equals(request.getAttribute(OperationLogInterceptor.OPERATION_LOG_ENABLED_ATTRIBUTE))) {
+            return joinPoint.proceed();
+        }
         if (!needRecord(request)) {
             return joinPoint.proceed();
         }

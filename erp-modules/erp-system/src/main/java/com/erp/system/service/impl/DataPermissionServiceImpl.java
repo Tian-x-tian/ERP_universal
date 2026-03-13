@@ -27,6 +27,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class DataPermissionServiceImpl implements IDataPermissionService {
+    private static final String PLATFORM_TENANT_ID = "000000";
+    private static final String SUPER_ADMIN_ROLE_KEY = "admin";
 
     private final ISysUserService userService;
     private final ISysUserRoleService userRoleService;
@@ -104,7 +106,7 @@ public class DataPermissionServiceImpl implements IDataPermissionService {
         if (role == null) {
             return false;
         }
-        return "1".equals(role.getDataScope()) || "admin".equals(role.getRoleKey());
+        return "1".equals(role.getDataScope()) || isPlatformSuperAdminRole(role);
     }
 
     /**
@@ -217,5 +219,39 @@ public class DataPermissionServiceImpl implements IDataPermissionService {
         }
         List<String> ancestorList = Arrays.asList(ancestors.split(","));
         return ancestorList.contains(String.valueOf(deptId));
+    }
+
+    /**
+     * 判断角色是否为平台超级管理员角色。
+     *
+     * @param role 角色对象
+     * @return true 表示平台超级管理员角色
+     */
+    private boolean isPlatformSuperAdminRole(SysRole role) {
+        if (role == null) {
+            return false;
+        }
+        return PLATFORM_TENANT_ID.equals(normalizeTenantId(role.getTenantId()))
+                && SUPER_ADMIN_ROLE_KEY.equals(normalizeRoleKey(role.getRoleKey()));
+    }
+
+    /**
+     * 规范化租户编号。
+     *
+     * @param tenantId 原始租户编号
+     * @return 去空白后的租户编号
+     */
+    private String normalizeTenantId(String tenantId) {
+        return StringUtils.hasText(tenantId) ? tenantId.trim() : null;
+    }
+
+    /**
+     * 规范化角色编码。
+     *
+     * @param roleKey 原始角色编码
+     * @return 去空白后的角色编码
+     */
+    private String normalizeRoleKey(String roleKey) {
+        return StringUtils.hasText(roleKey) ? roleKey.trim() : null;
     }
 }
