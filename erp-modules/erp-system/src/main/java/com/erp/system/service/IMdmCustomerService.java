@@ -54,7 +54,7 @@ public interface IMdmCustomerService extends IService<MdmCustomer> {
      * @param customerId 客户ID
      * @return true 表示停用成功
      */
-    boolean disableCustomer(Long customerId);
+    boolean disableCustomer(Long customerId, Integer versionNo);
 
     /**
      * 删除客户（逻辑删除）。
@@ -62,5 +62,5 @@ public interface IMdmCustomerService extends IService<MdmCustomer> {
      * @param customerId 客户ID
      * @return true 表示删除成功
      */
-    boolean removeCustomer(Long customerId);
+    boolean removeCustomer(Long customerId, Integer versionNo);
 }

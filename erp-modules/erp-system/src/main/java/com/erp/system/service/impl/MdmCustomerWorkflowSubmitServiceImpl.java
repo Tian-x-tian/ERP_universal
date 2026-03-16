@@ -16,6 +16,7 @@ import com.erp.system.service.IMdmCustomerService;
 import com.erp.system.service.IMdmCustomerWorkflowSubmitService;
 import com.erp.system.service.ISysUserService;
 import com.erp.system.service.ISysWorkflowEngineService;
+import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmStatusSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.MdmWorkflowActionSupport;
@@ -72,8 +73,9 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitDraftActivation(Long customerId, String processKey, String remark) {
+    public boolean submitDraftActivation(Long customerId, Integer versionNo, String processKey, String remark) {
         MdmCustomer customer = loadEditableCustomer(customerId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, customer.getVersionNo(), "客户");
         if (!MdmStatusSupport.isDraft(customer.getStatus())) {
             throw new IllegalStateException("仅草稿客户允许提交生效审批");
         }
@@ -108,8 +110,9 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitChange(Long customerId, MdmCustomer targetCustomer, String processKey, String remark) {
+    public boolean submitChange(Long customerId, Integer versionNo, MdmCustomer targetCustomer, String processKey, String remark) {
         MdmCustomer currentCustomer = loadEditableCustomer(customerId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, currentCustomer.getVersionNo(), "客户");
         if (MdmStatusSupport.isSubmitted(currentCustomer.getStatus())) {
             throw new IllegalStateException("客户审批中，暂不允许提交新的变更");
         }
@@ -131,6 +134,9 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
         if (!startWorkflow(startBody)) {
             throw new IllegalStateException("客户变更审批流程发起失败");
         }
+        if (!updateCustomerStatus(customerId, currentCustomer.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("客户状态已变化，请刷新后重试");
+        }
         return true;
     }
 
@@ -144,8 +150,9 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitDisable(Long customerId, String processKey, String remark) {
+    public boolean submitDisable(Long customerId, Integer versionNo, String processKey, String remark) {
         MdmCustomer currentCustomer = loadEditableCustomer(customerId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, currentCustomer.getVersionNo(), "客户");
         if (MdmStatusSupport.isSubmitted(currentCustomer.getStatus())) {
             throw new IllegalStateException("客户审批中，暂不允许提交停用");
         }
@@ -168,6 +175,9 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
                 afterCustomer);
         if (!startWorkflow(startBody)) {
             throw new IllegalStateException("客户停用审批流程发起失败");
+        }
+        if (!updateCustomerStatus(customerId, currentCustomer.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("客户状态已变化，请刷新后重试");
         }
         return true;
     }

@@ -15,7 +15,7 @@ import com.erp.system.service.IMdmDictionaryWorkflowSubmitService;
 import com.erp.system.service.IMdmSettleMethodService;
 import com.erp.system.service.IMdmTaxRateService;
 import com.erp.system.service.IMdmUomService;
-import com.erp.system.support.MdmPageSupport;
+import com.erp.system.support.MdmResponseSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -67,8 +67,7 @@ public class MdmDictionaryController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
             @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
-        return R.success(MdmPageSupport.paginate(settleMethodService.selectList(settleCode, settleName, status),
-                pageNum, pageSize));
+        return MdmResponseSupport.page(settleMethodService.selectList(settleCode, settleName, status), pageNum, pageSize);
     }
 
     /**
@@ -184,8 +183,7 @@ public class MdmDictionaryController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
             @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
-        return R.success(
-                MdmPageSupport.paginate(taxRateService.selectList(taxCode, taxName, status), pageNum, pageSize));
+        return MdmResponseSupport.page(taxRateService.selectList(taxCode, taxName, status), pageNum, pageSize);
     }
 
     /**
@@ -302,8 +300,7 @@ public class MdmDictionaryController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
             @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
-        return R.success(MdmPageSupport.paginate(currencyService.selectList(currencyCode, currencyName, status),
-                pageNum, pageSize));
+        return MdmResponseSupport.page(currencyService.selectList(currencyCode, currencyName, status), pageNum, pageSize);
     }
 
     /**
@@ -419,7 +416,7 @@ public class MdmDictionaryController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
             @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
-        return R.success(MdmPageSupport.paginate(uomService.selectList(uomCode, uomName, status), pageNum, pageSize));
+        return MdmResponseSupport.page(uomService.selectList(uomCode, uomName, status), pageNum, pageSize);
     }
 
     /**

@@ -4,16 +4,15 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.erp.system.domain.MdmProject;
 import com.erp.system.domain.MdmCustomer;
 import com.erp.system.mapper.MdmCustomerMapper;
-import com.erp.system.mapper.MdmProjectMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IMdmCustomerService;
 import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
+import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmStatusSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.TenantWriteGuard;
@@ -36,16 +35,13 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
 
     private final IMdmAuditTrailService auditTrailService;
     private final SecurityUserResolver securityUserResolver;
-    private final MdmProjectMapper projectMapper;
     private final IMdmReferenceCheckService referenceCheckService;
 
     public MdmCustomerServiceImpl(IMdmAuditTrailService auditTrailService,
             SecurityUserResolver securityUserResolver,
-            MdmProjectMapper projectMapper,
             IMdmReferenceCheckService referenceCheckService) {
         this.auditTrailService = auditTrailService;
         this.securityUserResolver = securityUserResolver;
-        this.projectMapper = projectMapper;
         this.referenceCheckService = referenceCheckService;
     }
 
@@ -183,6 +179,10 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         if (!MdmStatusSupport.isDraft(existedCustomer.getStatus())) {
             throw new IllegalStateException("已生效客户请通过审批流程提交变更");
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(
+                customer.getVersionNo(),
+                existedCustomer.getVersionNo(),
+                "客户");
         if (StringUtils.hasText(customer.getCustomerCode())) {
             String customerCode = customer.getCustomerCode().trim();
             if (existsCustomerCode(customerCode, customer.getCustomerId())) {
@@ -217,7 +217,7 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         }
         customer.setUpdateBy(resolveOperator());
         customer.setUpdateTime(new Date());
-        boolean updated = updateCustomerByVersion(customer, existedCustomer.getVersionNo());
+        boolean updated = updateCustomerByVersion(customer, expectedVersionNo);
         if (updated) {
             MdmCustomer after = getById(customer.getCustomerId());
             auditTrailService.record(MdmDomainTypeSupport.CUSTOMER,
@@ -239,7 +239,7 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean disableCustomer(Long customerId) {
+    public boolean disableCustomer(Long customerId, Integer versionNo) {
         if (customerId == null) {
             return false;
         }
@@ -261,13 +261,17 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         if (MdmStatusSupport.DISABLED.equals(existedCustomer.getStatus())) {
             return true;
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(
+                versionNo,
+                existedCustomer.getVersionNo(),
+                "客户");
         MdmCustomer updateEntity = new MdmCustomer();
         updateEntity.setCustomerId(customerId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existedCustomer.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateCustomerByVersion(updateEntity, existedCustomer.getVersionNo());
+        boolean updated = updateCustomerByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             MdmCustomer after = getById(customerId);
             auditTrailService.record(MdmDomainTypeSupport.CUSTOMER,
@@ -289,16 +293,12 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean removeCustomer(Long customerId) {
+    public boolean removeCustomer(Long customerId, Integer versionNo) {
         if (customerId == null) {
             return false;
         }
 
         referenceCheckService.check(MdmDomainTypeSupport.CUSTOMER, customerId);
-
-        if (isReferenced(customerId)) {
-            throw new IllegalStateException("客户已被项目引用，不能删除");
-        }
         MdmCustomer existedCustomer = getOne(new LambdaQueryWrapper<MdmCustomer>()
                 .eq(MdmCustomer::getCustomerId, customerId)
                 .eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST));
@@ -308,13 +308,17 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         if (MdmStatusSupport.isSubmitted(existedCustomer.getStatus())) {
             return false;
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(
+                versionNo,
+                existedCustomer.getVersionNo(),
+                "客户");
         MdmCustomer updateEntity = new MdmCustomer();
         updateEntity.setCustomerId(customerId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existedCustomer.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateCustomerByVersion(updateEntity, existedCustomer.getVersionNo());
+        boolean updated = updateCustomerByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.CUSTOMER,
                     customerId,
@@ -365,26 +369,8 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
             updateWrapper.eq(MdmCustomer::getVersionNo, currentVersionNo);
         }
         boolean updated = update(customer, updateWrapper);
-        if (!updated) {
-            throw new IllegalStateException("客户数据已被其他人更新，请刷新后重试");
-        }
+        MdmOptimisticLockSupport.ensureUpdated(updated, "客户");
         return true;
-    }
-
-    /**
-     * 判断客户是否已被其他主数据引用。
-     *
-     * @param customerId 客户ID
-     * @return true 表示已引用
-     */
-    private boolean isReferenced(Long customerId) {
-        if (customerId == null) {
-            return false;
-        }
-        Long projectCount = projectMapper.selectCount(new LambdaQueryWrapper<MdmProject>()
-                .eq(MdmProject::getCustomerId, customerId)
-                .eq(MdmProject::getDelFlag, DEL_FLAG_EXIST));
-        return projectCount != null && projectCount > 0;
     }
 
     /**

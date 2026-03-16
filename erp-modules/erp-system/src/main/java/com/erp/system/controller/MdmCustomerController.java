@@ -5,10 +5,11 @@ import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.MdmCustomer;
 import com.erp.system.domain.vo.MdmCustomerWorkflowSubmitBody;
+import com.erp.system.domain.vo.MdmVersionActionBody;
 import com.erp.system.service.IMdmCustomerService;
 import com.erp.system.service.IMdmCustomerWorkflowSubmitService;
+import com.erp.system.support.MdmResponseSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,9 +19,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
-
 /**
  * MDM 客户主数据控制层。
  */
@@ -57,8 +55,7 @@ public class MdmCustomerController {
                 customerCode,
                 customerName,
                 status);
-        List<MdmCustomer> items = maskSensitiveFields(page.getRecords());
-        return R.page(items, page.getCurrent(), page.getSize(), page.getTotal());
+        return MdmResponseSupport.page(page);
     }
 
     /**
@@ -117,8 +114,9 @@ public class MdmCustomerController {
      */
     @PostMapping("/disable/{customerId}")
     @PreAuthorize("@ss.hasPermi('system:mdm:customer:disable')")
-    public R<Boolean> disable(@PathVariable("customerId") Long customerId) {
-        boolean success = customerService.disableCustomer(customerId);
+    public R<Boolean> disable(@PathVariable("customerId") Long customerId,
+                              @RequestBody(required = false) MdmVersionActionBody actionBody) {
+        boolean success = customerService.disableCustomer(customerId, actionBody == null ? null : actionBody.getVersionNo());
         return success ? R.success(true) : R.failed("停用客户失败");
     }
 
@@ -135,6 +133,7 @@ public class MdmCustomerController {
                              @RequestBody MdmCustomerWorkflowSubmitBody submitBody) {
         boolean success = customerWorkflowSubmitService.submitDraftActivation(
                 customerId,
+                submitBody == null ? null : submitBody.getVersionNo(),
                 submitBody == null ? null : submitBody.getProcessKey(),
                 submitBody == null ? null : submitBody.getRemark());
         return success ? R.success(true) : R.failed("提交客户审批失败");
@@ -153,6 +152,7 @@ public class MdmCustomerController {
                                    @RequestBody MdmCustomerWorkflowSubmitBody submitBody) {
         boolean success = customerWorkflowSubmitService.submitChange(
                 customerId,
+                submitBody == null ? null : submitBody.getVersionNo(),
                 submitBody == null ? null : submitBody.getCustomer(),
                 submitBody == null ? null : submitBody.getProcessKey(),
                 submitBody == null ? null : submitBody.getRemark());
@@ -172,6 +172,7 @@ public class MdmCustomerController {
                                     @RequestBody MdmCustomerWorkflowSubmitBody submitBody) {
         boolean success = customerWorkflowSubmitService.submitDisable(
                 customerId,
+                submitBody == null ? null : submitBody.getVersionNo(),
                 submitBody == null ? null : submitBody.getProcessKey(),
                 submitBody == null ? null : submitBody.getRemark());
         return success ? R.success(true) : R.failed("提交客户停用审批失败");
@@ -185,44 +186,10 @@ public class MdmCustomerController {
      */
     @DeleteMapping("/{customerId}")
     @PreAuthorize("@ss.hasPermi('system:mdm:customer:remove')")
-    public R<Boolean> remove(@PathVariable("customerId") Long customerId) {
-        boolean success = customerService.removeCustomer(customerId);
+    public R<Boolean> remove(@PathVariable("customerId") Long customerId,
+                             @RequestBody(required = false) MdmVersionActionBody actionBody) {
+        boolean success = customerService.removeCustomer(customerId, actionBody == null ? null : actionBody.getVersionNo());
         return success ? R.success(true) : R.failed("删除客户失败，仅草稿状态允许删除");
-    }
-
-    /**
-     * 批量脱敏客户税号。
-     *
-     * @param customerList 客户列表
-     * @return 脱敏后的客户列表
-     */
-    private List<MdmCustomer> maskSensitiveFields(List<MdmCustomer> customerList) {
-        if (customerList == null || customerList.isEmpty()) {
-            return customerList;
-        }
-        for (MdmCustomer customer : customerList) {
-            maskTaxNo(customer);
-        }
-        return customerList;
-    }
-
-    /**
-     * 脱敏税号，保留前后各 2 位。
-     *
-     * @param customer 客户对象
-     */
-    private void maskTaxNo(MdmCustomer customer) {
-        if (customer == null || !StringUtils.hasText(customer.getTaxNo())) {
-            return;
-        }
-        String taxNo = customer.getTaxNo().trim();
-        if (taxNo.length() <= 4) {
-            customer.setTaxNo("****");
-            return;
-        }
-        String prefix = taxNo.substring(0, 2);
-        String suffix = taxNo.substring(taxNo.length() - 2);
-        customer.setTaxNo(prefix + "****" + suffix);
     }
 
     /**

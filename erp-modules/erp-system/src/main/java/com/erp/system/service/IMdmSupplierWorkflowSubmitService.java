@@ -15,7 +15,7 @@ public interface IMdmSupplierWorkflowSubmitService {
      * @param remark     提交备注
      * @return true 表示提交成功
      */
-    boolean submitDraftActivation(Long supplierId, String processKey, String remark);
+    boolean submitDraftActivation(Long supplierId, Integer versionNo, String processKey, String remark);
 
     /**
      * 提交供应商变更审批。
@@ -26,7 +26,7 @@ public interface IMdmSupplierWorkflowSubmitService {
      * @param remark         提交备注
      * @return true 表示提交成功
      */
-    boolean submitChange(Long supplierId, MdmSupplier targetSupplier, String processKey, String remark);
+    boolean submitChange(Long supplierId, Integer versionNo, MdmSupplier targetSupplier, String processKey, String remark);
 
     /**
      * 提交供应商停用审批。
@@ -36,5 +36,5 @@ public interface IMdmSupplierWorkflowSubmitService {
      * @param remark     提交备注
      * @return true 表示提交成功
      */
-    boolean submitDisable(Long supplierId, String processKey, String remark);
+    boolean submitDisable(Long supplierId, Integer versionNo, String processKey, String remark);
 }

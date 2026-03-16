@@ -22,6 +22,7 @@ import com.erp.system.service.ISysDeptService;
 import com.erp.system.service.ISysUserService;
 import com.erp.system.service.ISysWorkflowEngineService;
 import com.erp.system.support.MdmEmployeeStatusSupport;
+import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.MdmWorkflowActionSupport;
 import org.springframework.beans.BeanUtils;
@@ -75,8 +76,9 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitDraftActivation(Long employeeId, String processKey, String remark) {
+    public boolean submitDraftActivation(Long employeeId, Integer versionNo, String processKey, String remark) {
         MdmEmployee employee = loadEditableEmployee(employeeId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, employee.getVersionNo(), "员工");
         if (!MdmEmployeeStatusSupport.isDraft(employee.getStatus())) {
             throw new IllegalStateException("仅草稿员工允许提交生效审批");
         }
@@ -90,7 +92,9 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
                 MdmWorkflowActionSupport.ACTIVATE,
                 employee.getVersionNo(),
                 null,
-                employee);
+                employee,
+                null,
+                null);
         if (!startWorkflow(startBody)) {
             throw new IllegalStateException("员工审批流程发起失败");
         }
@@ -102,8 +106,15 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitChange(Long employeeId, MdmEmployee targetEmployee, String processKey, String remark) {
+    public boolean submitChange(Long employeeId,
+            Integer versionNo,
+            MdmEmployee targetEmployee,
+            String processKey,
+            String remark,
+            Long changeRecordId,
+            String archivePayloadJson) {
         MdmEmployee currentEmployee = loadEditableEmployee(employeeId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, currentEmployee.getVersionNo(), "员工");
         if (MdmEmployeeStatusSupport.isSubmitted(currentEmployee.getStatus())) {
             throw new IllegalStateException("员工审批中，暂不允许提交新的变更");
         }
@@ -121,17 +132,23 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
                 MdmWorkflowActionSupport.UPDATE,
                 currentEmployee.getVersionNo(),
                 currentEmployee,
-                afterEmployee);
+                afterEmployee,
+                changeRecordId,
+                archivePayloadJson);
         if (!startWorkflow(startBody)) {
             throw new IllegalStateException("员工变更审批流程发起失败");
+        }
+        if (!updateEmployeeStatus(employeeId, currentEmployee.getVersionNo(), MdmEmployeeStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("员工状态已变化，请刷新后重试");
         }
         return true;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitLeave(Long employeeId, String processKey, String remark) {
+    public boolean submitLeave(Long employeeId, Integer versionNo, String processKey, String remark) {
         MdmEmployee currentEmployee = loadEditableEmployee(employeeId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, currentEmployee.getVersionNo(), "员工");
         if (MdmEmployeeStatusSupport.isSubmitted(currentEmployee.getStatus())) {
             throw new IllegalStateException("员工审批中，暂不允许提交离职");
         }
@@ -151,9 +168,14 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
                 MdmWorkflowActionSupport.DISABLE,
                 currentEmployee.getVersionNo(),
                 currentEmployee,
-                afterEmployee);
+                afterEmployee,
+                null,
+                null);
         if (!startWorkflow(startBody)) {
             throw new IllegalStateException("员工离职审批流程发起失败");
+        }
+        if (!updateEmployeeStatus(employeeId, currentEmployee.getVersionNo(), MdmEmployeeStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("员工状态已变化，请刷新后重试");
         }
         return true;
     }
@@ -185,7 +207,9 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
             String action,
             Integer baseVersionNo,
             MdmEmployee beforeEmployee,
-            MdmEmployee afterEmployee) {
+            MdmEmployee afterEmployee,
+            Long changeRecordId,
+            String archivePayloadJson) {
         if (!StringUtils.hasText(processKey)) {
             throw new IllegalArgumentException("流程标识不能为空");
         }
@@ -199,6 +223,8 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
         meta.put("baseVersionNo", baseVersionNo);
         meta.put("beforeEmployee", beforeEmployee);
         meta.put("afterEmployee", afterEmployee);
+        meta.put("changeRecordId", changeRecordId);
+        meta.put("archivePayloadJson", MdmValueSupport.trimToNull(archivePayloadJson));
         formData.put(META_KEY, meta);
 
         WorkflowStartBody startBody = new WorkflowStartBody();

@@ -188,37 +188,73 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
     private void rollbackSettle(SysWorkflowInstance instance) {
         Map<String, Object> meta = readMeta(instance, META_KEY_SETTLE);
         Long id = readLong(meta.get("settleMethodId"));
-        if (id == null || !MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(readString(meta.get("action")))) {
+        if (id == null) {
             return;
         }
-        settleMethodMapper.update(new MdmSettleMethod(), new LambdaUpdateWrapper<MdmSettleMethod>().eq(MdmSettleMethod::getSettleMethodId, id).eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST).eq(MdmSettleMethod::getStatus, MdmStatusSupport.SUBMITTED).set(MdmSettleMethod::getStatus, MdmStatusSupport.DRAFT).set(MdmSettleMethod::getUpdateBy, resolveOperator(instance)).set(MdmSettleMethod::getUpdateTime, new Date()));
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(readString(meta.get("action")))
+                ? MdmStatusSupport.DRAFT
+                : MdmStatusSupport.ACTIVE;
+        settleMethodMapper.update(new MdmSettleMethod(), new LambdaUpdateWrapper<MdmSettleMethod>()
+                .eq(MdmSettleMethod::getSettleMethodId, id)
+                .eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmSettleMethod::getStatus, MdmStatusSupport.SUBMITTED)
+                .set(MdmSettleMethod::getStatus, rollbackStatus)
+                .set(MdmSettleMethod::getUpdateBy, resolveOperator(instance))
+                .set(MdmSettleMethod::getUpdateTime, new Date()));
     }
 
     private void rollbackTax(SysWorkflowInstance instance) {
         Map<String, Object> meta = readMeta(instance, META_KEY_TAX);
         Long id = readLong(meta.get("taxRateId"));
-        if (id == null || !MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(readString(meta.get("action")))) {
+        if (id == null) {
             return;
         }
-        taxRateMapper.update(new MdmTaxRate(), new LambdaUpdateWrapper<MdmTaxRate>().eq(MdmTaxRate::getTaxRateId, id).eq(MdmTaxRate::getDelFlag, DEL_FLAG_EXIST).eq(MdmTaxRate::getStatus, MdmStatusSupport.SUBMITTED).set(MdmTaxRate::getStatus, MdmStatusSupport.DRAFT).set(MdmTaxRate::getUpdateBy, resolveOperator(instance)).set(MdmTaxRate::getUpdateTime, new Date()));
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(readString(meta.get("action")))
+                ? MdmStatusSupport.DRAFT
+                : MdmStatusSupport.ACTIVE;
+        taxRateMapper.update(new MdmTaxRate(), new LambdaUpdateWrapper<MdmTaxRate>()
+                .eq(MdmTaxRate::getTaxRateId, id)
+                .eq(MdmTaxRate::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmTaxRate::getStatus, MdmStatusSupport.SUBMITTED)
+                .set(MdmTaxRate::getStatus, rollbackStatus)
+                .set(MdmTaxRate::getUpdateBy, resolveOperator(instance))
+                .set(MdmTaxRate::getUpdateTime, new Date()));
     }
 
     private void rollbackCurrency(SysWorkflowInstance instance) {
         Map<String, Object> meta = readMeta(instance, META_KEY_CURRENCY);
         Long id = readLong(meta.get("currencyId"));
-        if (id == null || !MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(readString(meta.get("action")))) {
+        if (id == null) {
             return;
         }
-        currencyMapper.update(new MdmCurrency(), new LambdaUpdateWrapper<MdmCurrency>().eq(MdmCurrency::getCurrencyId, id).eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST).eq(MdmCurrency::getStatus, MdmStatusSupport.SUBMITTED).set(MdmCurrency::getStatus, MdmStatusSupport.DRAFT).set(MdmCurrency::getUpdateBy, resolveOperator(instance)).set(MdmCurrency::getUpdateTime, new Date()));
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(readString(meta.get("action")))
+                ? MdmStatusSupport.DRAFT
+                : MdmStatusSupport.ACTIVE;
+        currencyMapper.update(new MdmCurrency(), new LambdaUpdateWrapper<MdmCurrency>()
+                .eq(MdmCurrency::getCurrencyId, id)
+                .eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmCurrency::getStatus, MdmStatusSupport.SUBMITTED)
+                .set(MdmCurrency::getStatus, rollbackStatus)
+                .set(MdmCurrency::getUpdateBy, resolveOperator(instance))
+                .set(MdmCurrency::getUpdateTime, new Date()));
     }
 
     private void rollbackUom(SysWorkflowInstance instance) {
         Map<String, Object> meta = readMeta(instance, META_KEY_UOM);
         Long id = readLong(meta.get("uomId"));
-        if (id == null || !MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(readString(meta.get("action")))) {
+        if (id == null) {
             return;
         }
-        uomMapper.update(new MdmUom(), new LambdaUpdateWrapper<MdmUom>().eq(MdmUom::getUomId, id).eq(MdmUom::getDelFlag, DEL_FLAG_EXIST).eq(MdmUom::getStatus, MdmStatusSupport.SUBMITTED).set(MdmUom::getStatus, MdmStatusSupport.DRAFT).set(MdmUom::getUpdateBy, resolveOperator(instance)).set(MdmUom::getUpdateTime, new Date()));
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(readString(meta.get("action")))
+                ? MdmStatusSupport.DRAFT
+                : MdmStatusSupport.ACTIVE;
+        uomMapper.update(new MdmUom(), new LambdaUpdateWrapper<MdmUom>()
+                .eq(MdmUom::getUomId, id)
+                .eq(MdmUom::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmUom::getStatus, MdmStatusSupport.SUBMITTED)
+                .set(MdmUom::getStatus, rollbackStatus)
+                .set(MdmUom::getUpdateBy, resolveOperator(instance))
+                .set(MdmUom::getUpdateTime, new Date()));
     }
 
     private void activateSettle(Long id, Integer baseVersionNo, SysWorkflowInstance instance) { activateSimple(loadSettle(id), id, baseVersionNo, instance, MdmDomainTypeSupport.SETTLE_METHOD); }
@@ -231,16 +267,56 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
             throw new IllegalStateException("字典不存在，无法完成审批回写");
         }
         if (before instanceof MdmSettleMethod) {
-            settleMethodMapper.update(new MdmSettleMethod(), new LambdaUpdateWrapper<MdmSettleMethod>().eq(MdmSettleMethod::getSettleMethodId, id).eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST).eq(MdmSettleMethod::getStatus, MdmStatusSupport.SUBMITTED).eq(baseVersionNo != null, MdmSettleMethod::getVersionNo, baseVersionNo).set(MdmSettleMethod::getStatus, MdmStatusSupport.ACTIVE).set(MdmSettleMethod::getUpdateBy, resolveOperator(instance)).set(MdmSettleMethod::getUpdateTime, new Date()));
+            boolean updated = settleMethodMapper.update(new MdmSettleMethod(), new LambdaUpdateWrapper<MdmSettleMethod>()
+                    .eq(MdmSettleMethod::getSettleMethodId, id)
+                    .eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmSettleMethod::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmSettleMethod::getVersionNo, baseVersionNo)
+                    .set(MdmSettleMethod::getStatus, MdmStatusSupport.ACTIVE)
+                    .set(MdmSettleMethod::getUpdateBy, resolveOperator(instance))
+                    .set(MdmSettleMethod::getUpdateTime, new Date())) > 0;
+            if (!updated) {
+                throw new IllegalStateException("结算方式状态已变化，无法完成审批回写");
+            }
             auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadSettle(id).getVersionNo(), MdmStatusSupport.ACTIVE, before, loadSettle(id));
         } else if (before instanceof MdmTaxRate) {
-            taxRateMapper.update(new MdmTaxRate(), new LambdaUpdateWrapper<MdmTaxRate>().eq(MdmTaxRate::getTaxRateId, id).eq(MdmTaxRate::getDelFlag, DEL_FLAG_EXIST).eq(MdmTaxRate::getStatus, MdmStatusSupport.SUBMITTED).eq(baseVersionNo != null, MdmTaxRate::getVersionNo, baseVersionNo).set(MdmTaxRate::getStatus, MdmStatusSupport.ACTIVE).set(MdmTaxRate::getUpdateBy, resolveOperator(instance)).set(MdmTaxRate::getUpdateTime, new Date()));
+            boolean updated = taxRateMapper.update(new MdmTaxRate(), new LambdaUpdateWrapper<MdmTaxRate>()
+                    .eq(MdmTaxRate::getTaxRateId, id)
+                    .eq(MdmTaxRate::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmTaxRate::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmTaxRate::getVersionNo, baseVersionNo)
+                    .set(MdmTaxRate::getStatus, MdmStatusSupport.ACTIVE)
+                    .set(MdmTaxRate::getUpdateBy, resolveOperator(instance))
+                    .set(MdmTaxRate::getUpdateTime, new Date())) > 0;
+            if (!updated) {
+                throw new IllegalStateException("税率状态已变化，无法完成审批回写");
+            }
             auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadTax(id).getVersionNo(), MdmStatusSupport.ACTIVE, before, loadTax(id));
         } else if (before instanceof MdmCurrency) {
-            currencyMapper.update(new MdmCurrency(), new LambdaUpdateWrapper<MdmCurrency>().eq(MdmCurrency::getCurrencyId, id).eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST).eq(MdmCurrency::getStatus, MdmStatusSupport.SUBMITTED).eq(baseVersionNo != null, MdmCurrency::getVersionNo, baseVersionNo).set(MdmCurrency::getStatus, MdmStatusSupport.ACTIVE).set(MdmCurrency::getUpdateBy, resolveOperator(instance)).set(MdmCurrency::getUpdateTime, new Date()));
+            boolean updated = currencyMapper.update(new MdmCurrency(), new LambdaUpdateWrapper<MdmCurrency>()
+                    .eq(MdmCurrency::getCurrencyId, id)
+                    .eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmCurrency::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmCurrency::getVersionNo, baseVersionNo)
+                    .set(MdmCurrency::getStatus, MdmStatusSupport.ACTIVE)
+                    .set(MdmCurrency::getUpdateBy, resolveOperator(instance))
+                    .set(MdmCurrency::getUpdateTime, new Date())) > 0;
+            if (!updated) {
+                throw new IllegalStateException("币种状态已变化，无法完成审批回写");
+            }
             auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadCurrency(id).getVersionNo(), MdmStatusSupport.ACTIVE, before, loadCurrency(id));
         } else if (before instanceof MdmUom) {
-            uomMapper.update(new MdmUom(), new LambdaUpdateWrapper<MdmUom>().eq(MdmUom::getUomId, id).eq(MdmUom::getDelFlag, DEL_FLAG_EXIST).eq(MdmUom::getStatus, MdmStatusSupport.SUBMITTED).eq(baseVersionNo != null, MdmUom::getVersionNo, baseVersionNo).set(MdmUom::getStatus, MdmStatusSupport.ACTIVE).set(MdmUom::getUpdateBy, resolveOperator(instance)).set(MdmUom::getUpdateTime, new Date()));
+            boolean updated = uomMapper.update(new MdmUom(), new LambdaUpdateWrapper<MdmUom>()
+                    .eq(MdmUom::getUomId, id)
+                    .eq(MdmUom::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmUom::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmUom::getVersionNo, baseVersionNo)
+                    .set(MdmUom::getStatus, MdmStatusSupport.ACTIVE)
+                    .set(MdmUom::getUpdateBy, resolveOperator(instance))
+                    .set(MdmUom::getUpdateTime, new Date())) > 0;
+            if (!updated) {
+                throw new IllegalStateException("计量单位状态已变化，无法完成审批回写");
+            }
             auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadUom(id).getVersionNo(), MdmStatusSupport.ACTIVE, before, loadUom(id));
         }
     }
@@ -252,39 +328,108 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
 
     private void applySettleLike(Long id, Integer baseVersionNo, Map<String, Object> meta, SysWorkflowInstance instance, String key, Object before, String domainType) {
         if (before instanceof MdmSettleMethod) {
+            if (!MdmStatusSupport.isSubmitted(((MdmSettleMethod) before).getStatus())) {
+                throw new IllegalStateException("结算方式状态已变化，请重新发起审批");
+            }
             MdmSettleMethod after = objectMapper.convertValue(meta.get(key), MdmSettleMethod.class);
             MdmSettleMethod updateEntity = new MdmSettleMethod();
             BeanUtils.copyProperties(after, updateEntity);
             updateEntity.setSettleMethodId(id);
             updateEntity.setTenantId(((MdmSettleMethod) before).getTenantId());
             updateEntity.setSettleCode(((MdmSettleMethod) before).getSettleCode());
-            updateEntity.setStatus(((MdmSettleMethod) before).getStatus());
+            updateEntity.setStatus(MdmStatusSupport.ACTIVE);
             updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmSettleMethod) before).getVersionNo()));
             updateEntity.setUpdateBy(resolveOperator(instance));
             updateEntity.setUpdateTime(new Date());
-            updateEntity.setCreateBy(null);updateEntity.setCreateTime(null);updateEntity.setDelFlag(null);
-            settleMethodMapper.update(updateEntity, new LambdaUpdateWrapper<MdmSettleMethod>().eq(MdmSettleMethod::getSettleMethodId, id).eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST).eq(baseVersionNo != null, MdmSettleMethod::getVersionNo, baseVersionNo));
+            updateEntity.setCreateBy(null);
+            updateEntity.setCreateTime(null);
+            updateEntity.setDelFlag(null);
+            boolean updated = settleMethodMapper.update(updateEntity, new LambdaUpdateWrapper<MdmSettleMethod>()
+                    .eq(MdmSettleMethod::getSettleMethodId, id)
+                    .eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmSettleMethod::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmSettleMethod::getVersionNo, baseVersionNo)) > 0;
+            if (!updated) {
+                throw new IllegalStateException("结算方式版本已变化，请重新发起审批");
+            }
             auditTrailService.record(domainType, id, MdmChangeTypeSupport.UPDATE, loadSettle(id).getVersionNo(), loadSettle(id).getStatus(), before, loadSettle(id));
         } else if (before instanceof MdmTaxRate) {
+            if (!MdmStatusSupport.isSubmitted(((MdmTaxRate) before).getStatus())) {
+                throw new IllegalStateException("税率状态已变化，请重新发起审批");
+            }
             MdmTaxRate after = objectMapper.convertValue(meta.get(key), MdmTaxRate.class);
             MdmTaxRate updateEntity = new MdmTaxRate();
             BeanUtils.copyProperties(after, updateEntity);
-            updateEntity.setTaxRateId(id); updateEntity.setTenantId(((MdmTaxRate) before).getTenantId()); updateEntity.setTaxCode(((MdmTaxRate) before).getTaxCode()); updateEntity.setStatus(((MdmTaxRate) before).getStatus()); updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmTaxRate) before).getVersionNo())); updateEntity.setUpdateBy(resolveOperator(instance)); updateEntity.setUpdateTime(new Date()); updateEntity.setCreateBy(null); updateEntity.setCreateTime(null); updateEntity.setDelFlag(null);
-            taxRateMapper.update(updateEntity, new LambdaUpdateWrapper<MdmTaxRate>().eq(MdmTaxRate::getTaxRateId, id).eq(MdmTaxRate::getDelFlag, DEL_FLAG_EXIST).eq(baseVersionNo != null, MdmTaxRate::getVersionNo, baseVersionNo));
+            updateEntity.setTaxRateId(id);
+            updateEntity.setTenantId(((MdmTaxRate) before).getTenantId());
+            updateEntity.setTaxCode(((MdmTaxRate) before).getTaxCode());
+            updateEntity.setStatus(MdmStatusSupport.ACTIVE);
+            updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmTaxRate) before).getVersionNo()));
+            updateEntity.setUpdateBy(resolveOperator(instance));
+            updateEntity.setUpdateTime(new Date());
+            updateEntity.setCreateBy(null);
+            updateEntity.setCreateTime(null);
+            updateEntity.setDelFlag(null);
+            boolean updated = taxRateMapper.update(updateEntity, new LambdaUpdateWrapper<MdmTaxRate>()
+                    .eq(MdmTaxRate::getTaxRateId, id)
+                    .eq(MdmTaxRate::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmTaxRate::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmTaxRate::getVersionNo, baseVersionNo)) > 0;
+            if (!updated) {
+                throw new IllegalStateException("税率版本已变化，请重新发起审批");
+            }
             auditTrailService.record(domainType, id, MdmChangeTypeSupport.UPDATE, loadTax(id).getVersionNo(), loadTax(id).getStatus(), before, loadTax(id));
         } else if (before instanceof MdmCurrency) {
+            if (!MdmStatusSupport.isSubmitted(((MdmCurrency) before).getStatus())) {
+                throw new IllegalStateException("币种状态已变化，请重新发起审批");
+            }
             MdmCurrency after = objectMapper.convertValue(meta.get(key), MdmCurrency.class);
             MdmCurrency updateEntity = new MdmCurrency();
             BeanUtils.copyProperties(after, updateEntity);
-            updateEntity.setCurrencyId(id); updateEntity.setTenantId(((MdmCurrency) before).getTenantId()); updateEntity.setCurrencyCode(((MdmCurrency) before).getCurrencyCode()); updateEntity.setStatus(((MdmCurrency) before).getStatus()); updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmCurrency) before).getVersionNo())); updateEntity.setUpdateBy(resolveOperator(instance)); updateEntity.setUpdateTime(new Date()); updateEntity.setCreateBy(null); updateEntity.setCreateTime(null); updateEntity.setDelFlag(null);
-            currencyMapper.update(updateEntity, new LambdaUpdateWrapper<MdmCurrency>().eq(MdmCurrency::getCurrencyId, id).eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST).eq(baseVersionNo != null, MdmCurrency::getVersionNo, baseVersionNo));
+            updateEntity.setCurrencyId(id);
+            updateEntity.setTenantId(((MdmCurrency) before).getTenantId());
+            updateEntity.setCurrencyCode(((MdmCurrency) before).getCurrencyCode());
+            updateEntity.setStatus(MdmStatusSupport.ACTIVE);
+            updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmCurrency) before).getVersionNo()));
+            updateEntity.setUpdateBy(resolveOperator(instance));
+            updateEntity.setUpdateTime(new Date());
+            updateEntity.setCreateBy(null);
+            updateEntity.setCreateTime(null);
+            updateEntity.setDelFlag(null);
+            boolean updated = currencyMapper.update(updateEntity, new LambdaUpdateWrapper<MdmCurrency>()
+                    .eq(MdmCurrency::getCurrencyId, id)
+                    .eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmCurrency::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmCurrency::getVersionNo, baseVersionNo)) > 0;
+            if (!updated) {
+                throw new IllegalStateException("币种版本已变化，请重新发起审批");
+            }
             auditTrailService.record(domainType, id, MdmChangeTypeSupport.UPDATE, loadCurrency(id).getVersionNo(), loadCurrency(id).getStatus(), before, loadCurrency(id));
         } else if (before instanceof MdmUom) {
+            if (!MdmStatusSupport.isSubmitted(((MdmUom) before).getStatus())) {
+                throw new IllegalStateException("计量单位状态已变化，请重新发起审批");
+            }
             MdmUom after = objectMapper.convertValue(meta.get(key), MdmUom.class);
             MdmUom updateEntity = new MdmUom();
             BeanUtils.copyProperties(after, updateEntity);
-            updateEntity.setUomId(id); updateEntity.setTenantId(((MdmUom) before).getTenantId()); updateEntity.setUomCode(((MdmUom) before).getUomCode()); updateEntity.setStatus(((MdmUom) before).getStatus()); updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmUom) before).getVersionNo())); updateEntity.setUpdateBy(resolveOperator(instance)); updateEntity.setUpdateTime(new Date()); updateEntity.setCreateBy(null); updateEntity.setCreateTime(null); updateEntity.setDelFlag(null);
-            uomMapper.update(updateEntity, new LambdaUpdateWrapper<MdmUom>().eq(MdmUom::getUomId, id).eq(MdmUom::getDelFlag, DEL_FLAG_EXIST).eq(baseVersionNo != null, MdmUom::getVersionNo, baseVersionNo));
+            updateEntity.setUomId(id);
+            updateEntity.setTenantId(((MdmUom) before).getTenantId());
+            updateEntity.setUomCode(((MdmUom) before).getUomCode());
+            updateEntity.setStatus(MdmStatusSupport.ACTIVE);
+            updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmUom) before).getVersionNo()));
+            updateEntity.setUpdateBy(resolveOperator(instance));
+            updateEntity.setUpdateTime(new Date());
+            updateEntity.setCreateBy(null);
+            updateEntity.setCreateTime(null);
+            updateEntity.setDelFlag(null);
+            boolean updated = uomMapper.update(updateEntity, new LambdaUpdateWrapper<MdmUom>()
+                    .eq(MdmUom::getUomId, id)
+                    .eq(MdmUom::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmUom::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmUom::getVersionNo, baseVersionNo)) > 0;
+            if (!updated) {
+                throw new IllegalStateException("计量单位版本已变化，请重新发起审批");
+            }
             auditTrailService.record(domainType, id, MdmChangeTypeSupport.UPDATE, loadUom(id).getVersionNo(), loadUom(id).getStatus(), before, loadUom(id));
         }
     }
@@ -296,13 +441,81 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
 
     private void disableSimple(Object before, Long id, Integer baseVersionNo, SysWorkflowInstance instance, String domainType) {
         if (before instanceof MdmSettleMethod) {
-            MdmSettleMethod updateEntity = new MdmSettleMethod(); updateEntity.setSettleMethodId(id); updateEntity.setStatus(MdmStatusSupport.DISABLED); updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmSettleMethod) before).getVersionNo())); updateEntity.setUpdateBy(resolveOperator(instance)); updateEntity.setUpdateTime(new Date()); settleMethodMapper.update(updateEntity, new LambdaUpdateWrapper<MdmSettleMethod>().eq(MdmSettleMethod::getSettleMethodId, id).eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST).eq(baseVersionNo != null, MdmSettleMethod::getVersionNo, baseVersionNo)); auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadSettle(id).getVersionNo(), MdmStatusSupport.DISABLED, before, loadSettle(id));
+            if (!MdmStatusSupport.isSubmitted(((MdmSettleMethod) before).getStatus())) {
+                throw new IllegalStateException("结算方式状态已变化，请重新发起审批");
+            }
+            MdmSettleMethod updateEntity = new MdmSettleMethod();
+            updateEntity.setSettleMethodId(id);
+            updateEntity.setStatus(MdmStatusSupport.DISABLED);
+            updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmSettleMethod) before).getVersionNo()));
+            updateEntity.setUpdateBy(resolveOperator(instance));
+            updateEntity.setUpdateTime(new Date());
+            boolean updated = settleMethodMapper.update(updateEntity, new LambdaUpdateWrapper<MdmSettleMethod>()
+                    .eq(MdmSettleMethod::getSettleMethodId, id)
+                    .eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmSettleMethod::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmSettleMethod::getVersionNo, baseVersionNo)) > 0;
+            if (!updated) {
+                throw new IllegalStateException("结算方式版本已变化，请重新发起审批");
+            }
+            auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadSettle(id).getVersionNo(), MdmStatusSupport.DISABLED, before, loadSettle(id));
         } else if (before instanceof MdmTaxRate) {
-            MdmTaxRate updateEntity = new MdmTaxRate(); updateEntity.setTaxRateId(id); updateEntity.setStatus(MdmStatusSupport.DISABLED); updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmTaxRate) before).getVersionNo())); updateEntity.setUpdateBy(resolveOperator(instance)); updateEntity.setUpdateTime(new Date()); taxRateMapper.update(updateEntity, new LambdaUpdateWrapper<MdmTaxRate>().eq(MdmTaxRate::getTaxRateId, id).eq(MdmTaxRate::getDelFlag, DEL_FLAG_EXIST).eq(baseVersionNo != null, MdmTaxRate::getVersionNo, baseVersionNo)); auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadTax(id).getVersionNo(), MdmStatusSupport.DISABLED, before, loadTax(id));
+            if (!MdmStatusSupport.isSubmitted(((MdmTaxRate) before).getStatus())) {
+                throw new IllegalStateException("税率状态已变化，请重新发起审批");
+            }
+            MdmTaxRate updateEntity = new MdmTaxRate();
+            updateEntity.setTaxRateId(id);
+            updateEntity.setStatus(MdmStatusSupport.DISABLED);
+            updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmTaxRate) before).getVersionNo()));
+            updateEntity.setUpdateBy(resolveOperator(instance));
+            updateEntity.setUpdateTime(new Date());
+            boolean updated = taxRateMapper.update(updateEntity, new LambdaUpdateWrapper<MdmTaxRate>()
+                    .eq(MdmTaxRate::getTaxRateId, id)
+                    .eq(MdmTaxRate::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmTaxRate::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmTaxRate::getVersionNo, baseVersionNo)) > 0;
+            if (!updated) {
+                throw new IllegalStateException("税率版本已变化，请重新发起审批");
+            }
+            auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadTax(id).getVersionNo(), MdmStatusSupport.DISABLED, before, loadTax(id));
         } else if (before instanceof MdmCurrency) {
-            MdmCurrency updateEntity = new MdmCurrency(); updateEntity.setCurrencyId(id); updateEntity.setStatus(MdmStatusSupport.DISABLED); updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmCurrency) before).getVersionNo())); updateEntity.setUpdateBy(resolveOperator(instance)); updateEntity.setUpdateTime(new Date()); currencyMapper.update(updateEntity, new LambdaUpdateWrapper<MdmCurrency>().eq(MdmCurrency::getCurrencyId, id).eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST).eq(baseVersionNo != null, MdmCurrency::getVersionNo, baseVersionNo)); auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadCurrency(id).getVersionNo(), MdmStatusSupport.DISABLED, before, loadCurrency(id));
+            if (!MdmStatusSupport.isSubmitted(((MdmCurrency) before).getStatus())) {
+                throw new IllegalStateException("币种状态已变化，请重新发起审批");
+            }
+            MdmCurrency updateEntity = new MdmCurrency();
+            updateEntity.setCurrencyId(id);
+            updateEntity.setStatus(MdmStatusSupport.DISABLED);
+            updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmCurrency) before).getVersionNo()));
+            updateEntity.setUpdateBy(resolveOperator(instance));
+            updateEntity.setUpdateTime(new Date());
+            boolean updated = currencyMapper.update(updateEntity, new LambdaUpdateWrapper<MdmCurrency>()
+                    .eq(MdmCurrency::getCurrencyId, id)
+                    .eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmCurrency::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmCurrency::getVersionNo, baseVersionNo)) > 0;
+            if (!updated) {
+                throw new IllegalStateException("币种版本已变化，请重新发起审批");
+            }
+            auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadCurrency(id).getVersionNo(), MdmStatusSupport.DISABLED, before, loadCurrency(id));
         } else if (before instanceof MdmUom) {
-            MdmUom updateEntity = new MdmUom(); updateEntity.setUomId(id); updateEntity.setStatus(MdmStatusSupport.DISABLED); updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmUom) before).getVersionNo())); updateEntity.setUpdateBy(resolveOperator(instance)); updateEntity.setUpdateTime(new Date()); uomMapper.update(updateEntity, new LambdaUpdateWrapper<MdmUom>().eq(MdmUom::getUomId, id).eq(MdmUom::getDelFlag, DEL_FLAG_EXIST).eq(baseVersionNo != null, MdmUom::getVersionNo, baseVersionNo)); auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadUom(id).getVersionNo(), MdmStatusSupport.DISABLED, before, loadUom(id));
+            if (!MdmStatusSupport.isSubmitted(((MdmUom) before).getStatus())) {
+                throw new IllegalStateException("计量单位状态已变化，请重新发起审批");
+            }
+            MdmUom updateEntity = new MdmUom();
+            updateEntity.setUomId(id);
+            updateEntity.setStatus(MdmStatusSupport.DISABLED);
+            updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmUom) before).getVersionNo()));
+            updateEntity.setUpdateBy(resolveOperator(instance));
+            updateEntity.setUpdateTime(new Date());
+            boolean updated = uomMapper.update(updateEntity, new LambdaUpdateWrapper<MdmUom>()
+                    .eq(MdmUom::getUomId, id)
+                    .eq(MdmUom::getDelFlag, DEL_FLAG_EXIST)
+                    .eq(MdmUom::getStatus, MdmStatusSupport.SUBMITTED)
+                    .eq(baseVersionNo != null, MdmUom::getVersionNo, baseVersionNo)) > 0;
+            if (!updated) {
+                throw new IllegalStateException("计量单位版本已变化，请重新发起审批");
+            }
+            auditTrailService.record(domainType, id, MdmChangeTypeSupport.STATUS, loadUom(id).getVersionNo(), MdmStatusSupport.DISABLED, before, loadUom(id));
         }
     }
 

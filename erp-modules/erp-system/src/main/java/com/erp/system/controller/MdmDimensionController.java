@@ -12,7 +12,7 @@ import com.erp.system.service.IMdmCostCenterService;
 import com.erp.system.service.IMdmDimensionWorkflowSubmitService;
 import com.erp.system.service.IMdmOrgService;
 import com.erp.system.service.IMdmProjectService;
-import com.erp.system.support.MdmPageSupport;
+import com.erp.system.support.MdmResponseSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -60,7 +60,7 @@ public class MdmDimensionController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
             @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
-        return R.success(MdmPageSupport.paginate(orgService.selectOrgList(orgCode, orgName, status), pageNum, pageSize));
+        return MdmResponseSupport.page(orgService.selectOrgList(orgCode, orgName, status), pageNum, pageSize);
     }
 
     /**
@@ -183,7 +183,7 @@ public class MdmDimensionController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
             @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
-        return R.success(MdmPageSupport.paginate(costCenterService.selectCostCenterList(ccCode, ccName, status), pageNum, pageSize));
+        return MdmResponseSupport.page(costCenterService.selectCostCenterList(ccCode, ccName, status), pageNum, pageSize);
     }
 
     /**
@@ -307,7 +307,7 @@ public class MdmDimensionController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
             @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
-        return R.success(MdmPageSupport.paginate(projectService.selectProjectList(projectCode, projectName, status), pageNum, pageSize));
+        return MdmResponseSupport.page(projectService.selectProjectList(projectCode, projectName, status), pageNum, pageSize);
     }
 
     /**

@@ -15,7 +15,7 @@ public interface IMdmItemWorkflowSubmitService {
      * @param remark     提交备注
      * @return true 表示提交成功
      */
-    boolean submitDraftActivation(Long itemId, String processKey, String remark);
+    boolean submitDraftActivation(Long itemId, Integer versionNo, String processKey, String remark);
 
     /**
      * 提交物料变更审批。
@@ -26,7 +26,7 @@ public interface IMdmItemWorkflowSubmitService {
      * @param remark     提交备注
      * @return true 表示提交成功
      */
-    boolean submitChange(Long itemId, MdmItem targetItem, String processKey, String remark);
+    boolean submitChange(Long itemId, Integer versionNo, MdmItem targetItem, String processKey, String remark);
 
     /**
      * 提交物料停用审批。
@@ -36,5 +36,5 @@ public interface IMdmItemWorkflowSubmitService {
      * @param remark     提交备注
      * @return true 表示提交成功
      */
-    boolean submitDisable(Long itemId, String processKey, String remark);
+    boolean submitDisable(Long itemId, Integer versionNo, String processKey, String remark);
 }

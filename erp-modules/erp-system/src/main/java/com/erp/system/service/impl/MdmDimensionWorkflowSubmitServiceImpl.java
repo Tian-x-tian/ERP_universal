@@ -124,6 +124,9 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         if (!startWorkflow(buildOrgStartBody(processKey, remark, orgId, MdmWorkflowActionSupport.UPDATE, currentOrg.getVersionNo(), currentOrg, afterOrg))) {
             throw new IllegalStateException("组织变更审批流程发起失败");
         }
+        if (!updateOrgStatus(orgId, currentOrg.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("组织状态已变化，请刷新后重试");
+        }
         return true;
     }
 
@@ -138,6 +141,9 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         afterOrg.setStatus(MdmStatusSupport.DISABLED);
         if (!startWorkflow(buildOrgStartBody(processKey, remark, orgId, MdmWorkflowActionSupport.DISABLE, currentOrg.getVersionNo(), currentOrg, afterOrg))) {
             throw new IllegalStateException("组织停用审批流程发起失败");
+        }
+        if (!updateOrgStatus(orgId, currentOrg.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("组织状态已变化，请刷新后重试");
         }
         return true;
     }
@@ -167,6 +173,9 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         if (!startWorkflow(buildCostCenterStartBody(processKey, remark, ccId, MdmWorkflowActionSupport.UPDATE, currentCostCenter.getVersionNo(), currentCostCenter, afterCostCenter))) {
             throw new IllegalStateException("成本中心变更审批流程发起失败");
         }
+        if (!updateCostCenterStatus(ccId, currentCostCenter.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("成本中心状态已变化，请刷新后重试");
+        }
         return true;
     }
 
@@ -181,6 +190,9 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         afterCostCenter.setStatus(MdmStatusSupport.DISABLED);
         if (!startWorkflow(buildCostCenterStartBody(processKey, remark, ccId, MdmWorkflowActionSupport.DISABLE, currentCostCenter.getVersionNo(), currentCostCenter, afterCostCenter))) {
             throw new IllegalStateException("成本中心停用审批流程发起失败");
+        }
+        if (!updateCostCenterStatus(ccId, currentCostCenter.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("成本中心状态已变化，请刷新后重试");
         }
         return true;
     }
@@ -210,6 +222,9 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         if (!startWorkflow(buildProjectStartBody(processKey, remark, projectId, MdmWorkflowActionSupport.UPDATE, currentProject.getVersionNo(), currentProject, afterProject))) {
             throw new IllegalStateException("项目变更审批流程发起失败");
         }
+        if (!updateProjectStatus(projectId, currentProject.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("项目状态已变化，请刷新后重试");
+        }
         return true;
     }
 
@@ -224,6 +239,9 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         afterProject.setStatus(MdmStatusSupport.DISABLED);
         if (!startWorkflow(buildProjectStartBody(processKey, remark, projectId, MdmWorkflowActionSupport.DISABLE, currentProject.getVersionNo(), currentProject, afterProject))) {
             throw new IllegalStateException("项目停用审批流程发起失败");
+        }
+        if (!updateProjectStatus(projectId, currentProject.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("项目状态已变化，请刷新后重试");
         }
         return true;
     }

@@ -28,6 +28,7 @@ public class MdmItem implements Serializable {
     private Long taxRateId;
     private String barcode;
     private Integer shelfLifeDays;
+    private Integer defaultExpiryWarnDays;
     private String batchControl;
     private String serialControl;
     private String costingMethod;
@@ -144,6 +145,14 @@ public class MdmItem implements Serializable {
 
     public void setShelfLifeDays(Integer shelfLifeDays) {
         this.shelfLifeDays = shelfLifeDays;
+    }
+
+    public Integer getDefaultExpiryWarnDays() {
+        return defaultExpiryWarnDays;
+    }
+
+    public void setDefaultExpiryWarnDays(Integer defaultExpiryWarnDays) {
+        this.defaultExpiryWarnDays = defaultExpiryWarnDays;
     }
 
     public String getBatchControl() {

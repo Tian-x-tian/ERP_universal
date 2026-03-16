@@ -16,6 +16,15 @@ public class MdmEmployeeWorkflowSubmitBody implements Serializable {
     /** 提交备注 */
     private String remark;
 
+    /** 当前版本号 */
+    private Integer versionNo;
+
+    /** HR 异动记录ID */
+    private Long changeRecordId;
+
+    /** HR 扩展档案快照JSON */
+    private String archivePayloadJson;
+
     /** 变更后的员工数据 */
     private MdmEmployee employee;
 
@@ -34,6 +43,30 @@ public class MdmEmployeeWorkflowSubmitBody implements Serializable {
 
     public void setRemark(String remark) {
         this.remark = remark;
+    }
+
+    public Integer getVersionNo() {
+        return versionNo;
+    }
+
+    public void setVersionNo(Integer versionNo) {
+        this.versionNo = versionNo;
+    }
+
+    public Long getChangeRecordId() {
+        return changeRecordId;
+    }
+
+    public void setChangeRecordId(Long changeRecordId) {
+        this.changeRecordId = changeRecordId;
+    }
+
+    public String getArchivePayloadJson() {
+        return archivePayloadJson;
+    }
+
+    public void setArchivePayloadJson(String archivePayloadJson) {
+        this.archivePayloadJson = archivePayloadJson;
     }
 
     public MdmEmployee getEmployee() {

@@ -4,32 +4,32 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.MapPropertySource;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
-import java.net.URL;
-import java.io.IOException;
-import java.io.InputStream;
 
-@EnableDiscoveryClient
-@SpringBootApplication
+/**
+ * ERP 多模块统一启动入口。
+ */
 public class SystemApplication {
     private static final Logger LOGGER = LoggerFactory.getLogger(SystemApplication.class);
     private static final String MODULE_DESCRIPTOR_PATH = "META-INF/erp-unified-module.properties";
 
     /**
-     * 统一启动入口。
-     * 启动顺序由模块描述文件中的 module.order 决定。
+     * 按模块描述文件顺序启动多模块应用。
      *
      * @param args 启动参数
      */
@@ -96,8 +96,10 @@ public class SystemApplication {
                 descriptorUrl);
         int order = parseOrder(properties.getProperty("module.order", "100"), descriptorUrl);
         boolean enabled = Boolean.parseBoolean(properties.getProperty("module.enabled", "true"));
+        String serverPort = trimToNull(properties.getProperty("module.server-port"));
 
-        return new ModuleDefinition(moduleName, applicationClassName, configLocation, webType, order, enabled);
+        return new ModuleDefinition(moduleName, applicationClassName, configLocation, webType, order, enabled,
+                serverPort);
     }
 
     /**
@@ -123,9 +125,28 @@ public class SystemApplication {
         // 统一入口共用 classpath 时，默认关闭 Gateway 自动配置，避免污染非网关模块。
         defaultProperties.put("spring.cloud.gateway.enabled", "false");
         application.setDefaultProperties(defaultProperties);
+        application.addInitializers(context -> applyModuleOverrides(context.getEnvironment(), module));
         ConfigurableApplicationContext context = application.run(args);
         LOGGER.info("{} started with config {}", module.getModuleName(), module.getConfigLocation());
         return context;
+    }
+
+    /**
+     * 将模块级强制配置置于最高优先级，避免被跨模块导入配置覆盖。
+     *
+     * @param environment 模块环境
+     * @param module      模块定义
+     */
+    private static void applyModuleOverrides(ConfigurableEnvironment environment, ModuleDefinition module) {
+        Map<String, Object> overrides = new HashMap<>();
+        if (module.getServerPort() != null) {
+            overrides.put("server.port", module.getServerPort());
+        }
+        if (overrides.isEmpty()) {
+            return;
+        }
+        environment.getPropertySources().addFirst(
+                new MapPropertySource(module.getModuleName() + "-overrides", overrides));
     }
 
     /**
@@ -204,6 +225,20 @@ public class SystemApplication {
     }
 
     /**
+     * 去除首尾空格并将空串转为 null。
+     *
+     * @param value 原始值
+     * @return 规范化后的值
+     */
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /**
      * 统一启动模块定义。
      */
     private static final class ModuleDefinition {
@@ -213,6 +248,7 @@ public class SystemApplication {
         private final WebApplicationType webType;
         private final int order;
         private final boolean enabled;
+        private final String serverPort;
 
         /**
          * 创建模块定义。
@@ -223,19 +259,22 @@ public class SystemApplication {
          * @param webType              Web 应用类型
          * @param order                启动顺序
          * @param enabled              是否启用
+         * @param serverPort           强制端口
          */
         private ModuleDefinition(String moduleName,
                 String applicationClassName,
                 String configLocation,
                 WebApplicationType webType,
                 int order,
-                boolean enabled) {
+                boolean enabled,
+                String serverPort) {
             this.moduleName = moduleName;
             this.applicationClassName = applicationClassName;
             this.configLocation = configLocation;
             this.webType = webType;
             this.order = order;
             this.enabled = enabled;
+            this.serverPort = serverPort;
         }
 
         /**
@@ -290,6 +329,15 @@ public class SystemApplication {
          */
         private boolean isEnabled() {
             return enabled;
+        }
+
+        /**
+         * 获取强制端口。
+         *
+         * @return 强制端口
+         */
+        private String getServerPort() {
+            return serverPort;
         }
     }
 }

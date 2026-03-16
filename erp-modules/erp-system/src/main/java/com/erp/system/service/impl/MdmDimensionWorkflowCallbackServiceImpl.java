@@ -172,54 +172,57 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
 
     private void rollbackOrgDraft(SysWorkflowInstance instance) {
         Map<String, Object> meta = readMeta(instance, META_KEY_ORG);
-        if (!MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(readString(meta.get("action")))) {
-            return;
-        }
+        String action = readString(meta.get("action"));
         Long orgId = readLong(meta.get("orgId"));
         if (orgId == null) {
             return;
         }
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action)
+                ? MdmStatusSupport.DRAFT
+                : MdmStatusSupport.ACTIVE;
         orgMapper.update(new MdmOrg(), new LambdaUpdateWrapper<MdmOrg>()
                 .eq(MdmOrg::getOrgId, orgId)
                 .eq(MdmOrg::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmOrg::getStatus, MdmStatusSupport.SUBMITTED)
-                .set(MdmOrg::getStatus, MdmStatusSupport.DRAFT)
+                .set(MdmOrg::getStatus, rollbackStatus)
                 .set(MdmOrg::getUpdateBy, resolveOperator(instance))
                 .set(MdmOrg::getUpdateTime, new Date()));
     }
 
     private void rollbackCostCenterDraft(SysWorkflowInstance instance) {
         Map<String, Object> meta = readMeta(instance, META_KEY_COST_CENTER);
-        if (!MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(readString(meta.get("action")))) {
-            return;
-        }
+        String action = readString(meta.get("action"));
         Long ccId = readLong(meta.get("ccId"));
         if (ccId == null) {
             return;
         }
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action)
+                ? MdmStatusSupport.DRAFT
+                : MdmStatusSupport.ACTIVE;
         costCenterMapper.update(new MdmCostCenter(), new LambdaUpdateWrapper<MdmCostCenter>()
                 .eq(MdmCostCenter::getCcId, ccId)
                 .eq(MdmCostCenter::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmCostCenter::getStatus, MdmStatusSupport.SUBMITTED)
-                .set(MdmCostCenter::getStatus, MdmStatusSupport.DRAFT)
+                .set(MdmCostCenter::getStatus, rollbackStatus)
                 .set(MdmCostCenter::getUpdateBy, resolveOperator(instance))
                 .set(MdmCostCenter::getUpdateTime, new Date()));
     }
 
     private void rollbackProjectDraft(SysWorkflowInstance instance) {
         Map<String, Object> meta = readMeta(instance, META_KEY_PROJECT);
-        if (!MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(readString(meta.get("action")))) {
-            return;
-        }
+        String action = readString(meta.get("action"));
         Long projectId = readLong(meta.get("projectId"));
         if (projectId == null) {
             return;
         }
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action)
+                ? MdmStatusSupport.DRAFT
+                : MdmStatusSupport.ACTIVE;
         projectMapper.update(new MdmProject(), new LambdaUpdateWrapper<MdmProject>()
                 .eq(MdmProject::getProjectId, projectId)
                 .eq(MdmProject::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmProject::getStatus, MdmStatusSupport.SUBMITTED)
-                .set(MdmProject::getStatus, MdmStatusSupport.DRAFT)
+                .set(MdmProject::getStatus, rollbackStatus)
                 .set(MdmProject::getUpdateBy, resolveOperator(instance))
                 .set(MdmProject::getUpdateTime, new Date()));
     }
@@ -227,27 +230,33 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
     private void activateOrg(Long orgId, Integer baseVersionNo, SysWorkflowInstance instance) {
         MdmOrg before = loadOrg(orgId);
         ensureVersion(before, baseVersionNo, "组织");
-        orgMapper.update(new MdmOrg(), new LambdaUpdateWrapper<MdmOrg>()
+        boolean updated = orgMapper.update(new MdmOrg(), new LambdaUpdateWrapper<MdmOrg>()
                 .eq(MdmOrg::getOrgId, orgId)
                 .eq(MdmOrg::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmOrg::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmOrg::getVersionNo, baseVersionNo)
                 .set(MdmOrg::getStatus, MdmStatusSupport.ACTIVE)
                 .set(MdmOrg::getUpdateBy, resolveOperator(instance))
-                .set(MdmOrg::getUpdateTime, new Date()));
+                .set(MdmOrg::getUpdateTime, new Date())) > 0;
+        if (!updated) {
+            throw new IllegalStateException("组织状态已变化，无法完成审批回写");
+        }
         auditTrailService.record(MdmDomainTypeSupport.ORG, orgId, MdmChangeTypeSupport.STATUS, loadOrg(orgId).getVersionNo(), MdmStatusSupport.ACTIVE, before, loadOrg(orgId));
     }
 
     private void applyOrgChange(Long orgId, Integer baseVersionNo, Map<String, Object> meta, SysWorkflowInstance instance) {
         MdmOrg before = loadOrg(orgId);
         ensureVersion(before, baseVersionNo, "组织");
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("组织状态已变化，请重新发起审批");
+        }
         MdmOrg afterOrg = objectMapper.convertValue(meta.get("afterOrg"), MdmOrg.class);
         MdmOrg updateEntity = new MdmOrg();
         BeanUtils.copyProperties(afterOrg, updateEntity);
         updateEntity.setOrgId(orgId);
         updateEntity.setTenantId(before.getTenantId());
         updateEntity.setOrgCode(before.getOrgCode());
-        updateEntity.setStatus(before.getStatus());
+        updateEntity.setStatus(MdmStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
         updateEntity.setUpdateTime(new Date());
@@ -257,6 +266,7 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         boolean updated = orgMapper.update(updateEntity, new LambdaUpdateWrapper<MdmOrg>()
                 .eq(MdmOrg::getOrgId, orgId)
                 .eq(MdmOrg::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmOrg::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmOrg::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("组织版本已变化，请重新发起审批");
@@ -267,6 +277,9 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
     private void disableOrg(Long orgId, Integer baseVersionNo, SysWorkflowInstance instance) {
         MdmOrg before = loadOrg(orgId);
         ensureVersion(before, baseVersionNo, "组织");
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("组织状态已变化，请重新发起审批");
+        }
         MdmOrg updateEntity = new MdmOrg();
         updateEntity.setOrgId(orgId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
@@ -276,6 +289,7 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         boolean updated = orgMapper.update(updateEntity, new LambdaUpdateWrapper<MdmOrg>()
                 .eq(MdmOrg::getOrgId, orgId)
                 .eq(MdmOrg::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmOrg::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmOrg::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("组织版本已变化，请重新发起审批");
@@ -286,27 +300,33 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
     private void activateCostCenter(Long ccId, Integer baseVersionNo, SysWorkflowInstance instance) {
         MdmCostCenter before = loadCostCenter(ccId);
         ensureVersion(before, baseVersionNo, "成本中心");
-        costCenterMapper.update(new MdmCostCenter(), new LambdaUpdateWrapper<MdmCostCenter>()
+        boolean updated = costCenterMapper.update(new MdmCostCenter(), new LambdaUpdateWrapper<MdmCostCenter>()
                 .eq(MdmCostCenter::getCcId, ccId)
                 .eq(MdmCostCenter::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmCostCenter::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmCostCenter::getVersionNo, baseVersionNo)
                 .set(MdmCostCenter::getStatus, MdmStatusSupport.ACTIVE)
                 .set(MdmCostCenter::getUpdateBy, resolveOperator(instance))
-                .set(MdmCostCenter::getUpdateTime, new Date()));
+                .set(MdmCostCenter::getUpdateTime, new Date())) > 0;
+        if (!updated) {
+            throw new IllegalStateException("成本中心状态已变化，无法完成审批回写");
+        }
         auditTrailService.record(MdmDomainTypeSupport.COST_CENTER, ccId, MdmChangeTypeSupport.STATUS, loadCostCenter(ccId).getVersionNo(), MdmStatusSupport.ACTIVE, before, loadCostCenter(ccId));
     }
 
     private void applyCostCenterChange(Long ccId, Integer baseVersionNo, Map<String, Object> meta, SysWorkflowInstance instance) {
         MdmCostCenter before = loadCostCenter(ccId);
         ensureVersion(before, baseVersionNo, "成本中心");
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("成本中心状态已变化，请重新发起审批");
+        }
         MdmCostCenter afterCostCenter = objectMapper.convertValue(meta.get("afterCostCenter"), MdmCostCenter.class);
         MdmCostCenter updateEntity = new MdmCostCenter();
         BeanUtils.copyProperties(afterCostCenter, updateEntity);
         updateEntity.setCcId(ccId);
         updateEntity.setTenantId(before.getTenantId());
         updateEntity.setCcCode(before.getCcCode());
-        updateEntity.setStatus(before.getStatus());
+        updateEntity.setStatus(MdmStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
         updateEntity.setUpdateTime(new Date());
@@ -316,6 +336,7 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         boolean updated = costCenterMapper.update(updateEntity, new LambdaUpdateWrapper<MdmCostCenter>()
                 .eq(MdmCostCenter::getCcId, ccId)
                 .eq(MdmCostCenter::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmCostCenter::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmCostCenter::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("成本中心版本已变化，请重新发起审批");
@@ -326,6 +347,9 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
     private void disableCostCenter(Long ccId, Integer baseVersionNo, SysWorkflowInstance instance) {
         MdmCostCenter before = loadCostCenter(ccId);
         ensureVersion(before, baseVersionNo, "成本中心");
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("成本中心状态已变化，请重新发起审批");
+        }
         MdmCostCenter updateEntity = new MdmCostCenter();
         updateEntity.setCcId(ccId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
@@ -335,6 +359,7 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         boolean updated = costCenterMapper.update(updateEntity, new LambdaUpdateWrapper<MdmCostCenter>()
                 .eq(MdmCostCenter::getCcId, ccId)
                 .eq(MdmCostCenter::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmCostCenter::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmCostCenter::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("成本中心版本已变化，请重新发起审批");
@@ -345,27 +370,33 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
     private void activateProject(Long projectId, Integer baseVersionNo, SysWorkflowInstance instance) {
         MdmProject before = loadProject(projectId);
         ensureVersion(before, baseVersionNo, "项目");
-        projectMapper.update(new MdmProject(), new LambdaUpdateWrapper<MdmProject>()
+        boolean updated = projectMapper.update(new MdmProject(), new LambdaUpdateWrapper<MdmProject>()
                 .eq(MdmProject::getProjectId, projectId)
                 .eq(MdmProject::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmProject::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmProject::getVersionNo, baseVersionNo)
                 .set(MdmProject::getStatus, MdmStatusSupport.ACTIVE)
                 .set(MdmProject::getUpdateBy, resolveOperator(instance))
-                .set(MdmProject::getUpdateTime, new Date()));
+                .set(MdmProject::getUpdateTime, new Date())) > 0;
+        if (!updated) {
+            throw new IllegalStateException("项目状态已变化，无法完成审批回写");
+        }
         auditTrailService.record(MdmDomainTypeSupport.PROJECT, projectId, MdmChangeTypeSupport.STATUS, loadProject(projectId).getVersionNo(), MdmStatusSupport.ACTIVE, before, loadProject(projectId));
     }
 
     private void applyProjectChange(Long projectId, Integer baseVersionNo, Map<String, Object> meta, SysWorkflowInstance instance) {
         MdmProject before = loadProject(projectId);
         ensureVersion(before, baseVersionNo, "项目");
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("项目状态已变化，请重新发起审批");
+        }
         MdmProject afterProject = objectMapper.convertValue(meta.get("afterProject"), MdmProject.class);
         MdmProject updateEntity = new MdmProject();
         BeanUtils.copyProperties(afterProject, updateEntity);
         updateEntity.setProjectId(projectId);
         updateEntity.setTenantId(before.getTenantId());
         updateEntity.setProjectCode(before.getProjectCode());
-        updateEntity.setStatus(before.getStatus());
+        updateEntity.setStatus(MdmStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
         updateEntity.setUpdateTime(new Date());
@@ -375,6 +406,7 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         boolean updated = projectMapper.update(updateEntity, new LambdaUpdateWrapper<MdmProject>()
                 .eq(MdmProject::getProjectId, projectId)
                 .eq(MdmProject::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmProject::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmProject::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("项目版本已变化，请重新发起审批");
@@ -385,6 +417,9 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
     private void disableProject(Long projectId, Integer baseVersionNo, SysWorkflowInstance instance) {
         MdmProject before = loadProject(projectId);
         ensureVersion(before, baseVersionNo, "项目");
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("项目状态已变化，请重新发起审批");
+        }
         MdmProject updateEntity = new MdmProject();
         updateEntity.setProjectId(projectId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
@@ -394,6 +429,7 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         boolean updated = projectMapper.update(updateEntity, new LambdaUpdateWrapper<MdmProject>()
                 .eq(MdmProject::getProjectId, projectId)
                 .eq(MdmProject::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmProject::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmProject::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("项目版本已变化，请重新发起审批");
@@ -434,9 +470,6 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         Integer currentVersion = null;
         if (entity instanceof MdmOrg) {
             currentVersion = ((MdmOrg) entity).getVersionNo();
-            if (MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase("")) {
-                // no-op
-            }
         } else if (entity instanceof MdmCostCenter) {
             currentVersion = ((MdmCostCenter) entity).getVersionNo();
         } else if (entity instanceof MdmProject) {

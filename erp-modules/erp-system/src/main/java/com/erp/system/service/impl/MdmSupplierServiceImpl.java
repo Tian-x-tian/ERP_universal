@@ -12,6 +12,7 @@ import com.erp.system.service.IMdmSupplierService;
 import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
+import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmStatusSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.TenantWriteGuard;
@@ -150,6 +151,10 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         if (!MdmStatusSupport.isDraft(existed.getStatus())) {
             throw new IllegalStateException("已生效供应商请通过审批流程提交变更");
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(
+                supplier.getVersionNo(),
+                existed.getVersionNo(),
+                "供应商");
         MdmSupplier before = new MdmSupplier();
         BeanUtils.copyProperties(existed, before);
 
@@ -182,7 +187,7 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         }
         supplier.setUpdateBy(resolveOperator());
         supplier.setUpdateTime(new Date());
-        boolean updated = updateSupplierByVersion(supplier, existed.getVersionNo());
+        boolean updated = updateSupplierByVersion(supplier, expectedVersionNo);
         if (updated) {
             MdmSupplier after = getById(supplier.getSupplierId());
             auditTrailService.record(MdmDomainTypeSupport.SUPPLIER,
@@ -204,7 +209,7 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean disableSupplier(Long supplierId) {
+    public boolean disableSupplier(Long supplierId, Integer versionNo) {
         if (supplierId == null) {
             return false;
         }
@@ -226,13 +231,14 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         if (MdmStatusSupport.DISABLED.equals(existed.getStatus())) {
             return true;
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(versionNo, existed.getVersionNo(), "供应商");
         MdmSupplier updateEntity = new MdmSupplier();
         updateEntity.setSupplierId(supplierId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateSupplierByVersion(updateEntity, existed.getVersionNo());
+        boolean updated = updateSupplierByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             MdmSupplier after = getById(supplierId);
             auditTrailService.record(MdmDomainTypeSupport.SUPPLIER,
@@ -254,7 +260,7 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean removeSupplier(Long supplierId) {
+    public boolean removeSupplier(Long supplierId, Integer versionNo) {
         if (supplierId == null) {
             return false;
         }
@@ -270,13 +276,14 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
             return false;
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(versionNo, existed.getVersionNo(), "供应商");
         MdmSupplier updateEntity = new MdmSupplier();
         updateEntity.setSupplierId(supplierId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateSupplierByVersion(updateEntity, existed.getVersionNo());
+        boolean updated = updateSupplierByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.SUPPLIER,
                     supplierId,
@@ -324,9 +331,7 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
             updateWrapper.eq(MdmSupplier::getVersionNo, currentVersionNo);
         }
         boolean updated = update(supplier, updateWrapper);
-        if (!updated) {
-            throw new IllegalStateException("供应商数据已被其他人更新，请刷新后重试");
-        }
+        MdmOptimisticLockSupport.ensureUpdated(updated, "供应商");
         return true;
     }
 

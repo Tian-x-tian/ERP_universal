@@ -102,7 +102,13 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         ensureActiveForFlow(current.getStatus(), "结算方式审批中，暂不允许提交新的变更", "仅已生效结算方式允许提交变更审批");
         ensureNoRunningWorkflow(BUSINESS_TYPE_SETTLE, PREFIX_SETTLE + settleMethodId, "该结算方式已有审批流程在处理中");
         MdmSettleMethod after = normalizeSettle(current, targetSettleMethod);
-        return startWorkflow(buildStartBody(processKey, remark, PREFIX_SETTLE + settleMethodId, BUSINESS_TYPE_SETTLE, META_KEY_SETTLE, buildMeta("action", MdmWorkflowActionSupport.UPDATE, "settleMethodId", settleMethodId, "baseVersionNo", current.getVersionNo(), "beforeSettleMethod", current, "afterSettleMethod", after), after));
+        if (!startWorkflow(buildStartBody(processKey, remark, PREFIX_SETTLE + settleMethodId, BUSINESS_TYPE_SETTLE, META_KEY_SETTLE, buildMeta("action", MdmWorkflowActionSupport.UPDATE, "settleMethodId", settleMethodId, "baseVersionNo", current.getVersionNo(), "beforeSettleMethod", current, "afterSettleMethod", after), after))) {
+            throw new IllegalStateException("结算方式变更审批流程发起失败");
+        }
+        if (!updateSettleStatus(settleMethodId, current.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("结算方式状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
     @Override
@@ -114,7 +120,13 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         MdmSettleMethod after = new MdmSettleMethod();
         BeanUtils.copyProperties(current, after);
         after.setStatus(MdmStatusSupport.DISABLED);
-        return startWorkflow(buildStartBody(processKey, remark, PREFIX_SETTLE + settleMethodId, BUSINESS_TYPE_SETTLE, META_KEY_SETTLE, buildMeta("action", MdmWorkflowActionSupport.DISABLE, "settleMethodId", settleMethodId, "baseVersionNo", current.getVersionNo(), "beforeSettleMethod", current, "afterSettleMethod", after), after));
+        if (!startWorkflow(buildStartBody(processKey, remark, PREFIX_SETTLE + settleMethodId, BUSINESS_TYPE_SETTLE, META_KEY_SETTLE, buildMeta("action", MdmWorkflowActionSupport.DISABLE, "settleMethodId", settleMethodId, "baseVersionNo", current.getVersionNo(), "beforeSettleMethod", current, "afterSettleMethod", after), after))) {
+            throw new IllegalStateException("结算方式停用审批流程发起失败");
+        }
+        if (!updateSettleStatus(settleMethodId, current.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("结算方式状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
     @Override
@@ -136,7 +148,13 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         ensureActiveForFlow(current.getStatus(), "税率审批中，暂不允许提交新的变更", "仅已生效税率允许提交变更审批");
         ensureNoRunningWorkflow(BUSINESS_TYPE_TAX, PREFIX_TAX + taxRateId, "该税率已有审批流程在处理中");
         MdmTaxRate after = normalizeTax(current, targetTaxRate);
-        return startWorkflow(buildStartBody(processKey, remark, PREFIX_TAX + taxRateId, BUSINESS_TYPE_TAX, META_KEY_TAX, buildMeta("action", MdmWorkflowActionSupport.UPDATE, "taxRateId", taxRateId, "baseVersionNo", current.getVersionNo(), "beforeTaxRate", current, "afterTaxRate", after), after));
+        if (!startWorkflow(buildStartBody(processKey, remark, PREFIX_TAX + taxRateId, BUSINESS_TYPE_TAX, META_KEY_TAX, buildMeta("action", MdmWorkflowActionSupport.UPDATE, "taxRateId", taxRateId, "baseVersionNo", current.getVersionNo(), "beforeTaxRate", current, "afterTaxRate", after), after))) {
+            throw new IllegalStateException("税率变更审批流程发起失败");
+        }
+        if (!updateTaxStatus(taxRateId, current.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("税率状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
     @Override
@@ -148,7 +166,13 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         MdmTaxRate after = new MdmTaxRate();
         BeanUtils.copyProperties(current, after);
         after.setStatus(MdmStatusSupport.DISABLED);
-        return startWorkflow(buildStartBody(processKey, remark, PREFIX_TAX + taxRateId, BUSINESS_TYPE_TAX, META_KEY_TAX, buildMeta("action", MdmWorkflowActionSupport.DISABLE, "taxRateId", taxRateId, "baseVersionNo", current.getVersionNo(), "beforeTaxRate", current, "afterTaxRate", after), after));
+        if (!startWorkflow(buildStartBody(processKey, remark, PREFIX_TAX + taxRateId, BUSINESS_TYPE_TAX, META_KEY_TAX, buildMeta("action", MdmWorkflowActionSupport.DISABLE, "taxRateId", taxRateId, "baseVersionNo", current.getVersionNo(), "beforeTaxRate", current, "afterTaxRate", after), after))) {
+            throw new IllegalStateException("税率停用审批流程发起失败");
+        }
+        if (!updateTaxStatus(taxRateId, current.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("税率状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
     @Override
@@ -170,7 +194,13 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         ensureActiveForFlow(current.getStatus(), "币种审批中，暂不允许提交新的变更", "仅已生效币种允许提交变更审批");
         ensureNoRunningWorkflow(BUSINESS_TYPE_CURRENCY, PREFIX_CURRENCY + currencyId, "该币种已有审批流程在处理中");
         MdmCurrency after = normalizeCurrency(current, targetCurrency);
-        return startWorkflow(buildStartBody(processKey, remark, PREFIX_CURRENCY + currencyId, BUSINESS_TYPE_CURRENCY, META_KEY_CURRENCY, buildMeta("action", MdmWorkflowActionSupport.UPDATE, "currencyId", currencyId, "baseVersionNo", current.getVersionNo(), "beforeCurrency", current, "afterCurrency", after), after));
+        if (!startWorkflow(buildStartBody(processKey, remark, PREFIX_CURRENCY + currencyId, BUSINESS_TYPE_CURRENCY, META_KEY_CURRENCY, buildMeta("action", MdmWorkflowActionSupport.UPDATE, "currencyId", currencyId, "baseVersionNo", current.getVersionNo(), "beforeCurrency", current, "afterCurrency", after), after))) {
+            throw new IllegalStateException("币种变更审批流程发起失败");
+        }
+        if (!updateCurrencyStatus(currencyId, current.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("币种状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
     @Override
@@ -182,7 +212,13 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         MdmCurrency after = new MdmCurrency();
         BeanUtils.copyProperties(current, after);
         after.setStatus(MdmStatusSupport.DISABLED);
-        return startWorkflow(buildStartBody(processKey, remark, PREFIX_CURRENCY + currencyId, BUSINESS_TYPE_CURRENCY, META_KEY_CURRENCY, buildMeta("action", MdmWorkflowActionSupport.DISABLE, "currencyId", currencyId, "baseVersionNo", current.getVersionNo(), "beforeCurrency", current, "afterCurrency", after), after));
+        if (!startWorkflow(buildStartBody(processKey, remark, PREFIX_CURRENCY + currencyId, BUSINESS_TYPE_CURRENCY, META_KEY_CURRENCY, buildMeta("action", MdmWorkflowActionSupport.DISABLE, "currencyId", currencyId, "baseVersionNo", current.getVersionNo(), "beforeCurrency", current, "afterCurrency", after), after))) {
+            throw new IllegalStateException("币种停用审批流程发起失败");
+        }
+        if (!updateCurrencyStatus(currencyId, current.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("币种状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
     @Override
@@ -204,7 +240,13 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         ensureActiveForFlow(current.getStatus(), "计量单位审批中，暂不允许提交新的变更", "仅已生效计量单位允许提交变更审批");
         ensureNoRunningWorkflow(BUSINESS_TYPE_UOM, PREFIX_UOM + uomId, "该计量单位已有审批流程在处理中");
         MdmUom after = normalizeUom(current, targetUom);
-        return startWorkflow(buildStartBody(processKey, remark, PREFIX_UOM + uomId, BUSINESS_TYPE_UOM, META_KEY_UOM, buildMeta("action", MdmWorkflowActionSupport.UPDATE, "uomId", uomId, "baseVersionNo", current.getVersionNo(), "beforeUom", current, "afterUom", after), after));
+        if (!startWorkflow(buildStartBody(processKey, remark, PREFIX_UOM + uomId, BUSINESS_TYPE_UOM, META_KEY_UOM, buildMeta("action", MdmWorkflowActionSupport.UPDATE, "uomId", uomId, "baseVersionNo", current.getVersionNo(), "beforeUom", current, "afterUom", after), after))) {
+            throw new IllegalStateException("计量单位变更审批流程发起失败");
+        }
+        if (!updateUomStatus(uomId, current.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("计量单位状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
     @Override
@@ -216,7 +258,13 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         MdmUom after = new MdmUom();
         BeanUtils.copyProperties(current, after);
         after.setStatus(MdmStatusSupport.DISABLED);
-        return startWorkflow(buildStartBody(processKey, remark, PREFIX_UOM + uomId, BUSINESS_TYPE_UOM, META_KEY_UOM, buildMeta("action", MdmWorkflowActionSupport.DISABLE, "uomId", uomId, "baseVersionNo", current.getVersionNo(), "beforeUom", current, "afterUom", after), after));
+        if (!startWorkflow(buildStartBody(processKey, remark, PREFIX_UOM + uomId, BUSINESS_TYPE_UOM, META_KEY_UOM, buildMeta("action", MdmWorkflowActionSupport.DISABLE, "uomId", uomId, "baseVersionNo", current.getVersionNo(), "beforeUom", current, "afterUom", after), after))) {
+            throw new IllegalStateException("计量单位停用审批流程发起失败");
+        }
+        if (!updateUomStatus(uomId, current.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("计量单位状态已变化，请刷新后重试");
+        }
+        return true;
     }
 
     private MdmSettleMethod loadSettleMethod(Long settleMethodId) {

@@ -3,8 +3,12 @@ package com.erp.system.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.erp.system.domain.HrEmployeeArchiveMirror;
+import com.erp.system.domain.HrEmployeeChangeMirror;
 import com.erp.system.domain.MdmEmployee;
 import com.erp.system.domain.SysWorkflowInstance;
+import com.erp.system.mapper.HrEmployeeArchiveMirrorMapper;
+import com.erp.system.mapper.HrEmployeeChangeMirrorMapper;
 import com.erp.system.mapper.MdmEmployeeMapper;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IWorkflowBusinessCallback;
@@ -29,14 +33,22 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
     private static final String DEL_FLAG_EXIST = "0";
     private static final String BUSINESS_TYPE = "MDM_EMPLOYEE";
     private static final String META_KEY = "__mdmEmployeeMeta";
+    private static final String HR_CHANGE_STATUS_APPROVED = "APPROVED";
+    private static final String HR_CHANGE_STATUS_REJECTED = "REJECTED";
 
     private final MdmEmployeeMapper employeeMapper;
+    private final HrEmployeeArchiveMirrorMapper archiveMirrorMapper;
+    private final HrEmployeeChangeMirrorMapper changeMirrorMapper;
     private final IMdmAuditTrailService auditTrailService;
     private final ObjectMapper objectMapper;
 
     public MdmEmployeeWorkflowCallbackServiceImpl(MdmEmployeeMapper employeeMapper,
+            HrEmployeeArchiveMirrorMapper archiveMirrorMapper,
+            HrEmployeeChangeMirrorMapper changeMirrorMapper,
             IMdmAuditTrailService auditTrailService) {
         this.employeeMapper = employeeMapper;
+        this.archiveMirrorMapper = archiveMirrorMapper;
+        this.changeMirrorMapper = changeMirrorMapper;
         this.auditTrailService = auditTrailService;
         this.objectMapper = new ObjectMapper();
     }
@@ -53,6 +65,8 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         String action = readString(meta.get("action"));
         Long employeeId = readLong(meta.get("employeeId"));
         Integer baseVersionNo = readInteger(meta.get("baseVersionNo"));
+        Long changeRecordId = readLong(meta.get("changeRecordId"));
+        String archivePayloadJson = readString(meta.get("archivePayloadJson"));
         if (employeeId == null || !StringUtils.hasText(action)) {
             return;
         }
@@ -62,6 +76,7 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         }
         if (MdmWorkflowActionSupport.UPDATE.equalsIgnoreCase(action)) {
             applyApprovedChange(employeeId, baseVersionNo, meta, instance);
+            applyApprovedHrChange(changeRecordId, archivePayloadJson, instance);
             return;
         }
         if (MdmWorkflowActionSupport.DISABLE.equalsIgnoreCase(action)) {
@@ -85,16 +100,23 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         Map<String, Object> meta = readMeta(instance);
         String action = readString(meta.get("action"));
         Long employeeId = readLong(meta.get("employeeId"));
-        if (!MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action) || employeeId == null) {
+        Long changeRecordId = readLong(meta.get("changeRecordId"));
+        if (employeeId == null) {
             return;
         }
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action)
+                ? MdmEmployeeStatusSupport.DRAFT
+                : MdmEmployeeStatusSupport.ACTIVE;
         employeeMapper.update(new MdmEmployee(), new LambdaUpdateWrapper<MdmEmployee>()
                 .eq(MdmEmployee::getEmployeeId, employeeId)
                 .eq(MdmEmployee::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmEmployee::getStatus, MdmEmployeeStatusSupport.SUBMITTED)
-                .set(MdmEmployee::getStatus, MdmEmployeeStatusSupport.DRAFT)
+                .set(MdmEmployee::getStatus, rollbackStatus)
                 .set(MdmEmployee::getUpdateBy, resolveOperator(instance))
                 .set(MdmEmployee::getUpdateTime, new Date()));
+        if (changeRecordId != null && MdmWorkflowActionSupport.UPDATE.equalsIgnoreCase(action)) {
+            markHrChangeRejected(changeRecordId, resolveOperator(instance));
+        }
     }
 
     private void activateEmployee(Long employeeId, Integer baseVersionNo, SysWorkflowInstance instance) {
@@ -108,7 +130,7 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("员工版本已变化，无法完成审批回写");
         }
-        employeeMapper.update(new MdmEmployee(), new LambdaUpdateWrapper<MdmEmployee>()
+        boolean updated = employeeMapper.update(new MdmEmployee(), new LambdaUpdateWrapper<MdmEmployee>()
                 .eq(MdmEmployee::getEmployeeId, employeeId)
                 .eq(MdmEmployee::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmEmployee::getStatus, MdmEmployeeStatusSupport.SUBMITTED)
@@ -116,7 +138,10 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
                 .set(MdmEmployee::getStatus, MdmEmployeeStatusSupport.ACTIVE)
                 .set(before.getEffectiveTime() == null, MdmEmployee::getEffectiveTime, new Date())
                 .set(MdmEmployee::getUpdateBy, resolveOperator(instance))
-                .set(MdmEmployee::getUpdateTime, new Date()));
+                .set(MdmEmployee::getUpdateTime, new Date())) > 0;
+        if (!updated) {
+            throw new IllegalStateException("员工状态已变化，无法完成审批回写");
+        }
         MdmEmployee after = loadEmployee(employeeId);
         auditTrailService.record(MdmDomainTypeSupport.EMPLOYEE,
                 employeeId,
@@ -135,6 +160,9 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         if (before == null) {
             throw new IllegalStateException("员工不存在，无法完成变更回写");
         }
+        if (!MdmEmployeeStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("员工状态已变化，请重新发起审批");
+        }
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("员工版本已变化，请重新发起审批");
         }
@@ -147,7 +175,7 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         updateEntity.setEmployeeId(employeeId);
         updateEntity.setTenantId(before.getTenantId());
         updateEntity.setEmpCode(before.getEmpCode());
-        updateEntity.setStatus(before.getStatus());
+        updateEntity.setStatus(MdmEmployeeStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
         updateEntity.setUpdateTime(new Date());
@@ -157,6 +185,7 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         boolean updated = employeeMapper.update(updateEntity, new LambdaUpdateWrapper<MdmEmployee>()
                 .eq(MdmEmployee::getEmployeeId, employeeId)
                 .eq(MdmEmployee::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmEmployee::getStatus, MdmEmployeeStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmEmployee::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("员工版本已变化，请重新发起审批");
@@ -176,6 +205,9 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         if (before == null) {
             throw new IllegalStateException("员工不存在，无法完成离职回写");
         }
+        if (!MdmEmployeeStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("员工状态已变化，请重新发起审批");
+        }
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("员工版本已变化，请重新发起审批");
         }
@@ -188,6 +220,7 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         boolean updated = employeeMapper.update(updateEntity, new LambdaUpdateWrapper<MdmEmployee>()
                 .eq(MdmEmployee::getEmployeeId, employeeId)
                 .eq(MdmEmployee::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmEmployee::getStatus, MdmEmployeeStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmEmployee::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("员工版本已变化，请重新发起审批");
@@ -245,6 +278,81 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
             return Integer.valueOf(String.valueOf(value));
         } catch (NumberFormatException ex) {
             return null;
+        }
+    }
+
+    /**
+     * 审批通过后回写 HR 扩展档案与异动状态。
+     *
+     * @param changeRecordId 异动记录ID
+     * @param archivePayloadJson 扩展档案JSON
+     * @param instance 流程实例
+     */
+    private void applyApprovedHrChange(Long changeRecordId, String archivePayloadJson, SysWorkflowInstance instance) {
+        if (changeRecordId == null) {
+            return;
+        }
+        HrEmployeeChangeMirror change = changeMirrorMapper.selectById(changeRecordId);
+        if (change == null) {
+            return;
+        }
+        if (StringUtils.hasText(archivePayloadJson)) {
+            HrEmployeeArchiveMirror archive = objectMapper.convertValue(readJsonMap(archivePayloadJson), HrEmployeeArchiveMirror.class);
+            if (archive != null) {
+                archive.setEmployeeId(change.getEmployeeId());
+                archive.setTenantId(change.getTenantId());
+                archive.setUpdateBy(resolveOperator(instance));
+                archive.setUpdateTime(new Date());
+                HrEmployeeArchiveMirror existed = archiveMirrorMapper.selectById(change.getEmployeeId());
+                if (existed == null) {
+                    archive.setCreateBy(resolveOperator(instance));
+                    archive.setCreateTime(new Date());
+                    archiveMirrorMapper.insert(archive);
+                } else {
+                    archive.setCreateBy(null);
+                    archive.setCreateTime(null);
+                    archiveMirrorMapper.updateById(archive);
+                }
+            }
+        }
+        HrEmployeeChangeMirror updateEntity = new HrEmployeeChangeMirror();
+        updateEntity.setChangeId(changeRecordId);
+        updateEntity.setStatus(HR_CHANGE_STATUS_APPROVED);
+        updateEntity.setUpdateBy(resolveOperator(instance));
+        updateEntity.setUpdateTime(new Date());
+        changeMirrorMapper.updateById(updateEntity);
+    }
+
+    /**
+     * 审批驳回时回写 HR 异动状态。
+     *
+     * @param changeRecordId 异动记录ID
+     * @param operator 操作人
+     */
+    private void markHrChangeRejected(Long changeRecordId, String operator) {
+        HrEmployeeChangeMirror updateEntity = new HrEmployeeChangeMirror();
+        updateEntity.setChangeId(changeRecordId);
+        updateEntity.setStatus(HR_CHANGE_STATUS_REJECTED);
+        updateEntity.setUpdateBy(operator);
+        updateEntity.setUpdateTime(new Date());
+        changeMirrorMapper.updateById(updateEntity);
+    }
+
+    /**
+     * 解析 JSON Map。
+     *
+     * @param json JSON 文本
+     * @return Map 结构
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> readJsonMap(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(json, Map.class);
+        } catch (Exception ex) {
+            throw new IllegalStateException("解析 HR 档案快照失败", ex);
         }
     }
 

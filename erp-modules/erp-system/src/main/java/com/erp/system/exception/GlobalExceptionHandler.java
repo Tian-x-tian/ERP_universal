@@ -2,6 +2,7 @@ package com.erp.system.exception;
 
 import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
+import com.erp.common.core.exception.ServiceException;
 import com.erp.system.config.ApiHttpStatusResolver;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -150,6 +151,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DuplicateKeyException.class)
     public ResponseEntity<R<Void>> handleDuplicateKeyException(DuplicateKeyException ex) {
         return buildErrorResponse(ResultCode.CONFLICT, ResultCode.CONFLICT.getMessage());
+    }
+
+    /**
+     * 处理业务服务异常，并透传约定业务码。
+     *
+     * @param ex 异常对象
+     * @return 统一错误响应
+     */
+    @ExceptionHandler(ServiceException.class)
+    public ResponseEntity<R<Void>> handleServiceException(ServiceException ex) {
+        int errorCode = Optional.ofNullable(ex.getCode()).orElse((int) ResultCode.ERROR.getCode());
+        String message = Optional.ofNullable(ex.getMessage()).orElse(ResultCode.ERROR.getMessage());
+        R<Void> body = R.custom(errorCode, message, null);
+        return ResponseEntity.status(ApiHttpStatusResolver.resolve(errorCode)).body(body);
     }
 
     /**

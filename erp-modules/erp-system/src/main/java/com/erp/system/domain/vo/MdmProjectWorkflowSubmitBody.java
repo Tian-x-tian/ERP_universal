@@ -11,6 +11,7 @@ public class MdmProjectWorkflowSubmitBody implements Serializable {
     private static final long serialVersionUID = 1L;
     private String processKey;
     private String remark;
+    private Integer versionNo;
     private MdmProject project;
 
     public String getProcessKey() {
@@ -27,6 +28,14 @@ public class MdmProjectWorkflowSubmitBody implements Serializable {
 
     public void setRemark(String remark) {
         this.remark = remark;
+    }
+
+    public Integer getVersionNo() {
+        return versionNo;
+    }
+
+    public void setVersionNo(Integer versionNo) {
+        this.versionNo = versionNo;
     }
 
     public MdmProject getProject() {

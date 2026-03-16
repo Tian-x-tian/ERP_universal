@@ -4,9 +4,12 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 角色信息对象 sys_role
@@ -84,16 +87,18 @@ public class SysRole implements Serializable {
         return menuIds;
     }
 
-    public void setMenuIds(List<Long> menuIds) {
-        this.menuIds = menuIds;
+    @JsonSetter("menuIds")
+    public void setMenuIds(List<?> menuIds) {
+        this.menuIds = parseIdList(menuIds);
     }
 
     public List<Long> getDeptIds() {
         return deptIds;
     }
 
-    public void setDeptIds(List<Long> deptIds) {
-        this.deptIds = deptIds;
+    @JsonSetter("deptIds")
+    public void setDeptIds(List<?> deptIds) {
+        this.deptIds = parseIdList(deptIds);
     }
 
     public String getRoleName() {
@@ -116,8 +121,9 @@ public class SysRole implements Serializable {
         return roleSort;
     }
 
-    public void setRoleSort(Integer roleSort) {
-        this.roleSort = roleSort;
+    @JsonSetter("roleSort")
+    public void setRoleSort(Object roleSort) {
+        this.roleSort = parseInteger(roleSort);
     }
 
     public String getDataScope() {
@@ -182,5 +188,94 @@ public class SysRole implements Serializable {
 
     public void setRemark(String remark) {
         this.remark = remark;
+    }
+
+    /**
+     * 将任意 ID 列表转换为 Long 列表，忽略空值和非数字元素。
+     *
+     * @param rawList 原始列表
+     * @return 解析后的 Long 列表
+     */
+    private List<Long> parseIdList(List<?> rawList) {
+        if (rawList == null) {
+            return null;
+        }
+        List<Long> parsed = new ArrayList<>();
+        for (Object item : rawList) {
+            Long value = parseLong(item);
+            if (value != null) {
+                parsed.add(value);
+            }
+        }
+        return parsed;
+    }
+
+    /**
+     * 将任意对象解析为 Long。
+     *
+     * @param value 原始值
+     * @return 解析后的 Long，解析失败返回 null
+     */
+    private Long parseLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof String) {
+            String text = ((String) value).trim();
+            if (text.isEmpty()) {
+                return null;
+            }
+            try {
+                return Long.parseLong(text);
+            } catch (NumberFormatException ex) {
+                return null;
+            }
+        }
+        if (value instanceof Map<?, ?> mapValue) {
+            Long nestedId = parseLong(mapValue.get("id"));
+            if (nestedId != null) {
+                return nestedId;
+            }
+            nestedId = parseLong(mapValue.get("menuId"));
+            if (nestedId != null) {
+                return nestedId;
+            }
+            nestedId = parseLong(mapValue.get("deptId"));
+            if (nestedId != null) {
+                return nestedId;
+            }
+            return parseLong(mapValue.get("value"));
+        }
+        return null;
+    }
+
+    /**
+     * 将任意对象解析为 Integer。
+     *
+     * @param value 原始值
+     * @return 解析后的 Integer，解析失败返回 null
+     */
+    private Integer parseInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        if (value instanceof String) {
+            String text = ((String) value).trim();
+            if (text.isEmpty()) {
+                return null;
+            }
+            try {
+                return Integer.parseInt(text);
+            } catch (NumberFormatException ex) {
+                return null;
+            }
+        }
+        return null;
     }
 }

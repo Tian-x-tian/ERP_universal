@@ -4,9 +4,10 @@ import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.MdmWarehouse;
 import com.erp.system.domain.vo.MdmWarehouseWorkflowSubmitBody;
+import com.erp.system.domain.vo.MdmVersionActionBody;
 import com.erp.system.service.IMdmWarehouseService;
 import com.erp.system.service.IMdmWarehouseWorkflowSubmitService;
-import com.erp.system.support.MdmPageSupport;
+import com.erp.system.support.MdmResponseSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,7 +49,7 @@ public class MdmWarehouseController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
             @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
-        return R.success(MdmPageSupport.paginate(warehouseService.selectWarehouseList(whCode, whName, status), pageNum, pageSize));
+        return MdmResponseSupport.page(warehouseService.selectWarehouseList(whCode, whName, status), pageNum, pageSize);
     }
 
     /**
@@ -104,8 +105,9 @@ public class MdmWarehouseController {
      */
     @PostMapping("/disable/{warehouseId}")
     @PreAuthorize("@ss.hasPermi('system:mdm:warehouse:disable')")
-    public R<Boolean> disable(@PathVariable("warehouseId") Long warehouseId) {
-        boolean success = warehouseService.disableWarehouse(warehouseId);
+    public R<Boolean> disable(@PathVariable("warehouseId") Long warehouseId,
+                              @RequestBody(required = false) MdmVersionActionBody actionBody) {
+        boolean success = warehouseService.disableWarehouse(warehouseId, actionBody == null ? null : actionBody.getVersionNo());
         return success ? R.success(true) : R.failed("停用仓库失败");
     }
 
@@ -122,6 +124,7 @@ public class MdmWarehouseController {
             @RequestBody MdmWarehouseWorkflowSubmitBody submitBody) {
         boolean success = warehouseWorkflowSubmitService.submitDraftActivation(
                 warehouseId,
+                submitBody == null ? null : submitBody.getVersionNo(),
                 submitBody == null ? null : submitBody.getProcessKey(),
                 submitBody == null ? null : submitBody.getRemark());
         return success ? R.success(true) : R.failed("提交仓库审批失败");
@@ -140,6 +143,7 @@ public class MdmWarehouseController {
             @RequestBody MdmWarehouseWorkflowSubmitBody submitBody) {
         boolean success = warehouseWorkflowSubmitService.submitChange(
                 warehouseId,
+                submitBody == null ? null : submitBody.getVersionNo(),
                 submitBody == null ? null : submitBody.getWarehouse(),
                 submitBody == null ? null : submitBody.getProcessKey(),
                 submitBody == null ? null : submitBody.getRemark());
@@ -159,6 +163,7 @@ public class MdmWarehouseController {
             @RequestBody MdmWarehouseWorkflowSubmitBody submitBody) {
         boolean success = warehouseWorkflowSubmitService.submitDisable(
                 warehouseId,
+                submitBody == null ? null : submitBody.getVersionNo(),
                 submitBody == null ? null : submitBody.getProcessKey(),
                 submitBody == null ? null : submitBody.getRemark());
         return success ? R.success(true) : R.failed("提交仓库停用审批失败");
@@ -172,8 +177,9 @@ public class MdmWarehouseController {
      */
     @DeleteMapping("/{warehouseId}")
     @PreAuthorize("@ss.hasPermi('system:mdm:warehouse:remove')")
-    public R<Boolean> remove(@PathVariable("warehouseId") Long warehouseId) {
-        boolean success = warehouseService.removeWarehouse(warehouseId);
+    public R<Boolean> remove(@PathVariable("warehouseId") Long warehouseId,
+                             @RequestBody(required = false) MdmVersionActionBody actionBody) {
+        boolean success = warehouseService.removeWarehouse(warehouseId, actionBody == null ? null : actionBody.getVersionNo());
         return success ? R.success(true) : R.failed("删除仓库失败，仅草稿状态允许删除");
     }
 }

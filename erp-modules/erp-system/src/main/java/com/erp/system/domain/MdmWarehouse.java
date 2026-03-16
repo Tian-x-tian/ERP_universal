@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Date;
 
 /**
@@ -21,9 +22,15 @@ public class MdmWarehouse implements Serializable {
     private String whName;
     private String whType;
     private Long orgId;
+    private Long accountingOrgId;
     private String address;
     private Long managerEmpId;
     private String allowNegativeStock;
+    private BigDecimal volumeCapacity;
+    private BigDecimal weightCapacity;
+    private String temperatureZone;
+    private String hazardousFlag;
+    private String locationCodePrefix;
     private String status;
     private Date effectiveTime;
     private Integer versionNo;
@@ -83,6 +90,14 @@ public class MdmWarehouse implements Serializable {
         this.orgId = orgId;
     }
 
+    public Long getAccountingOrgId() {
+        return accountingOrgId;
+    }
+
+    public void setAccountingOrgId(Long accountingOrgId) {
+        this.accountingOrgId = accountingOrgId;
+    }
+
     public String getAddress() {
         return address;
     }
@@ -105,6 +120,46 @@ public class MdmWarehouse implements Serializable {
 
     public void setAllowNegativeStock(String allowNegativeStock) {
         this.allowNegativeStock = allowNegativeStock;
+    }
+
+    public BigDecimal getVolumeCapacity() {
+        return volumeCapacity;
+    }
+
+    public void setVolumeCapacity(BigDecimal volumeCapacity) {
+        this.volumeCapacity = volumeCapacity;
+    }
+
+    public BigDecimal getWeightCapacity() {
+        return weightCapacity;
+    }
+
+    public void setWeightCapacity(BigDecimal weightCapacity) {
+        this.weightCapacity = weightCapacity;
+    }
+
+    public String getTemperatureZone() {
+        return temperatureZone;
+    }
+
+    public void setTemperatureZone(String temperatureZone) {
+        this.temperatureZone = temperatureZone;
+    }
+
+    public String getHazardousFlag() {
+        return hazardousFlag;
+    }
+
+    public void setHazardousFlag(String hazardousFlag) {
+        this.hazardousFlag = hazardousFlag;
+    }
+
+    public String getLocationCodePrefix() {
+        return locationCodePrefix;
+    }
+
+    public void setLocationCodePrefix(String locationCodePrefix) {
+        this.locationCodePrefix = locationCodePrefix;
     }
 
     public String getStatus() {

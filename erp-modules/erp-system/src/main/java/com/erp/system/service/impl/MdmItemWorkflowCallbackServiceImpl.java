@@ -86,14 +86,17 @@ public class MdmItemWorkflowCallbackServiceImpl implements IWorkflowBusinessCall
         Map<String, Object> meta = readMeta(instance);
         String action = readString(meta.get("action"));
         Long itemId = readLong(meta.get("itemId"));
-        if (!MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action) || itemId == null) {
+        if (itemId == null) {
             return;
         }
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action)
+                ? MdmStatusSupport.DRAFT
+                : MdmStatusSupport.ACTIVE;
         itemMapper.update(new MdmItem(), new LambdaUpdateWrapper<MdmItem>()
                 .eq(MdmItem::getItemId, itemId)
                 .eq(MdmItem::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmItem::getStatus, MdmStatusSupport.SUBMITTED)
-                .set(MdmItem::getStatus, MdmStatusSupport.DRAFT)
+                .set(MdmItem::getStatus, rollbackStatus)
                 .set(MdmItem::getUpdateBy, resolveOperator(instance))
                 .set(MdmItem::getUpdateTime, new Date()));
     }
@@ -109,7 +112,7 @@ public class MdmItemWorkflowCallbackServiceImpl implements IWorkflowBusinessCall
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("物料版本已变化，无法完成审批回写");
         }
-        itemMapper.update(new MdmItem(), new LambdaUpdateWrapper<MdmItem>()
+        boolean updated = itemMapper.update(new MdmItem(), new LambdaUpdateWrapper<MdmItem>()
                 .eq(MdmItem::getItemId, itemId)
                 .eq(MdmItem::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmItem::getStatus, MdmStatusSupport.SUBMITTED)
@@ -117,7 +120,10 @@ public class MdmItemWorkflowCallbackServiceImpl implements IWorkflowBusinessCall
                 .set(MdmItem::getStatus, MdmStatusSupport.ACTIVE)
                 .set(before.getEffectiveTime() == null, MdmItem::getEffectiveTime, new Date())
                 .set(MdmItem::getUpdateBy, resolveOperator(instance))
-                .set(MdmItem::getUpdateTime, new Date()));
+                .set(MdmItem::getUpdateTime, new Date())) > 0;
+        if (!updated) {
+            throw new IllegalStateException("物料状态已变化，无法完成审批回写");
+        }
         MdmItem after = loadItem(itemId);
         auditTrailService.record(MdmDomainTypeSupport.ITEM,
                 itemId,
@@ -136,6 +142,9 @@ public class MdmItemWorkflowCallbackServiceImpl implements IWorkflowBusinessCall
         if (before == null) {
             throw new IllegalStateException("物料不存在，无法完成变更回写");
         }
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("物料状态已变化，请重新发起审批");
+        }
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("物料版本已变化，请重新发起审批");
         }
@@ -148,7 +157,7 @@ public class MdmItemWorkflowCallbackServiceImpl implements IWorkflowBusinessCall
         updateEntity.setItemId(itemId);
         updateEntity.setTenantId(before.getTenantId());
         updateEntity.setItemCode(before.getItemCode());
-        updateEntity.setStatus(before.getStatus());
+        updateEntity.setStatus(MdmStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
         updateEntity.setUpdateTime(new Date());
@@ -158,6 +167,7 @@ public class MdmItemWorkflowCallbackServiceImpl implements IWorkflowBusinessCall
         boolean updated = itemMapper.update(updateEntity, new LambdaUpdateWrapper<MdmItem>()
                 .eq(MdmItem::getItemId, itemId)
                 .eq(MdmItem::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmItem::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmItem::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("物料版本已变化，请重新发起审批");
@@ -177,6 +187,9 @@ public class MdmItemWorkflowCallbackServiceImpl implements IWorkflowBusinessCall
         if (before == null) {
             throw new IllegalStateException("物料不存在，无法完成停用回写");
         }
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("物料状态已变化，请重新发起审批");
+        }
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("物料版本已变化，请重新发起审批");
         }
@@ -189,6 +202,7 @@ public class MdmItemWorkflowCallbackServiceImpl implements IWorkflowBusinessCall
         boolean updated = itemMapper.update(updateEntity, new LambdaUpdateWrapper<MdmItem>()
                 .eq(MdmItem::getItemId, itemId)
                 .eq(MdmItem::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmItem::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmItem::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("物料版本已变化，请重新发起审批");

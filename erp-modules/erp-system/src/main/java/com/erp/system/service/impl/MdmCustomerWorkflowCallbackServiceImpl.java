@@ -112,14 +112,17 @@ public class MdmCustomerWorkflowCallbackServiceImpl implements IWorkflowBusiness
         Map<String, Object> meta = readMeta(instance);
         String action = readString(meta.get("action"));
         Long customerId = readLong(meta.get("customerId"));
-        if (!MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action) || customerId == null) {
+        if (customerId == null) {
             return;
         }
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action)
+                ? MdmStatusSupport.DRAFT
+                : MdmStatusSupport.ACTIVE;
         customerMapper.update(new MdmCustomer(), new LambdaUpdateWrapper<MdmCustomer>()
                 .eq(MdmCustomer::getCustomerId, customerId)
                 .eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmCustomer::getStatus, MdmStatusSupport.SUBMITTED)
-                .set(MdmCustomer::getStatus, MdmStatusSupport.DRAFT)
+                .set(MdmCustomer::getStatus, rollbackStatus)
                 .set(MdmCustomer::getUpdateBy, resolveOperator(instance))
                 .set(MdmCustomer::getUpdateTime, new Date()));
     }
@@ -142,7 +145,7 @@ public class MdmCustomerWorkflowCallbackServiceImpl implements IWorkflowBusiness
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("客户版本已变化，无法完成审批回写");
         }
-        customerMapper.update(new MdmCustomer(), new LambdaUpdateWrapper<MdmCustomer>()
+        boolean updated = customerMapper.update(new MdmCustomer(), new LambdaUpdateWrapper<MdmCustomer>()
                 .eq(MdmCustomer::getCustomerId, customerId)
                 .eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmCustomer::getStatus, MdmStatusSupport.SUBMITTED)
@@ -150,7 +153,10 @@ public class MdmCustomerWorkflowCallbackServiceImpl implements IWorkflowBusiness
                 .set(MdmCustomer::getStatus, MdmStatusSupport.ACTIVE)
                 .set(before.getEffectiveTime() == null, MdmCustomer::getEffectiveTime, new Date())
                 .set(MdmCustomer::getUpdateBy, resolveOperator(instance))
-                .set(MdmCustomer::getUpdateTime, new Date()));
+                .set(MdmCustomer::getUpdateTime, new Date())) > 0;
+        if (!updated) {
+            throw new IllegalStateException("客户状态已变化，无法完成审批回写");
+        }
         MdmCustomer after = loadCustomer(customerId);
         auditTrailService.record(MdmDomainTypeSupport.CUSTOMER,
                 customerId,
@@ -177,6 +183,9 @@ public class MdmCustomerWorkflowCallbackServiceImpl implements IWorkflowBusiness
         if (before == null) {
             throw new IllegalStateException("客户不存在，无法完成变更回写");
         }
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("客户状态已变化，请重新发起审批");
+        }
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("客户版本已变化，请重新发起审批");
         }
@@ -189,7 +198,7 @@ public class MdmCustomerWorkflowCallbackServiceImpl implements IWorkflowBusiness
         updateEntity.setCustomerId(customerId);
         updateEntity.setTenantId(before.getTenantId());
         updateEntity.setCustomerCode(before.getCustomerCode());
-        updateEntity.setStatus(before.getStatus());
+        updateEntity.setStatus(MdmStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
         updateEntity.setUpdateTime(new Date());
@@ -199,6 +208,7 @@ public class MdmCustomerWorkflowCallbackServiceImpl implements IWorkflowBusiness
         boolean updated = customerMapper.update(updateEntity, new LambdaUpdateWrapper<MdmCustomer>()
                 .eq(MdmCustomer::getCustomerId, customerId)
                 .eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmCustomer::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmCustomer::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("客户版本已变化，请重新发起审批");
@@ -225,6 +235,9 @@ public class MdmCustomerWorkflowCallbackServiceImpl implements IWorkflowBusiness
         if (before == null) {
             throw new IllegalStateException("客户不存在，无法完成停用回写");
         }
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("客户状态已变化，请重新发起审批");
+        }
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("客户版本已变化，请重新发起审批");
         }
@@ -237,6 +250,7 @@ public class MdmCustomerWorkflowCallbackServiceImpl implements IWorkflowBusiness
         boolean updated = customerMapper.update(updateEntity, new LambdaUpdateWrapper<MdmCustomer>()
                 .eq(MdmCustomer::getCustomerId, customerId)
                 .eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmCustomer::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmCustomer::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("客户版本已变化，请重新发起审批");

@@ -45,3 +45,7 @@ spring:
           uri: lb://erp-system
           predicates:
             - Path=/system/**
+        - id: erp-business
+          uri: lb://erp-business
+          predicates:
+            - Path=/business/**

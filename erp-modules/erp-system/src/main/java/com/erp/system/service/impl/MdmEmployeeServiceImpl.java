@@ -24,6 +24,7 @@ import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmEmployeeStatusSupport;
+import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.TenantWriteGuard;
 import org.springframework.beans.BeanUtils;
@@ -172,6 +173,10 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         if (!MdmEmployeeStatusSupport.isDraft(existed.getStatus())) {
             throw new IllegalStateException("已生效员工请通过审批流程提交变更");
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(
+                employee.getVersionNo(),
+                existed.getVersionNo(),
+                "员工");
         if (StringUtils.hasText(employee.getEmpCode())) {
             String empCode = employee.getEmpCode().trim();
             if (existsEmpCode(empCode, employee.getEmployeeId())) {
@@ -199,7 +204,7 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         employee.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         employee.setUpdateBy(resolveOperator());
         employee.setUpdateTime(new Date());
-        boolean updated = updateEmployeeByVersion(employee, existed.getVersionNo());
+        boolean updated = updateEmployeeByVersion(employee, expectedVersionNo);
         if (updated) {
             MdmEmployee after = getById(employee.getEmployeeId());
             auditTrailService.record(MdmDomainTypeSupport.EMPLOYEE,
@@ -221,7 +226,7 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean leaveEmployee(Long employeeId) {
+    public boolean leaveEmployee(Long employeeId, Integer versionNo) {
         if (employeeId == null) {
             return false;
         }
@@ -243,13 +248,14 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         if (MdmEmployeeStatusSupport.isLeave(existed.getStatus())) {
             return true;
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(versionNo, existed.getVersionNo(), "员工");
         MdmEmployee updateEntity = new MdmEmployee();
         updateEntity.setEmployeeId(employeeId);
         updateEntity.setStatus(MdmEmployeeStatusSupport.LEAVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateEmployeeByVersion(updateEntity, existed.getVersionNo());
+        boolean updated = updateEmployeeByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             MdmEmployee after = getById(employeeId);
             auditTrailService.record(MdmDomainTypeSupport.EMPLOYEE,
@@ -271,16 +277,13 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean removeEmployee(Long employeeId) {
+    public boolean removeEmployee(Long employeeId, Integer versionNo) {
         if (employeeId == null) {
             return false;
         }
 
         referenceCheckService.check(MdmDomainTypeSupport.EMPLOYEE, employeeId);
 
-        if (isReferenced(employeeId)) {
-            throw new IllegalStateException("员工已被仓库或项目引用，不能删除");
-        }
         MdmEmployee existed = getOne(new LambdaQueryWrapper<MdmEmployee>()
                 .eq(MdmEmployee::getEmployeeId, employeeId)
                 .eq(MdmEmployee::getDelFlag, DEL_FLAG_EXIST));
@@ -294,13 +297,14 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
                 && !MdmEmployeeStatusSupport.isLeave(existed.getStatus())) {
             return false;
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(versionNo, existed.getVersionNo(), "员工");
         MdmEmployee updateEntity = new MdmEmployee();
         updateEntity.setEmployeeId(employeeId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateEmployeeByVersion(updateEntity, existed.getVersionNo());
+        boolean updated = updateEmployeeByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.EMPLOYEE,
                     employeeId,
@@ -408,29 +412,6 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
      * @param employeeId 员工ID
      * @return true 表示已引用
      */
-    private boolean isReferenced(Long employeeId) {
-        if (employeeId == null) {
-            return false;
-        }
-        Long warehouseCount = warehouseMapper.selectCount(new LambdaQueryWrapper<MdmWarehouse>()
-                .eq(MdmWarehouse::getManagerEmpId, employeeId)
-                .eq(MdmWarehouse::getDelFlag, DEL_FLAG_EXIST));
-        if (warehouseCount != null && warehouseCount > 0) {
-            return true;
-        }
-        Long projectCount = projectMapper.selectCount(new LambdaQueryWrapper<MdmProject>()
-                .eq(MdmProject::getManagerEmpId, employeeId)
-                .eq(MdmProject::getDelFlag, DEL_FLAG_EXIST));
-        return projectCount != null && projectCount > 0;
-    }
-
-    /**
-     * 按版本号执行乐观锁更新。
-     *
-     * @param employee         更新对象
-     * @param currentVersionNo 当前版本号
-     * @return true 表示更新成功
-     */
     private boolean updateEmployeeByVersion(MdmEmployee employee, Integer currentVersionNo) {
         if (employee == null || employee.getEmployeeId() == null) {
             return false;
@@ -442,9 +423,7 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
             updateWrapper.eq(MdmEmployee::getVersionNo, currentVersionNo);
         }
         boolean updated = update(employee, updateWrapper);
-        if (!updated) {
-            throw new IllegalStateException("员工数据已被其他人更新，请刷新后重试");
-        }
+        MdmOptimisticLockSupport.ensureUpdated(updated, "员工");
         return updated;
     }
 

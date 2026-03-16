@@ -16,6 +16,9 @@ public class MdmItemWorkflowSubmitBody implements Serializable {
     /** 提交备注 */
     private String remark;
 
+    /** 当前版本号 */
+    private Integer versionNo;
+
     /** 变更后的物料数据 */
     private MdmItem item;
 
@@ -34,6 +37,14 @@ public class MdmItemWorkflowSubmitBody implements Serializable {
 
     public void setRemark(String remark) {
         this.remark = remark;
+    }
+
+    public Integer getVersionNo() {
+        return versionNo;
+    }
+
+    public void setVersionNo(Integer versionNo) {
+        this.versionNo = versionNo;
     }
 
     public MdmItem getItem() {

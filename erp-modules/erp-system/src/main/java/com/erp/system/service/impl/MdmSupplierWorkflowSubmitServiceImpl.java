@@ -15,6 +15,7 @@ import com.erp.system.service.IMdmSupplierService;
 import com.erp.system.service.IMdmSupplierWorkflowSubmitService;
 import com.erp.system.service.ISysUserService;
 import com.erp.system.service.ISysWorkflowEngineService;
+import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmStatusSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.MdmWorkflowActionSupport;
@@ -60,8 +61,9 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitDraftActivation(Long supplierId, String processKey, String remark) {
+    public boolean submitDraftActivation(Long supplierId, Integer versionNo, String processKey, String remark) {
         MdmSupplier supplier = loadEditableSupplier(supplierId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, supplier.getVersionNo(), "供应商");
         if (!MdmStatusSupport.isDraft(supplier.getStatus())) {
             throw new IllegalStateException("仅草稿供应商允许提交生效审批");
         }
@@ -87,8 +89,9 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitChange(Long supplierId, MdmSupplier targetSupplier, String processKey, String remark) {
+    public boolean submitChange(Long supplierId, Integer versionNo, MdmSupplier targetSupplier, String processKey, String remark) {
         MdmSupplier currentSupplier = loadEditableSupplier(supplierId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, currentSupplier.getVersionNo(), "供应商");
         if (MdmStatusSupport.isSubmitted(currentSupplier.getStatus())) {
             throw new IllegalStateException("供应商审批中，暂不允许提交新的变更");
         }
@@ -110,13 +113,17 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
         if (!startWorkflow(startBody)) {
             throw new IllegalStateException("供应商变更审批流程发起失败");
         }
+        if (!updateSupplierStatus(supplierId, currentSupplier.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("供应商状态已变化，请刷新后重试");
+        }
         return true;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitDisable(Long supplierId, String processKey, String remark) {
+    public boolean submitDisable(Long supplierId, Integer versionNo, String processKey, String remark) {
         MdmSupplier currentSupplier = loadEditableSupplier(supplierId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, currentSupplier.getVersionNo(), "供应商");
         if (MdmStatusSupport.isSubmitted(currentSupplier.getStatus())) {
             throw new IllegalStateException("供应商审批中，暂不允许提交停用");
         }
@@ -139,6 +146,9 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
                 afterSupplier);
         if (!startWorkflow(startBody)) {
             throw new IllegalStateException("供应商停用审批流程发起失败");
+        }
+        if (!updateSupplierStatus(supplierId, currentSupplier.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("供应商状态已变化，请刷新后重试");
         }
         return true;
     }

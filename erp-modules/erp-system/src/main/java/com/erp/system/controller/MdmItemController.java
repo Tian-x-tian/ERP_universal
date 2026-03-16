@@ -4,9 +4,10 @@ import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
 import com.erp.system.domain.MdmItem;
 import com.erp.system.domain.vo.MdmItemWorkflowSubmitBody;
+import com.erp.system.domain.vo.MdmVersionActionBody;
 import com.erp.system.service.IMdmItemService;
 import com.erp.system.service.IMdmItemWorkflowSubmitService;
-import com.erp.system.support.MdmPageSupport;
+import com.erp.system.support.MdmResponseSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,7 +49,7 @@ public class MdmItemController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "pageNum", required = false, defaultValue = "1") Long pageNum,
             @RequestParam(value = "pageSize", required = false, defaultValue = "20") Long pageSize) {
-        return R.success(MdmPageSupport.paginate(itemService.selectItemList(itemCode, itemName, status), pageNum, pageSize));
+        return MdmResponseSupport.page(itemService.selectItemList(itemCode, itemName, status), pageNum, pageSize);
     }
 
     /**
@@ -104,8 +105,9 @@ public class MdmItemController {
      */
     @PostMapping("/disable/{itemId}")
     @PreAuthorize("@ss.hasPermi('system:mdm:item:disable')")
-    public R<Boolean> disable(@PathVariable("itemId") Long itemId) {
-        boolean success = itemService.disableItem(itemId);
+    public R<Boolean> disable(@PathVariable("itemId") Long itemId,
+                              @RequestBody(required = false) MdmVersionActionBody actionBody) {
+        boolean success = itemService.disableItem(itemId, actionBody == null ? null : actionBody.getVersionNo());
         return success ? R.success(true) : R.failed("停用物料失败");
     }
 
@@ -122,6 +124,7 @@ public class MdmItemController {
                              @RequestBody MdmItemWorkflowSubmitBody submitBody) {
         boolean success = itemWorkflowSubmitService.submitDraftActivation(
                 itemId,
+                submitBody == null ? null : submitBody.getVersionNo(),
                 submitBody == null ? null : submitBody.getProcessKey(),
                 submitBody == null ? null : submitBody.getRemark());
         return success ? R.success(true) : R.failed("提交物料审批失败");
@@ -140,6 +143,7 @@ public class MdmItemController {
                                    @RequestBody MdmItemWorkflowSubmitBody submitBody) {
         boolean success = itemWorkflowSubmitService.submitChange(
                 itemId,
+                submitBody == null ? null : submitBody.getVersionNo(),
                 submitBody == null ? null : submitBody.getItem(),
                 submitBody == null ? null : submitBody.getProcessKey(),
                 submitBody == null ? null : submitBody.getRemark());
@@ -159,6 +163,7 @@ public class MdmItemController {
                                     @RequestBody MdmItemWorkflowSubmitBody submitBody) {
         boolean success = itemWorkflowSubmitService.submitDisable(
                 itemId,
+                submitBody == null ? null : submitBody.getVersionNo(),
                 submitBody == null ? null : submitBody.getProcessKey(),
                 submitBody == null ? null : submitBody.getRemark());
         return success ? R.success(true) : R.failed("提交物料停用审批失败");
@@ -172,8 +177,9 @@ public class MdmItemController {
      */
     @DeleteMapping("/{itemId}")
     @PreAuthorize("@ss.hasPermi('system:mdm:item:remove')")
-    public R<Boolean> remove(@PathVariable("itemId") Long itemId) {
-        boolean success = itemService.removeItem(itemId);
+    public R<Boolean> remove(@PathVariable("itemId") Long itemId,
+                             @RequestBody(required = false) MdmVersionActionBody actionBody) {
+        boolean success = itemService.removeItem(itemId, actionBody == null ? null : actionBody.getVersionNo());
         return success ? R.success(true) : R.failed("删除物料失败，仅草稿状态允许删除");
     }
 }

@@ -86,14 +86,17 @@ public class MdmSupplierWorkflowCallbackServiceImpl implements IWorkflowBusiness
         Map<String, Object> meta = readMeta(instance);
         String action = readString(meta.get("action"));
         Long supplierId = readLong(meta.get("supplierId"));
-        if (!MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action) || supplierId == null) {
+        if (supplierId == null) {
             return;
         }
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action)
+                ? MdmStatusSupport.DRAFT
+                : MdmStatusSupport.ACTIVE;
         supplierMapper.update(new MdmSupplier(), new LambdaUpdateWrapper<MdmSupplier>()
                 .eq(MdmSupplier::getSupplierId, supplierId)
                 .eq(MdmSupplier::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmSupplier::getStatus, MdmStatusSupport.SUBMITTED)
-                .set(MdmSupplier::getStatus, MdmStatusSupport.DRAFT)
+                .set(MdmSupplier::getStatus, rollbackStatus)
                 .set(MdmSupplier::getUpdateBy, resolveOperator(instance))
                 .set(MdmSupplier::getUpdateTime, new Date()));
     }
@@ -109,7 +112,7 @@ public class MdmSupplierWorkflowCallbackServiceImpl implements IWorkflowBusiness
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("供应商版本已变化，无法完成审批回写");
         }
-        supplierMapper.update(new MdmSupplier(), new LambdaUpdateWrapper<MdmSupplier>()
+        boolean updated = supplierMapper.update(new MdmSupplier(), new LambdaUpdateWrapper<MdmSupplier>()
                 .eq(MdmSupplier::getSupplierId, supplierId)
                 .eq(MdmSupplier::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmSupplier::getStatus, MdmStatusSupport.SUBMITTED)
@@ -117,7 +120,10 @@ public class MdmSupplierWorkflowCallbackServiceImpl implements IWorkflowBusiness
                 .set(MdmSupplier::getStatus, MdmStatusSupport.ACTIVE)
                 .set(before.getEffectiveTime() == null, MdmSupplier::getEffectiveTime, new Date())
                 .set(MdmSupplier::getUpdateBy, resolveOperator(instance))
-                .set(MdmSupplier::getUpdateTime, new Date()));
+                .set(MdmSupplier::getUpdateTime, new Date())) > 0;
+        if (!updated) {
+            throw new IllegalStateException("供应商状态已变化，无法完成审批回写");
+        }
         MdmSupplier after = loadSupplier(supplierId);
         auditTrailService.record(MdmDomainTypeSupport.SUPPLIER,
                 supplierId,
@@ -136,6 +142,9 @@ public class MdmSupplierWorkflowCallbackServiceImpl implements IWorkflowBusiness
         if (before == null) {
             throw new IllegalStateException("供应商不存在，无法完成变更回写");
         }
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("供应商状态已变化，请重新发起审批");
+        }
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("供应商版本已变化，请重新发起审批");
         }
@@ -148,7 +157,7 @@ public class MdmSupplierWorkflowCallbackServiceImpl implements IWorkflowBusiness
         updateEntity.setSupplierId(supplierId);
         updateEntity.setTenantId(before.getTenantId());
         updateEntity.setSupplierCode(before.getSupplierCode());
-        updateEntity.setStatus(before.getStatus());
+        updateEntity.setStatus(MdmStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
         updateEntity.setUpdateTime(new Date());
@@ -158,6 +167,7 @@ public class MdmSupplierWorkflowCallbackServiceImpl implements IWorkflowBusiness
         boolean updated = supplierMapper.update(updateEntity, new LambdaUpdateWrapper<MdmSupplier>()
                 .eq(MdmSupplier::getSupplierId, supplierId)
                 .eq(MdmSupplier::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmSupplier::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmSupplier::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("供应商版本已变化，请重新发起审批");
@@ -177,6 +187,9 @@ public class MdmSupplierWorkflowCallbackServiceImpl implements IWorkflowBusiness
         if (before == null) {
             throw new IllegalStateException("供应商不存在，无法完成停用回写");
         }
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("供应商状态已变化，请重新发起审批");
+        }
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("供应商版本已变化，请重新发起审批");
         }
@@ -189,6 +202,7 @@ public class MdmSupplierWorkflowCallbackServiceImpl implements IWorkflowBusiness
         boolean updated = supplierMapper.update(updateEntity, new LambdaUpdateWrapper<MdmSupplier>()
                 .eq(MdmSupplier::getSupplierId, supplierId)
                 .eq(MdmSupplier::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmSupplier::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmSupplier::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("供应商版本已变化，请重新发起审批");

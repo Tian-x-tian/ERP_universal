@@ -42,7 +42,7 @@ public interface IMdmEmployeeService extends IService<MdmEmployee> {
      * @param employeeId 员工ID
      * @return true 表示成功
      */
-    boolean leaveEmployee(Long employeeId);
+    boolean leaveEmployee(Long employeeId, Integer versionNo);
 
     /**
      * 删除员工（逻辑删除）。
@@ -50,5 +50,5 @@ public interface IMdmEmployeeService extends IService<MdmEmployee> {
      * @param employeeId 员工ID
      * @return true 表示成功
      */
-    boolean removeEmployee(Long employeeId);
+    boolean removeEmployee(Long employeeId, Integer versionNo);
 }

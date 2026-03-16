@@ -20,6 +20,7 @@ import com.erp.system.service.IMdmWarehouseWorkflowSubmitService;
 import com.erp.system.service.ISysUserService;
 import com.erp.system.service.ISysWorkflowEngineService;
 import com.erp.system.support.MdmEmployeeStatusSupport;
+import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmStatusSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.MdmWorkflowActionSupport;
@@ -71,8 +72,9 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitDraftActivation(Long warehouseId, String processKey, String remark) {
+    public boolean submitDraftActivation(Long warehouseId, Integer versionNo, String processKey, String remark) {
         MdmWarehouse warehouse = loadEditableWarehouse(warehouseId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, warehouse.getVersionNo(), "仓库");
         if (!MdmStatusSupport.isDraft(warehouse.getStatus())) {
             throw new IllegalStateException("仅草稿仓库允许提交生效审批");
         }
@@ -98,8 +100,9 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitChange(Long warehouseId, MdmWarehouse targetWarehouse, String processKey, String remark) {
+    public boolean submitChange(Long warehouseId, Integer versionNo, MdmWarehouse targetWarehouse, String processKey, String remark) {
         MdmWarehouse currentWarehouse = loadEditableWarehouse(warehouseId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, currentWarehouse.getVersionNo(), "仓库");
         if (MdmStatusSupport.isSubmitted(currentWarehouse.getStatus())) {
             throw new IllegalStateException("仓库审批中，暂不允许提交新的变更");
         }
@@ -121,13 +124,17 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
         if (!startWorkflow(startBody)) {
             throw new IllegalStateException("仓库变更审批流程发起失败");
         }
+        if (!updateWarehouseStatus(warehouseId, currentWarehouse.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("仓库状态已变化，请刷新后重试");
+        }
         return true;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitDisable(Long warehouseId, String processKey, String remark) {
+    public boolean submitDisable(Long warehouseId, Integer versionNo, String processKey, String remark) {
         MdmWarehouse currentWarehouse = loadEditableWarehouse(warehouseId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, currentWarehouse.getVersionNo(), "仓库");
         if (MdmStatusSupport.isSubmitted(currentWarehouse.getStatus())) {
             throw new IllegalStateException("仓库审批中，暂不允许提交停用");
         }
@@ -150,6 +157,9 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
                 afterWarehouse);
         if (!startWorkflow(startBody)) {
             throw new IllegalStateException("仓库停用审批流程发起失败");
+        }
+        if (!updateWarehouseStatus(warehouseId, currentWarehouse.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("仓库状态已变化，请刷新后重试");
         }
         return true;
     }

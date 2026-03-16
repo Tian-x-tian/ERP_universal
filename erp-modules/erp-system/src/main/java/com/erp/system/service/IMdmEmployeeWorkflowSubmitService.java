@@ -15,7 +15,7 @@ public interface IMdmEmployeeWorkflowSubmitService {
      * @param remark 提交备注
      * @return true 表示提交成功
      */
-    boolean submitDraftActivation(Long employeeId, String processKey, String remark);
+    boolean submitDraftActivation(Long employeeId, Integer versionNo, String processKey, String remark);
 
     /**
      * 提交员工变更审批。
@@ -26,7 +26,13 @@ public interface IMdmEmployeeWorkflowSubmitService {
      * @param remark 提交备注
      * @return true 表示提交成功
      */
-    boolean submitChange(Long employeeId, MdmEmployee targetEmployee, String processKey, String remark);
+    boolean submitChange(Long employeeId,
+            Integer versionNo,
+            MdmEmployee targetEmployee,
+            String processKey,
+            String remark,
+            Long changeRecordId,
+            String archivePayloadJson);
 
     /**
      * 提交员工离职审批。
@@ -36,5 +42,5 @@ public interface IMdmEmployeeWorkflowSubmitService {
      * @param remark 提交备注
      * @return true 表示提交成功
      */
-    boolean submitLeave(Long employeeId, String processKey, String remark);
+    boolean submitLeave(Long employeeId, Integer versionNo, String processKey, String remark);
 }

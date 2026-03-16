@@ -42,7 +42,7 @@ public interface IMdmSupplierService extends IService<MdmSupplier> {
      * @param supplierId 供应商ID
      * @return true 表示成功
      */
-    boolean disableSupplier(Long supplierId);
+    boolean disableSupplier(Long supplierId, Integer versionNo);
 
     /**
      * 删除供应商（逻辑删除）。
@@ -50,5 +50,5 @@ public interface IMdmSupplierService extends IService<MdmSupplier> {
      * @param supplierId 供应商ID
      * @return true 表示成功
      */
-    boolean removeSupplier(Long supplierId);
+    boolean removeSupplier(Long supplierId, Integer versionNo);
 }

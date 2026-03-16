@@ -3,6 +3,8 @@ package com.erp.system.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.erp.system.sensitive.SensitiveField;
+import com.erp.system.sensitive.SensitiveType;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -22,14 +24,18 @@ public class MdmSupplier implements Serializable {
     private String supplierName;
     private String shortName;
     private String supplyCategory;
+    @SensitiveField(SensitiveType.TAX_NO)
     private String taxNo;
     private String defaultCurrency;
     private BigDecimal defaultTaxRate;
     private Integer leadTimeDays;
     private String qualityLevel;
+    @SensitiveField(SensitiveType.BANK_ACCOUNT)
     private String bankAccountInfo;
     private String contactName;
+    @SensitiveField(SensitiveType.PHONE)
     private String contactPhone;
+    @SensitiveField(SensitiveType.EMAIL)
     private String contactEmail;
     private String address;
     private String status;

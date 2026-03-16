@@ -42,7 +42,7 @@ public interface IMdmItemService extends IService<MdmItem> {
      * @param itemId 物料ID
      * @return true 表示成功
      */
-    boolean disableItem(Long itemId);
+    boolean disableItem(Long itemId, Integer versionNo);
 
     /**
      * 删除物料（逻辑删除）。
@@ -50,5 +50,5 @@ public interface IMdmItemService extends IService<MdmItem> {
      * @param itemId 物料ID
      * @return true 表示成功
      */
-    boolean removeItem(Long itemId);
+    boolean removeItem(Long itemId, Integer versionNo);
 }

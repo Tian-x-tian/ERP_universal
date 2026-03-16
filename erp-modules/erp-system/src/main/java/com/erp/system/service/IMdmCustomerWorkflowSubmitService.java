@@ -15,7 +15,7 @@ public interface IMdmCustomerWorkflowSubmitService {
      * @param remark     提交备注
      * @return true 表示提交成功
      */
-    boolean submitDraftActivation(Long customerId, String processKey, String remark);
+    boolean submitDraftActivation(Long customerId, Integer versionNo, String processKey, String remark);
 
     /**
      * 提交客户变更审批。
@@ -26,7 +26,7 @@ public interface IMdmCustomerWorkflowSubmitService {
      * @param remark         提交备注
      * @return true 表示提交成功
      */
-    boolean submitChange(Long customerId, MdmCustomer targetCustomer, String processKey, String remark);
+    boolean submitChange(Long customerId, Integer versionNo, MdmCustomer targetCustomer, String processKey, String remark);
 
     /**
      * 提交客户停用审批。
@@ -36,5 +36,5 @@ public interface IMdmCustomerWorkflowSubmitService {
      * @param remark     提交备注
      * @return true 表示提交成功
      */
-    boolean submitDisable(Long customerId, String processKey, String remark);
+    boolean submitDisable(Long customerId, Integer versionNo, String processKey, String remark);
 }

@@ -85,14 +85,17 @@ public class MdmWarehouseWorkflowCallbackServiceImpl implements IWorkflowBusines
         Map<String, Object> meta = readMeta(instance);
         String action = readString(meta.get("action"));
         Long warehouseId = readLong(meta.get("warehouseId"));
-        if (!MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action) || warehouseId == null) {
+        if (warehouseId == null) {
             return;
         }
+        String rollbackStatus = MdmWorkflowActionSupport.ACTIVATE.equalsIgnoreCase(action)
+                ? MdmStatusSupport.DRAFT
+                : MdmStatusSupport.ACTIVE;
         warehouseMapper.update(new MdmWarehouse(), new LambdaUpdateWrapper<MdmWarehouse>()
                 .eq(MdmWarehouse::getWarehouseId, warehouseId)
                 .eq(MdmWarehouse::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmWarehouse::getStatus, MdmStatusSupport.SUBMITTED)
-                .set(MdmWarehouse::getStatus, MdmStatusSupport.DRAFT)
+                .set(MdmWarehouse::getStatus, rollbackStatus)
                 .set(MdmWarehouse::getUpdateBy, resolveOperator(instance))
                 .set(MdmWarehouse::getUpdateTime, new Date()));
     }
@@ -108,7 +111,7 @@ public class MdmWarehouseWorkflowCallbackServiceImpl implements IWorkflowBusines
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("仓库版本已变化，无法完成审批回写");
         }
-        warehouseMapper.update(new MdmWarehouse(), new LambdaUpdateWrapper<MdmWarehouse>()
+        boolean updated = warehouseMapper.update(new MdmWarehouse(), new LambdaUpdateWrapper<MdmWarehouse>()
                 .eq(MdmWarehouse::getWarehouseId, warehouseId)
                 .eq(MdmWarehouse::getDelFlag, DEL_FLAG_EXIST)
                 .eq(MdmWarehouse::getStatus, MdmStatusSupport.SUBMITTED)
@@ -116,7 +119,10 @@ public class MdmWarehouseWorkflowCallbackServiceImpl implements IWorkflowBusines
                 .set(MdmWarehouse::getStatus, MdmStatusSupport.ACTIVE)
                 .set(before.getEffectiveTime() == null, MdmWarehouse::getEffectiveTime, new Date())
                 .set(MdmWarehouse::getUpdateBy, resolveOperator(instance))
-                .set(MdmWarehouse::getUpdateTime, new Date()));
+                .set(MdmWarehouse::getUpdateTime, new Date())) > 0;
+        if (!updated) {
+            throw new IllegalStateException("仓库状态已变化，无法完成审批回写");
+        }
         MdmWarehouse after = loadWarehouse(warehouseId);
         auditTrailService.record(MdmDomainTypeSupport.WAREHOUSE,
                 warehouseId,
@@ -135,6 +141,9 @@ public class MdmWarehouseWorkflowCallbackServiceImpl implements IWorkflowBusines
         if (before == null) {
             throw new IllegalStateException("仓库不存在，无法完成变更回写");
         }
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("仓库状态已变化，请重新发起审批");
+        }
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("仓库版本已变化，请重新发起审批");
         }
@@ -147,7 +156,7 @@ public class MdmWarehouseWorkflowCallbackServiceImpl implements IWorkflowBusines
         updateEntity.setWarehouseId(warehouseId);
         updateEntity.setTenantId(before.getTenantId());
         updateEntity.setWhCode(before.getWhCode());
-        updateEntity.setStatus(before.getStatus());
+        updateEntity.setStatus(MdmStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
         updateEntity.setUpdateTime(new Date());
@@ -157,6 +166,7 @@ public class MdmWarehouseWorkflowCallbackServiceImpl implements IWorkflowBusines
         boolean updated = warehouseMapper.update(updateEntity, new LambdaUpdateWrapper<MdmWarehouse>()
                 .eq(MdmWarehouse::getWarehouseId, warehouseId)
                 .eq(MdmWarehouse::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmWarehouse::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmWarehouse::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("仓库版本已变化，请重新发起审批");
@@ -176,6 +186,9 @@ public class MdmWarehouseWorkflowCallbackServiceImpl implements IWorkflowBusines
         if (before == null) {
             throw new IllegalStateException("仓库不存在，无法完成停用回写");
         }
+        if (!MdmStatusSupport.isSubmitted(before.getStatus())) {
+            throw new IllegalStateException("仓库状态已变化，请重新发起审批");
+        }
         if (baseVersionNo != null && before.getVersionNo() != null && !baseVersionNo.equals(before.getVersionNo())) {
             throw new IllegalStateException("仓库版本已变化，请重新发起审批");
         }
@@ -188,6 +201,7 @@ public class MdmWarehouseWorkflowCallbackServiceImpl implements IWorkflowBusines
         boolean updated = warehouseMapper.update(updateEntity, new LambdaUpdateWrapper<MdmWarehouse>()
                 .eq(MdmWarehouse::getWarehouseId, warehouseId)
                 .eq(MdmWarehouse::getDelFlag, DEL_FLAG_EXIST)
+                .eq(MdmWarehouse::getStatus, MdmStatusSupport.SUBMITTED)
                 .eq(baseVersionNo != null, MdmWarehouse::getVersionNo, baseVersionNo)) > 0;
         if (!updated) {
             throw new IllegalStateException("仓库版本已变化，请重新发起审批");

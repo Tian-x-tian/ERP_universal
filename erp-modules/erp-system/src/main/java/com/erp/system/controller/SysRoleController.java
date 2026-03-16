@@ -22,6 +22,9 @@ import java.util.List;
 public class SysRoleController {
     private static final String PLATFORM_TENANT_ID = "000000";
     private static final String SUPER_ADMIN_ROLE_KEY = "admin";
+    private static final String DEFAULT_DATA_SCOPE = "3";
+    private static final String DEFAULT_STATUS = "0";
+    private static final int DEFAULT_ROLE_SORT = 1;
 
     private final ISysRoleService roleService;
     private final IDataPermissionService dataPermissionService;
@@ -63,6 +66,7 @@ public class SysRoleController {
         if (currentUserId == null) {
             return R.failed(ResultCode.UNAUTHORIZED);
         }
+        applyRoleCreateDefaults(role);
         R<Boolean> validationResult = validateRoleWrite(role, null, currentUserId);
         if (validationResult != null) {
             return validationResult;
@@ -262,5 +266,25 @@ public class SysRoleController {
         roleForValidation.setDataScope(StringUtils.hasText(role.getDataScope()) ? role.getDataScope() : existedRole.getDataScope());
         roleForValidation.setDeptIds(role.getDeptIds() == null ? existedRole.getDeptIds() : role.getDeptIds());
         return roleForValidation;
+    }
+
+    /**
+     * 为新增角色请求补齐默认值，兼容前端未传字段场景。
+     *
+     * @param role 角色请求对象
+     */
+    private void applyRoleCreateDefaults(SysRole role) {
+        if (role == null) {
+            return;
+        }
+        if (!StringUtils.hasText(role.getDataScope())) {
+            role.setDataScope(DEFAULT_DATA_SCOPE);
+        }
+        if (!StringUtils.hasText(role.getStatus())) {
+            role.setStatus(DEFAULT_STATUS);
+        }
+        if (role.getRoleSort() == null) {
+            role.setRoleSort(DEFAULT_ROLE_SORT);
+        }
     }
 }

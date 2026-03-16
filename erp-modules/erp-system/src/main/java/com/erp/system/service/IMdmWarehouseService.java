@@ -42,7 +42,7 @@ public interface IMdmWarehouseService extends IService<MdmWarehouse> {
      * @param warehouseId 仓库ID
      * @return true 表示成功
      */
-    boolean disableWarehouse(Long warehouseId);
+    boolean disableWarehouse(Long warehouseId, Integer versionNo);
 
     /**
      * 删除仓库（逻辑删除）。
@@ -50,5 +50,5 @@ public interface IMdmWarehouseService extends IService<MdmWarehouse> {
      * @param warehouseId 仓库ID
      * @return true 表示成功
      */
-    boolean removeWarehouse(Long warehouseId);
+    boolean removeWarehouse(Long warehouseId, Integer versionNo);
 }

@@ -12,6 +12,7 @@ import com.erp.system.service.IMdmItemService;
 import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
+import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmStatusSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.TenantWriteGuard;
@@ -149,6 +150,10 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         if (!MdmStatusSupport.isDraft(existed.getStatus())) {
             throw new IllegalStateException("已生效物料请通过审批流程提交变更");
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(
+                item.getVersionNo(),
+                existed.getVersionNo(),
+                "物料");
         if (StringUtils.hasText(item.getItemCode())
                 && !item.getItemCode().trim().equalsIgnoreCase(existed.getItemCode())) {
             return false;
@@ -182,7 +187,7 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         }
         item.setUpdateBy(resolveOperator());
         item.setUpdateTime(new Date());
-        boolean updated = updateItemByVersion(item, existed.getVersionNo());
+        boolean updated = updateItemByVersion(item, expectedVersionNo);
         if (updated) {
             MdmItem after = getById(item.getItemId());
             auditTrailService.record(MdmDomainTypeSupport.ITEM,
@@ -204,7 +209,7 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean disableItem(Long itemId) {
+    public boolean disableItem(Long itemId, Integer versionNo) {
         if (itemId == null) {
             return false;
         }
@@ -226,13 +231,14 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         if (MdmStatusSupport.DISABLED.equals(existed.getStatus())) {
             return true;
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(versionNo, existed.getVersionNo(), "物料");
         MdmItem updateEntity = new MdmItem();
         updateEntity.setItemId(itemId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateItemByVersion(updateEntity, existed.getVersionNo());
+        boolean updated = updateItemByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             MdmItem after = getById(itemId);
             auditTrailService.record(MdmDomainTypeSupport.ITEM,
@@ -254,7 +260,7 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean removeItem(Long itemId) {
+    public boolean removeItem(Long itemId, Integer versionNo) {
         if (itemId == null) {
             return false;
         }
@@ -270,13 +276,14 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
             return false;
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(versionNo, existed.getVersionNo(), "物料");
         MdmItem updateEntity = new MdmItem();
         updateEntity.setItemId(itemId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateItemByVersion(updateEntity, existed.getVersionNo());
+        boolean updated = updateItemByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.ITEM,
                     itemId,
@@ -324,9 +331,7 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
             updateWrapper.eq(MdmItem::getVersionNo, currentVersionNo);
         }
         boolean updated = update(item, updateWrapper);
-        if (!updated) {
-            throw new IllegalStateException("物料数据已被其他人更新，请刷新后重试");
-        }
+        MdmOptimisticLockSupport.ensureUpdated(updated, "物料");
         return true;
     }
 

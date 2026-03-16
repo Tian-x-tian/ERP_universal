@@ -134,7 +134,7 @@ public class SysCodeRuleController {
      * @return 生成编码
      */
     @PostMapping("/generate/{ruleCode}")
-    @PreAuthorize("@ss.hasPermi('system:codeRule:generate')")
+    @PreAuthorize("@ss.hasAnyPermi('system:codeRule:generate','business:hr:employee:add','business:hr:employee:edit')")
     public R<Map<String, String>> generate(@PathVariable("ruleCode") String ruleCode) {
         String code = codeRuleService.nextCode(ruleCode);
         if (!StringUtils.hasText(code)) {

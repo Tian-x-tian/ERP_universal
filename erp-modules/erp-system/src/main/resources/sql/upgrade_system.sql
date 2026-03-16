@@ -18,6 +18,720 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+CREATE TABLE IF NOT EXISTS `inv_transfer_order` (
+  `order_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '调拨单ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `bill_no` varchar(64) NOT NULL COMMENT '单据编号',
+  `bill_type` varchar(32) NOT NULL COMMENT '单据类型',
+  `status` varchar(32) NOT NULL COMMENT '单据状态',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '源仓库ID',
+  `target_warehouse_id` bigint(20) NOT NULL COMMENT '目标仓库ID',
+  `source_order_type` varchar(32) DEFAULT NULL COMMENT '来源单类型',
+  `source_order_id` bigint(20) DEFAULT NULL COMMENT '来源单ID',
+  `source_order_no` varchar(64) DEFAULT NULL COMMENT '来源单编号',
+  `process_key` varchar(64) DEFAULT NULL COMMENT '流程标识',
+  `idempotency_no` varchar(64) DEFAULT NULL COMMENT '幂等号',
+  `version_no` int(11) NOT NULL DEFAULT 1 COMMENT '版本号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`order_id`),
+  UNIQUE KEY `uk_inv_transfer_bill_no` (`tenant_id`,`bill_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='调拨单头';
+
+CREATE TABLE IF NOT EXISTS `inv_transfer_order_line` (
+  `line_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '调拨单行ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `order_id` bigint(20) NOT NULL COMMENT '调拨单ID',
+  `line_no` int(11) NOT NULL COMMENT '行号',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `area_id` bigint(20) DEFAULT NULL COMMENT '源库区ID',
+  `location_id` bigint(20) DEFAULT NULL COMMENT '源库位ID',
+  `target_area_id` bigint(20) DEFAULT NULL COMMENT '目标库区ID',
+  `target_location_id` bigint(20) DEFAULT NULL COMMENT '目标库位ID',
+  `qty` decimal(18,4) NOT NULL COMMENT '数量',
+  `batch_no` varchar(64) DEFAULT NULL COMMENT '批次号',
+  `production_date` datetime DEFAULT NULL COMMENT '生产日期',
+  `expiry_date` datetime DEFAULT NULL COMMENT '到期日期',
+  `serial_no` varchar(128) DEFAULT NULL COMMENT '序列号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`line_id`),
+  UNIQUE KEY `uk_inv_transfer_line` (`tenant_id`,`order_id`,`line_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='调拨单行';
+
+CREATE TABLE IF NOT EXISTS `inv_stock_move_order` (
+  `order_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '移库单ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `bill_no` varchar(64) NOT NULL COMMENT '单据编号',
+  `bill_type` varchar(32) NOT NULL COMMENT '单据类型',
+  `status` varchar(32) NOT NULL COMMENT '单据状态',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `source_order_type` varchar(32) DEFAULT NULL COMMENT '来源单类型',
+  `source_order_id` bigint(20) DEFAULT NULL COMMENT '来源单ID',
+  `source_order_no` varchar(64) DEFAULT NULL COMMENT '来源单编号',
+  `process_key` varchar(64) DEFAULT NULL COMMENT '流程标识',
+  `idempotency_no` varchar(64) DEFAULT NULL COMMENT '幂等号',
+  `version_no` int(11) NOT NULL DEFAULT 1 COMMENT '版本号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`order_id`),
+  UNIQUE KEY `uk_inv_stock_move_bill_no` (`tenant_id`,`bill_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='移库单头';
+
+CREATE TABLE IF NOT EXISTS `inv_stock_move_order_line` (
+  `line_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '移库单行ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `order_id` bigint(20) NOT NULL COMMENT '移库单ID',
+  `line_no` int(11) NOT NULL COMMENT '行号',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `area_id` bigint(20) DEFAULT NULL COMMENT '源库区ID',
+  `location_id` bigint(20) DEFAULT NULL COMMENT '源库位ID',
+  `target_area_id` bigint(20) DEFAULT NULL COMMENT '目标库区ID',
+  `target_location_id` bigint(20) DEFAULT NULL COMMENT '目标库位ID',
+  `qty` decimal(18,4) NOT NULL COMMENT '数量',
+  `batch_no` varchar(64) DEFAULT NULL COMMENT '批次号',
+  `production_date` datetime DEFAULT NULL COMMENT '生产日期',
+  `expiry_date` datetime DEFAULT NULL COMMENT '到期日期',
+  `serial_no` varchar(128) DEFAULT NULL COMMENT '序列号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`line_id`),
+  UNIQUE KEY `uk_inv_stock_move_line` (`tenant_id`,`order_id`,`line_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='移库单行';
+
+CREATE TABLE IF NOT EXISTS `inv_stock_freeze_order` (
+  `order_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '冻结解冻单ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `bill_no` varchar(64) NOT NULL COMMENT '单据编号',
+  `bill_type` varchar(32) NOT NULL COMMENT '单据类型',
+  `status` varchar(32) NOT NULL COMMENT '单据状态',
+  `operation_type` varchar(32) NOT NULL COMMENT '操作类型',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `source_order_type` varchar(32) DEFAULT NULL COMMENT '来源单类型',
+  `source_order_id` bigint(20) DEFAULT NULL COMMENT '来源单ID',
+  `source_order_no` varchar(64) DEFAULT NULL COMMENT '来源单编号',
+  `process_key` varchar(64) DEFAULT NULL COMMENT '流程标识',
+  `idempotency_no` varchar(64) DEFAULT NULL COMMENT '幂等号',
+  `version_no` int(11) NOT NULL DEFAULT 1 COMMENT '版本号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`order_id`),
+  UNIQUE KEY `uk_inv_stock_freeze_bill_no` (`tenant_id`,`bill_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='冻结解冻单头';
+
+CREATE TABLE IF NOT EXISTS `inv_stock_freeze_order_line` (
+  `line_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '冻结解冻单行ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `order_id` bigint(20) NOT NULL COMMENT '冻结解冻单ID',
+  `line_no` int(11) NOT NULL COMMENT '行号',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `area_id` bigint(20) DEFAULT NULL COMMENT '库区ID',
+  `location_id` bigint(20) DEFAULT NULL COMMENT '库位ID',
+  `qty` decimal(18,4) NOT NULL COMMENT '数量',
+  `batch_no` varchar(64) DEFAULT NULL COMMENT '批次号',
+  `production_date` datetime DEFAULT NULL COMMENT '生产日期',
+  `expiry_date` datetime DEFAULT NULL COMMENT '到期日期',
+  `serial_no` varchar(128) DEFAULT NULL COMMENT '序列号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`line_id`),
+  UNIQUE KEY `uk_inv_stock_freeze_line` (`tenant_id`,`order_id`,`line_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='冻结解冻单行';
+
+CREATE TABLE IF NOT EXISTS `inv_stock_adjust_order` (
+  `order_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '库存调整单ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `bill_no` varchar(64) NOT NULL COMMENT '单据编号',
+  `bill_type` varchar(32) NOT NULL COMMENT '单据类型',
+  `status` varchar(32) NOT NULL COMMENT '单据状态',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `source_order_type` varchar(32) DEFAULT NULL COMMENT '来源单类型',
+  `source_order_id` bigint(20) DEFAULT NULL COMMENT '来源单ID',
+  `source_order_no` varchar(64) DEFAULT NULL COMMENT '来源单编号',
+  `process_key` varchar(64) DEFAULT NULL COMMENT '流程标识',
+  `idempotency_no` varchar(64) DEFAULT NULL COMMENT '幂等号',
+  `version_no` int(11) NOT NULL DEFAULT 1 COMMENT '版本号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`order_id`),
+  UNIQUE KEY `uk_inv_stock_adjust_bill_no` (`tenant_id`,`bill_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存调整单头';
+
+CREATE TABLE IF NOT EXISTS `inv_stock_adjust_order_line` (
+  `line_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '库存调整单行ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `order_id` bigint(20) NOT NULL COMMENT '库存调整单ID',
+  `line_no` int(11) NOT NULL COMMENT '行号',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `area_id` bigint(20) DEFAULT NULL COMMENT '库区ID',
+  `location_id` bigint(20) DEFAULT NULL COMMENT '库位ID',
+  `qty` decimal(18,4) NOT NULL COMMENT '数量',
+  `adjust_type` varchar(32) DEFAULT NULL COMMENT '调整类型',
+  `batch_no` varchar(64) DEFAULT NULL COMMENT '批次号',
+  `production_date` datetime DEFAULT NULL COMMENT '生产日期',
+  `expiry_date` datetime DEFAULT NULL COMMENT '到期日期',
+  `serial_no` varchar(128) DEFAULT NULL COMMENT '序列号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`line_id`),
+  UNIQUE KEY `uk_inv_stock_adjust_line` (`tenant_id`,`order_id`,`line_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存调整单行';
+
+CREATE TABLE IF NOT EXISTS `inv_stocktake_order` (
+  `order_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '盘点单ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `bill_no` varchar(64) NOT NULL COMMENT '单据编号',
+  `bill_type` varchar(32) NOT NULL COMMENT '单据类型',
+  `status` varchar(32) NOT NULL COMMENT '单据状态',
+  `stocktake_stage` varchar(32) DEFAULT NULL COMMENT '盘点阶段',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `source_order_type` varchar(32) DEFAULT NULL COMMENT '来源单类型',
+  `source_order_id` bigint(20) DEFAULT NULL COMMENT '来源单ID',
+  `source_order_no` varchar(64) DEFAULT NULL COMMENT '来源单编号',
+  `process_key` varchar(64) DEFAULT NULL COMMENT '流程标识',
+  `idempotency_no` varchar(64) DEFAULT NULL COMMENT '幂等号',
+  `version_no` int(11) NOT NULL DEFAULT 1 COMMENT '版本号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`order_id`),
+  UNIQUE KEY `uk_inv_stocktake_bill_no` (`tenant_id`,`bill_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='盘点单头';
+
+CREATE TABLE IF NOT EXISTS `inv_stocktake_order_line` (
+  `line_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '盘点单行ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `order_id` bigint(20) NOT NULL COMMENT '盘点单ID',
+  `line_no` int(11) NOT NULL COMMENT '行号',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `area_id` bigint(20) DEFAULT NULL COMMENT '库区ID',
+  `location_id` bigint(20) DEFAULT NULL COMMENT '库位ID',
+  `qty` decimal(18,4) NOT NULL COMMENT '数量',
+  `snapshot_qty` decimal(18,4) DEFAULT NULL COMMENT '账面数量',
+  `counted_qty` decimal(18,4) DEFAULT NULL COMMENT '实盘数量',
+  `diff_qty` decimal(18,4) DEFAULT NULL COMMENT '差异数量',
+  `batch_no` varchar(64) DEFAULT NULL COMMENT '批次号',
+  `production_date` datetime DEFAULT NULL COMMENT '生产日期',
+  `expiry_date` datetime DEFAULT NULL COMMENT '到期日期',
+  `serial_no` varchar(128) DEFAULT NULL COMMENT '序列号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`line_id`),
+  UNIQUE KEY `uk_inv_stocktake_line` (`tenant_id`,`order_id`,`line_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='盘点单行';
+
+CREATE TABLE IF NOT EXISTS `inv_batch_record` (
+  `batch_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '批次记录ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `area_id` bigint(20) DEFAULT NULL COMMENT '库区ID',
+  `location_id` bigint(20) DEFAULT NULL COMMENT '库位ID',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `batch_no` varchar(64) NOT NULL COMMENT '批次号',
+  `production_date` datetime DEFAULT NULL COMMENT '生产日期',
+  `expiry_date` datetime DEFAULT NULL COMMENT '到期日期',
+  `current_qty` decimal(18,4) NOT NULL DEFAULT 0 COMMENT '当前数量',
+  `status` varchar(32) DEFAULT NULL COMMENT '状态',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`batch_id`),
+  UNIQUE KEY `uk_inv_batch_record` (`tenant_id`,`warehouse_id`,`area_id`,`location_id`,`item_id`,`batch_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='批次记录表';
+
+CREATE TABLE IF NOT EXISTS `inv_serial_record` (
+  `serial_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '序列号记录ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `area_id` bigint(20) DEFAULT NULL COMMENT '库区ID',
+  `location_id` bigint(20) DEFAULT NULL COMMENT '库位ID',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `batch_no` varchar(64) DEFAULT NULL COMMENT '批次号',
+  `serial_no` varchar(128) NOT NULL COMMENT '序列号',
+  `production_date` datetime DEFAULT NULL COMMENT '生产日期',
+  `expiry_date` datetime DEFAULT NULL COMMENT '到期日期',
+  `status` varchar(32) DEFAULT NULL COMMENT '状态',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`serial_id`),
+  UNIQUE KEY `uk_inv_serial_record` (`tenant_id`,`serial_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='序列号记录表';
+
+CREATE TABLE IF NOT EXISTS `inv_stock_policy` (
+  `policy_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '库存策略ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) DEFAULT NULL COMMENT '仓库ID',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `min_qty` decimal(18,4) DEFAULT NULL COMMENT '最小库存',
+  `max_qty` decimal(18,4) DEFAULT NULL COMMENT '最大库存',
+  `safety_qty` decimal(18,4) DEFAULT NULL COMMENT '安全库存',
+  `expiry_warn_days` int(11) DEFAULT NULL COMMENT '临期预警天数',
+  `allow_negative` char(1) DEFAULT 'N' COMMENT '允许负库存',
+  `allow_expired_outbound` char(1) DEFAULT 'N' COMMENT '允许过期出库',
+  `stagnant_days` int(11) DEFAULT NULL COMMENT '呆滞预警天数',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`policy_id`),
+  UNIQUE KEY `uk_inv_stock_policy` (`tenant_id`,`org_id`,`warehouse_id`,`item_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存策略表';
+
+CREATE TABLE IF NOT EXISTS `inv_warning_record` (
+  `warning_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '预警记录ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `org_id` bigint(20) DEFAULT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) DEFAULT NULL COMMENT '仓库ID',
+  `item_id` bigint(20) DEFAULT NULL COMMENT '物料ID',
+  `batch_id` bigint(20) DEFAULT NULL COMMENT '批次ID',
+  `batch_no` varchar(64) DEFAULT NULL COMMENT '批次号',
+  `serial_no` varchar(128) DEFAULT NULL COMMENT '序列号',
+  `warning_type` varchar(32) NOT NULL COMMENT '预警类型',
+  `warning_key` varchar(128) DEFAULT NULL COMMENT '预警幂等键',
+  `warning_title` varchar(255) DEFAULT NULL COMMENT '预警标题',
+  `warning_message` varchar(1000) DEFAULT NULL COMMENT '预警消息',
+  `warning_content` varchar(1000) DEFAULT NULL COMMENT '预警内容',
+  `status` varchar(32) NOT NULL DEFAULT 'NEW' COMMENT '处理状态',
+  `warning_value` decimal(18,4) DEFAULT NULL COMMENT '预警值',
+  `threshold_value` decimal(18,4) DEFAULT NULL COMMENT '阈值',
+  `read_by` varchar(64) DEFAULT NULL COMMENT '读取人',
+  `read_time` datetime DEFAULT NULL COMMENT '读取时间',
+  `closed_by` varchar(64) DEFAULT NULL COMMENT '关闭人',
+  `closed_time` datetime DEFAULT NULL COMMENT '关闭时间',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`warning_id`),
+  KEY `idx_inv_warning_record_query` (`tenant_id`,`status`,`warning_type`,`warehouse_id`,`item_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存预警记录表';
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_warning_record'
+          AND column_name = 'batch_no'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_warning_record` ADD COLUMN `batch_no` varchar(64) DEFAULT NULL COMMENT ''批次号'' AFTER `batch_id`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_warning_record'
+          AND column_name = 'serial_no'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_warning_record` ADD COLUMN `serial_no` varchar(128) DEFAULT NULL COMMENT ''序列号'' AFTER `batch_no`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_warning_record'
+          AND column_name = 'warning_key'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_warning_record` ADD COLUMN `warning_key` varchar(128) DEFAULT NULL COMMENT ''预警幂等键'' AFTER `warning_type`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_warning_record'
+          AND column_name = 'warning_message'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_warning_record` ADD COLUMN `warning_message` varchar(1000) DEFAULT NULL COMMENT ''预警消息'' AFTER `warning_title`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_warning_record'
+          AND column_name = 'create_by'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_warning_record` ADD COLUMN `create_by` varchar(64) DEFAULT NULL COMMENT ''创建人'' AFTER `closed_time`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_warning_record'
+          AND column_name = 'update_by'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_warning_record` ADD COLUMN `update_by` varchar(64) DEFAULT NULL COMMENT ''更新人'' AFTER `create_time`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE `inv_warning_record`
+SET `warning_message` = COALESCE(`warning_message`, `warning_content`)
+WHERE `warning_message` IS NULL;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_warning_record'
+          AND column_name = 'warning_title'
+          AND is_nullable = 'NO'
+    ),
+    'ALTER TABLE `inv_warning_record` MODIFY COLUMN `warning_title` varchar(255) DEFAULT NULL COMMENT ''预警标题''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+CREATE TABLE IF NOT EXISTS `inv_integration_event` (
+  `event_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '集成事件ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `event_type` varchar(64) NOT NULL COMMENT '事件类型',
+  `event_status` varchar(32) NOT NULL COMMENT '事件状态',
+  `source_type` varchar(64) DEFAULT NULL COMMENT '来源类型',
+  `source_id` bigint(20) DEFAULT NULL COMMENT '来源ID',
+  `source_no` varchar(64) DEFAULT NULL COMMENT '来源单号',
+  `bill_type` varchar(32) DEFAULT NULL COMMENT '单据类型',
+  `bill_id` bigint(20) DEFAULT NULL COMMENT '单据ID',
+  `bill_no` varchar(64) DEFAULT NULL COMMENT '单据编号',
+  `source_system` varchar(64) DEFAULT NULL COMMENT '来源系统',
+  `target_system` varchar(64) DEFAULT NULL COMMENT '目标系统',
+  `payload_json` longtext COMMENT '事件载荷JSON',
+  `payload` longtext COMMENT '事件载荷',
+  `last_error` varchar(1000) DEFAULT NULL COMMENT '最后错误',
+  `message` varchar(1000) DEFAULT NULL COMMENT '处理消息',
+  `retry_count` int(11) NOT NULL DEFAULT 0 COMMENT '重试次数',
+  `last_retry_time` datetime DEFAULT NULL COMMENT '最后重试时间',
+  `next_retry_time` datetime DEFAULT NULL COMMENT '下次重试时间',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`event_id`),
+  KEY `idx_inv_integration_event_query` (`tenant_id`,`event_type`,`event_status`,`bill_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存集成事件表';
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_integration_event'
+          AND column_name = 'source_type'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_integration_event` ADD COLUMN `source_type` varchar(64) DEFAULT NULL COMMENT ''来源类型'' AFTER `event_status`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_integration_event'
+          AND column_name = 'source_id'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_integration_event` ADD COLUMN `source_id` bigint(20) DEFAULT NULL COMMENT ''来源ID'' AFTER `source_type`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_integration_event'
+          AND column_name = 'source_no'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_integration_event` ADD COLUMN `source_no` varchar(64) DEFAULT NULL COMMENT ''来源单号'' AFTER `source_id`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_integration_event'
+          AND column_name = 'payload_json'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_integration_event` ADD COLUMN `payload_json` longtext COMMENT ''事件载荷JSON'' AFTER `target_system`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_integration_event'
+          AND column_name = 'last_error'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_integration_event` ADD COLUMN `last_error` varchar(1000) DEFAULT NULL COMMENT ''最后错误'' AFTER `payload`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_integration_event'
+          AND column_name = 'create_by'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_integration_event` ADD COLUMN `create_by` varchar(64) DEFAULT NULL COMMENT ''创建人'' AFTER `next_retry_time`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(
+    EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'inv_integration_event'
+          AND column_name = 'update_by'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inv_integration_event` ADD COLUMN `update_by` varchar(64) DEFAULT NULL COMMENT ''更新人'' AFTER `create_time`'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE `inv_integration_event`
+SET `source_type` = COALESCE(`source_type`, `source_system`),
+    `payload_json` = COALESCE(`payload_json`, `payload`),
+    `last_error` = COALESCE(`last_error`, `message`)
+WHERE `source_type` IS NULL
+   OR `payload_json` IS NULL
+   OR `last_error` IS NULL;
+
+CREATE TABLE IF NOT EXISTS `sys_imex_job` (
+  `job_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '任务ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `job_no` varchar(64) NOT NULL COMMENT '任务编号',
+  `job_type` varchar(32) NOT NULL COMMENT '任务类型',
+  `module_code` varchar(64) NOT NULL COMMENT '模块编码',
+  `file_name` varchar(255) DEFAULT NULL COMMENT '文件名',
+  `file_path` varchar(500) DEFAULT NULL COMMENT '文件路径',
+  `status` varchar(32) NOT NULL COMMENT '任务状态',
+  `progress` int(11) NOT NULL DEFAULT 0 COMMENT '进度',
+  `trigger_type` varchar(32) DEFAULT NULL COMMENT '触发方式',
+  `message` varchar(1000) DEFAULT NULL COMMENT '处理消息',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`job_id`),
+  UNIQUE KEY `uk_sys_imex_job_no` (`tenant_id`,`job_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='导入导出任务表';
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '调拨管理', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 4, '/business/inventory/transfer', '/views/inventory/transfer/index', 1, 'C', '0', '0', 'business:inventory:transfer:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/transfer');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '移库管理', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 5, '/business/inventory/move', '/views/inventory/move/index', 1, 'C', '0', '0', 'business:inventory:move:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/move');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '冻结解冻', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 6, '/business/inventory/freeze', '/views/inventory/freeze/index', 1, 'C', '0', '0', 'business:inventory:freeze:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/freeze');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '库存调整', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 7, '/business/inventory/adjust', '/views/inventory/adjust/index', 1, 'C', '0', '0', 'business:inventory:adjust:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/adjust');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '盘点管理', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 8, '/business/inventory/stocktake', '/views/inventory/stocktake/index', 1, 'C', '0', '0', 'business:inventory:stocktake:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/stocktake');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '批次查询', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 9, '/business/inventory/batch', '/views/inventory/batch/index', 1, 'C', '0', '0', 'business:inventory:batch:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/batch');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '序列号查询', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 10, '/business/inventory/serial', '/views/inventory/serial/index', 1, 'C', '0', '0', 'business:inventory:serial:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/serial');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '库存策略', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 11, '/business/inventory/policy', '/views/inventory/policy/index', 1, 'C', '0', '0', 'business:inventory:policy:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/policy');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '预警中心', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 12, '/business/inventory/warning', '/views/inventory/warning/index', 1, 'C', '0', '0', 'business:inventory:warning:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/warning');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '库存报表', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 13, '/business/inventory/report', '/views/inventory/report/index', 1, 'C', '0', '0', 'business:inventory:report:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/report');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '集成事件', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 14, '/business/inventory/integration', '/views/inventory/integration/index', 1, 'C', '0', '0', 'business:inventory:integration:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/integration');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '导入导出中心', 0, 6, '/platform/imex', '/views/platform/imex/index', 1, 'C', '0', '0', 'system:imex:list', 'UploadFilled', 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/platform/imex');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT button_def.menu_name, parent_menu.menu_id, button_def.order_num, button_def.path, NULL, 1, 'F', '0', '0', button_def.perms, NULL, 'system', NOW(), '升级脚本补齐按钮权限'
+FROM (
+  SELECT '/business/inventory/transfer' AS path, '调拨查询' AS menu_name, 1 AS order_num, 'business:inventory:transfer:query' AS perms
+  UNION ALL SELECT '/business/inventory/transfer', '调拨新增', 2, 'business:inventory:transfer:add'
+  UNION ALL SELECT '/business/inventory/transfer', '调拨修改', 3, 'business:inventory:transfer:edit'
+  UNION ALL SELECT '/business/inventory/transfer', '调拨提交', 4, 'business:inventory:transfer:submit'
+  UNION ALL SELECT '/business/inventory/transfer', '调拨执行', 5, 'business:inventory:transfer:execute'
+  UNION ALL SELECT '/business/inventory/transfer', '调拨取消', 6, 'business:inventory:transfer:cancel'
+  UNION ALL SELECT '/business/inventory/move', '移库查询', 1, 'business:inventory:move:query'
+  UNION ALL SELECT '/business/inventory/move', '移库新增', 2, 'business:inventory:move:add'
+  UNION ALL SELECT '/business/inventory/move', '移库修改', 3, 'business:inventory:move:edit'
+  UNION ALL SELECT '/business/inventory/move', '移库提交', 4, 'business:inventory:move:submit'
+  UNION ALL SELECT '/business/inventory/move', '移库执行', 5, 'business:inventory:move:execute'
+  UNION ALL SELECT '/business/inventory/move', '移库取消', 6, 'business:inventory:move:cancel'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻查询', 1, 'business:inventory:freeze:query'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻新增', 2, 'business:inventory:freeze:add'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻修改', 3, 'business:inventory:freeze:edit'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻提交', 4, 'business:inventory:freeze:submit'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻执行', 5, 'business:inventory:freeze:execute'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻取消', 6, 'business:inventory:freeze:cancel'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整查询', 1, 'business:inventory:adjust:query'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整新增', 2, 'business:inventory:adjust:add'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整修改', 3, 'business:inventory:adjust:edit'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整提交', 4, 'business:inventory:adjust:submit'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整执行', 5, 'business:inventory:adjust:execute'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整取消', 6, 'business:inventory:adjust:cancel'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点查询', 1, 'business:inventory:stocktake:query'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点新增', 2, 'business:inventory:stocktake:add'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点修改', 3, 'business:inventory:stocktake:edit'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点提交', 4, 'business:inventory:stocktake:submit'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点确认', 5, 'business:inventory:stocktake:execute'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点取消', 6, 'business:inventory:stocktake:cancel'
+  UNION ALL SELECT '/business/inventory/policy', '库存策略查询', 1, 'business:inventory:policy:query'
+  UNION ALL SELECT '/business/inventory/policy', '库存策略新增', 2, 'business:inventory:policy:add'
+  UNION ALL SELECT '/business/inventory/policy', '库存策略修改', 3, 'business:inventory:policy:edit'
+  UNION ALL SELECT '/business/inventory/policy', '库存策略删除', 4, 'business:inventory:policy:remove'
+  UNION ALL SELECT '/business/inventory/warning', '预警处理', 1, 'business:inventory:warning:handle'
+  UNION ALL SELECT '/business/inventory/warning', '预警扫描', 2, 'business:inventory:warning:scan'
+  UNION ALL SELECT '/business/inventory/report', '报表导出', 1, 'business:inventory:report:export'
+  UNION ALL SELECT '/business/inventory/integration', '事件重放', 1, 'business:inventory:integration:replay'
+  UNION ALL SELECT '/platform/imex', '导入导出查询', 1, 'system:imex:query'
+  UNION ALL SELECT '/platform/imex', '导出文件下载', 2, 'system:imex:download'
+) button_def
+INNER JOIN sys_menu parent_menu ON parent_menu.path = button_def.path
+WHERE NOT EXISTS (
+  SELECT 1 FROM sys_menu existed_menu
+  WHERE existed_menu.path = button_def.path
+    AND existed_menu.perms = button_def.perms
+);
+
+INSERT INTO sys_role_menu (tenant_id, role_id, menu_id)
+SELECT '000000', admin_role.role_id, menu_item.menu_id
+FROM sys_role admin_role
+INNER JOIN sys_menu menu_item ON (
+  menu_item.path IN (
+    '/business/inventory/transfer', '/business/inventory/move', '/business/inventory/freeze',
+    '/business/inventory/adjust', '/business/inventory/stocktake', '/business/inventory/batch',
+    '/business/inventory/serial', '/business/inventory/policy', '/business/inventory/warning',
+    '/business/inventory/report', '/business/inventory/integration', '/platform/imex'
+  )
+  OR menu_item.perms IN (
+    'business:inventory:transfer:list', 'business:inventory:transfer:query', 'business:inventory:transfer:add',
+    'business:inventory:transfer:edit', 'business:inventory:transfer:submit', 'business:inventory:transfer:execute',
+    'business:inventory:transfer:cancel', 'business:inventory:move:list', 'business:inventory:move:query',
+    'business:inventory:move:add', 'business:inventory:move:edit', 'business:inventory:move:submit',
+    'business:inventory:move:execute', 'business:inventory:move:cancel', 'business:inventory:freeze:list',
+    'business:inventory:freeze:query', 'business:inventory:freeze:add', 'business:inventory:freeze:edit',
+    'business:inventory:freeze:submit', 'business:inventory:freeze:execute', 'business:inventory:freeze:cancel',
+    'business:inventory:adjust:list', 'business:inventory:adjust:query', 'business:inventory:adjust:add',
+    'business:inventory:adjust:edit', 'business:inventory:adjust:submit', 'business:inventory:adjust:execute',
+    'business:inventory:adjust:cancel', 'business:inventory:stocktake:list', 'business:inventory:stocktake:query',
+    'business:inventory:stocktake:add', 'business:inventory:stocktake:edit', 'business:inventory:stocktake:submit',
+    'business:inventory:stocktake:execute', 'business:inventory:stocktake:cancel', 'business:inventory:batch:list',
+    'business:inventory:serial:list', 'business:inventory:policy:list', 'business:inventory:policy:query',
+    'business:inventory:policy:add', 'business:inventory:policy:edit', 'business:inventory:policy:remove',
+    'business:inventory:warning:list', 'business:inventory:warning:handle', 'business:inventory:warning:scan',
+    'business:inventory:report:list', 'business:inventory:report:export', 'business:inventory:integration:list',
+    'business:inventory:integration:replay', 'system:imex:list', 'system:imex:query', 'system:imex:download'
+  )
+)
+WHERE admin_role.tenant_id = '000000'
+  AND admin_role.role_key = 'admin'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM sys_role_menu existed_role_menu
+    WHERE existed_role_menu.role_id = admin_role.role_id
+      AND existed_role_menu.menu_id = menu_item.menu_id
+  );
+
 UPDATE `sys_user_role`
 SET `tenant_id` = '000000'
 WHERE `tenant_id` IS NULL OR `tenant_id` = '';
@@ -1560,3 +2274,484 @@ WHERE NOT EXISTS (SELECT 1 FROM mdm_uom WHERE tenant_id = '000000' AND uom_code 
 INSERT INTO mdm_uom (tenant_id, uom_code, uom_name, status, create_by, create_time)
 SELECT '000000', 'M', '米', 'ACTIVE', 'system', NOW()
 WHERE NOT EXISTS (SELECT 1 FROM mdm_uom WHERE tenant_id = '000000' AND uom_code = 'M');
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `accounting_org_id` bigint(20) DEFAULT NULL COMMENT ''账务归属组织ID'' AFTER `org_id`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'accounting_org_id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `volume_capacity` decimal(18,4) DEFAULT NULL COMMENT ''容量体积'' AFTER `allow_negative_stock`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'volume_capacity'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `weight_capacity` decimal(18,4) DEFAULT NULL COMMENT ''容量重量'' AFTER `volume_capacity`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'weight_capacity'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `temperature_zone` varchar(32) DEFAULT NULL COMMENT ''温层'' AFTER `weight_capacity`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'temperature_zone'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `hazardous_flag` char(1) DEFAULT ''N'' COMMENT ''危险品标识（Y/N）'' AFTER `temperature_zone`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'hazardous_flag'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `location_code_prefix` varchar(32) DEFAULT NULL COMMENT ''库位编码前缀'' AFTER `hazardous_flag`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'location_code_prefix'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+CREATE TABLE IF NOT EXISTS `mdm_warehouse_area` (
+  `area_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '库区ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `area_code` varchar(64) NOT NULL COMMENT '库区编码',
+  `area_name` varchar(128) NOT NULL COMMENT '库区名称',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`area_id`),
+  UNIQUE KEY `idx_mdm_wh_area_unique` (`tenant_id`, `warehouse_id`, `area_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM仓库库区表';
+
+CREATE TABLE IF NOT EXISTS `mdm_warehouse_location` (
+  `location_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '库位ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `area_id` bigint(20) NOT NULL COMMENT '库区ID',
+  `location_code` varchar(64) NOT NULL COMMENT '库位编码',
+  `location_name` varchar(128) NOT NULL COMMENT '库位名称',
+  `volume_capacity` decimal(18,4) DEFAULT NULL COMMENT '容量体积',
+  `weight_capacity` decimal(18,4) DEFAULT NULL COMMENT '容量重量',
+  `temperature_zone` varchar(32) DEFAULT NULL COMMENT '温层',
+  `hazardous_flag` char(1) DEFAULT 'N' COMMENT '危险品标识（Y/N）',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`location_id`),
+  UNIQUE KEY `idx_mdm_wh_location_unique` (`tenant_id`, `warehouse_id`, `location_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM仓库库位表';
+
+UPDATE sys_menu
+SET menu_name = '库区主数据',
+    order_num = 5,
+    component = '/views/system/mdm/warehouse-area/index',
+    menu_type = 'C',
+    visible = '0',
+    status = '0',
+    perms = 'system:mdm:warehouse-area:list'
+WHERE path = '/system/mdm/warehouse-area';
+
+UPDATE sys_menu
+SET menu_name = '库位主数据',
+    order_num = 6,
+    component = '/views/system/mdm/warehouse-location/index',
+    menu_type = 'C',
+    visible = '0',
+    status = '0',
+    perms = 'system:mdm:warehouse-location:list'
+WHERE path = '/system/mdm/warehouse-location';
+
+UPDATE sys_menu
+SET menu_name = '库存与仓储',
+    order_num = 5,
+    component = NULL,
+    menu_type = 'M',
+    visible = '0',
+    status = '0',
+    perms = NULL,
+    icon = 'Box'
+WHERE path = '/inventory-manage';
+
+UPDATE sys_menu
+SET menu_name = '库存台账',
+    order_num = 1,
+    component = '/views/inventory/ledger/index',
+    menu_type = 'C',
+    visible = '0',
+    status = '0',
+    perms = 'business:inventory:ledger:list'
+WHERE path = '/business/inventory/ledger';
+
+UPDATE sys_menu
+SET menu_name = '入库管理',
+    order_num = 2,
+    component = '/views/inventory/inbound/index',
+    menu_type = 'C',
+    visible = '0',
+    status = '0',
+    perms = 'business:inventory:inbound:list'
+WHERE path = '/business/inventory/inbound';
+
+UPDATE sys_menu
+SET menu_name = '出库管理',
+    order_num = 3,
+    component = '/views/inventory/outbound/index',
+    menu_type = 'C',
+    visible = '0',
+    status = '0',
+    perms = 'business:inventory:outbound:list'
+WHERE path = '/business/inventory/outbound';
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '库区主数据', (SELECT menu_id FROM sys_menu WHERE path = '/master-data' LIMIT 1), 5, '/system/mdm/warehouse-area', '/views/system/mdm/warehouse-area/index', 1, 'C', '0', '0', 'system:mdm:warehouse-area:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/mdm/warehouse-area');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '库位主数据', (SELECT menu_id FROM sys_menu WHERE path = '/master-data' LIMIT 1), 6, '/system/mdm/warehouse-location', '/views/system/mdm/warehouse-location/index', 1, 'C', '0', '0', 'system:mdm:warehouse-location:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/system/mdm/warehouse-location');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '库存与仓储', 0, 5, '/inventory-manage', NULL, 1, 'M', '0', '0', NULL, 'Box', 'system', NOW(), '升级脚本补齐目录'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/inventory-manage');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '库存台账', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 1, '/business/inventory/ledger', '/views/inventory/ledger/index', 1, 'C', '0', '0', 'business:inventory:ledger:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/ledger');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '入库管理', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 2, '/business/inventory/inbound', '/views/inventory/inbound/index', 1, 'C', '0', '0', 'business:inventory:inbound:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/inbound');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '出库管理', (SELECT menu_id FROM sys_menu WHERE path = '/inventory-manage' LIMIT 1), 3, '/business/inventory/outbound', '/views/inventory/outbound/index', 1, 'C', '0', '0', 'business:inventory:outbound:list', NULL, 'system', NOW(), '升级脚本补齐菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE path = '/business/inventory/outbound');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT button_def.menu_name, parent_menu.menu_id, button_def.order_num, button_def.path, NULL, 1, 'F', '0', '0', button_def.perms, NULL, 'system', NOW(), '升级脚本补齐按钮权限'
+FROM (
+  SELECT '/system/mdm/warehouse-area' AS path, '库区查询' AS menu_name, 1 AS order_num, 'system:mdm:warehouse-area:query' AS perms
+  UNION ALL SELECT '/system/mdm/warehouse-area', '库区新增', 2, 'system:mdm:warehouse-area:add'
+  UNION ALL SELECT '/system/mdm/warehouse-area', '库区修改', 3, 'system:mdm:warehouse-area:edit'
+  UNION ALL SELECT '/system/mdm/warehouse-area', '库区停用', 4, 'system:mdm:warehouse-area:disable'
+  UNION ALL SELECT '/system/mdm/warehouse-area', '库区删除', 5, 'system:mdm:warehouse-area:remove'
+  UNION ALL SELECT '/system/mdm/warehouse-location', '库位查询', 1, 'system:mdm:warehouse-location:query'
+  UNION ALL SELECT '/system/mdm/warehouse-location', '库位新增', 2, 'system:mdm:warehouse-location:add'
+  UNION ALL SELECT '/system/mdm/warehouse-location', '库位修改', 3, 'system:mdm:warehouse-location:edit'
+  UNION ALL SELECT '/system/mdm/warehouse-location', '库位停用', 4, 'system:mdm:warehouse-location:disable'
+  UNION ALL SELECT '/system/mdm/warehouse-location', '库位删除', 5, 'system:mdm:warehouse-location:remove'
+  UNION ALL SELECT '/business/inventory/inbound', '入库查询', 1, 'business:inventory:inbound:query'
+  UNION ALL SELECT '/business/inventory/inbound', '入库新增', 2, 'business:inventory:inbound:add'
+  UNION ALL SELECT '/business/inventory/inbound', '入库修改', 3, 'business:inventory:inbound:edit'
+  UNION ALL SELECT '/business/inventory/inbound', '入库提交', 4, 'business:inventory:inbound:submit'
+  UNION ALL SELECT '/business/inventory/inbound', '入库执行', 5, 'business:inventory:inbound:execute'
+  UNION ALL SELECT '/business/inventory/inbound', '入库取消', 6, 'business:inventory:inbound:cancel'
+  UNION ALL SELECT '/business/inventory/outbound', '出库查询', 1, 'business:inventory:outbound:query'
+  UNION ALL SELECT '/business/inventory/outbound', '出库新增', 2, 'business:inventory:outbound:add'
+  UNION ALL SELECT '/business/inventory/outbound', '出库修改', 3, 'business:inventory:outbound:edit'
+  UNION ALL SELECT '/business/inventory/outbound', '出库提交', 4, 'business:inventory:outbound:submit'
+  UNION ALL SELECT '/business/inventory/outbound', '出库执行', 5, 'business:inventory:outbound:execute'
+  UNION ALL SELECT '/business/inventory/outbound', '出库取消', 6, 'business:inventory:outbound:cancel'
+) button_def
+INNER JOIN sys_menu parent_menu ON parent_menu.path = button_def.path
+WHERE NOT EXISTS (
+  SELECT 1 FROM sys_menu existed_menu
+  WHERE existed_menu.path = button_def.path
+    AND existed_menu.perms = button_def.perms
+);
+
+INSERT INTO sys_role_menu (tenant_id, role_id, menu_id)
+SELECT '000000', 1, menu_id
+FROM sys_menu
+WHERE path IN ('/system/mdm/warehouse-area', '/system/mdm/warehouse-location', '/inventory-manage',
+               '/business/inventory/ledger', '/business/inventory/inbound', '/business/inventory/outbound')
+   OR perms IN ('system:mdm:warehouse-area:list', 'system:mdm:warehouse-area:query', 'system:mdm:warehouse-area:add',
+                'system:mdm:warehouse-area:edit', 'system:mdm:warehouse-area:disable', 'system:mdm:warehouse-area:remove',
+                'system:mdm:warehouse-location:list', 'system:mdm:warehouse-location:query', 'system:mdm:warehouse-location:add',
+                'system:mdm:warehouse-location:edit', 'system:mdm:warehouse-location:disable', 'system:mdm:warehouse-location:remove',
+                'business:inventory:ledger:list', 'business:inventory:inbound:list', 'business:inventory:inbound:query',
+                'business:inventory:inbound:add', 'business:inventory:inbound:edit', 'business:inventory:inbound:submit',
+                'business:inventory:inbound:execute', 'business:inventory:inbound:cancel', 'business:inventory:outbound:list',
+                'business:inventory:outbound:query', 'business:inventory:outbound:add', 'business:inventory:outbound:edit',
+                'business:inventory:outbound:submit', 'business:inventory:outbound:execute', 'business:inventory:outbound:cancel')
+AND NOT EXISTS (
+  SELECT 1
+  FROM sys_role_menu existed_role_menu
+  WHERE existed_role_menu.role_id = 1
+    AND existed_role_menu.menu_id = sys_menu.menu_id
+);
+
+CREATE TABLE IF NOT EXISTS `inv_stock_balance` (
+  `balance_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '库存余额ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `area_id` bigint(20) DEFAULT NULL COMMENT '库区ID',
+  `location_id` bigint(20) DEFAULT NULL COMMENT '库位ID',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `batch_no` varchar(64) DEFAULT NULL COMMENT '批次号',
+  `serial_no` varchar(128) DEFAULT NULL COMMENT '序列号',
+  `area_id_key` bigint(20) GENERATED ALWAYS AS (ifnull(`area_id`,0)) STORED COMMENT '库区唯一键归一值',
+  `location_id_key` bigint(20) GENERATED ALWAYS AS (ifnull(`location_id`,0)) STORED COMMENT '库位唯一键归一值',
+  `batch_no_key` varchar(64) GENERATED ALWAYS AS (ifnull(`batch_no`,'')) STORED COMMENT '批次唯一键归一值',
+  `serial_no_key` varchar(128) GENERATED ALWAYS AS (ifnull(`serial_no`,'')) STORED COMMENT '序列唯一键归一值',
+  `on_hand_qty` decimal(18,4) NOT NULL DEFAULT 0 COMMENT '即时库存',
+  `available_qty` decimal(18,4) NOT NULL DEFAULT 0 COMMENT '可用库存',
+  `frozen_qty` decimal(18,4) NOT NULL DEFAULT 0 COMMENT '冻结库存',
+  `in_transit_qty` decimal(18,4) NOT NULL DEFAULT 0 COMMENT '在途库存',
+  `version_no` int(11) NOT NULL DEFAULT 1 COMMENT '版本号',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`balance_id`),
+  UNIQUE KEY `uk_inv_stock_balance_dim` (`tenant_id`,`org_id`,`warehouse_id`,`area_id_key`,`location_id_key`,`item_id`,`batch_no_key`,`serial_no_key`),
+  KEY `idx_inv_stock_balance_lookup` (`tenant_id`,`org_id`,`warehouse_id`,`item_id`),
+  KEY `idx_inv_stock_balance_location` (`tenant_id`,`warehouse_id`,`area_id`,`location_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存余额表';
+
+CREATE TABLE IF NOT EXISTS `inv_stock_txn` (
+  `txn_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '库存流水ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `area_id` bigint(20) DEFAULT NULL COMMENT '库区ID',
+  `location_id` bigint(20) DEFAULT NULL COMMENT '库位ID',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `batch_no` varchar(64) DEFAULT NULL COMMENT '批次号',
+  `serial_no` varchar(128) DEFAULT NULL COMMENT '序列号',
+  `action_type` varchar(32) NOT NULL COMMENT '事务动作',
+  `bill_type` varchar(32) NOT NULL COMMENT '单据类型',
+  `bill_id` bigint(20) NOT NULL COMMENT '单据ID',
+  `bill_no` varchar(64) NOT NULL COMMENT '单据编号',
+  `line_no` int(11) NOT NULL COMMENT '行号',
+  `idempotency_no` varchar(64) NOT NULL COMMENT '幂等号',
+  `trace_id` varchar(64) DEFAULT NULL COMMENT 'TraceId',
+  `before_on_hand_qty` decimal(18,4) NOT NULL DEFAULT 0 COMMENT '变更前即时库存',
+  `after_on_hand_qty` decimal(18,4) NOT NULL DEFAULT 0 COMMENT '变更后即时库存',
+  `before_available_qty` decimal(18,4) NOT NULL DEFAULT 0 COMMENT '变更前可用库存',
+  `after_available_qty` decimal(18,4) NOT NULL DEFAULT 0 COMMENT '变更后可用库存',
+  `change_qty` decimal(18,4) NOT NULL DEFAULT 0 COMMENT '变更数量',
+  `operator` varchar(64) DEFAULT NULL COMMENT '操作人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`txn_id`),
+  UNIQUE KEY `uk_inv_txn_idem` (`tenant_id`,`idempotency_no`,`line_no`,`action_type`),
+  KEY `idx_inv_stock_txn_query` (`tenant_id`,`bill_no`,`item_id`,`action_type`,`create_time`),
+  KEY `idx_inv_stock_txn_bill` (`tenant_id`,`bill_type`,`bill_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存流水表';
+
+CREATE TABLE IF NOT EXISTS `inv_inbound_order` (
+  `order_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '入库单ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `bill_no` varchar(64) NOT NULL COMMENT '单据编号',
+  `bill_type` varchar(32) NOT NULL COMMENT '单据类型',
+  `status` varchar(32) NOT NULL COMMENT '单据状态',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `source_order_type` varchar(32) DEFAULT NULL COMMENT '来源单类型',
+  `source_order_id` bigint(20) DEFAULT NULL COMMENT '来源单ID',
+  `source_order_no` varchar(64) DEFAULT NULL COMMENT '来源单编号',
+  `process_key` varchar(64) DEFAULT NULL COMMENT '流程标识',
+  `idempotency_no` varchar(64) DEFAULT NULL COMMENT '幂等号',
+  `version_no` int(11) NOT NULL DEFAULT 1 COMMENT '版本号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`order_id`),
+  UNIQUE KEY `uk_inv_inbound_bill_no` (`tenant_id`,`bill_no`),
+  KEY `idx_inv_inbound_order_status` (`tenant_id`,`status`,`update_time`),
+  KEY `idx_inv_inbound_order_source` (`tenant_id`,`source_order_type`,`source_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入库单头';
+
+CREATE TABLE IF NOT EXISTS `inv_inbound_order_line` (
+  `line_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '入库单行ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `order_id` bigint(20) NOT NULL COMMENT '入库单ID',
+  `line_no` int(11) NOT NULL COMMENT '行号',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `area_id` bigint(20) DEFAULT NULL COMMENT '库区ID',
+  `location_id` bigint(20) DEFAULT NULL COMMENT '库位ID',
+  `qty` decimal(18,4) NOT NULL COMMENT '数量',
+  `batch_no` varchar(64) DEFAULT NULL COMMENT '批次号',
+  `production_date` datetime DEFAULT NULL COMMENT '生产日期',
+  `expiry_date` datetime DEFAULT NULL COMMENT '到期日期',
+  `serial_no` varchar(128) DEFAULT NULL COMMENT '序列号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`line_id`),
+  UNIQUE KEY `uk_inv_inbound_order_line` (`tenant_id`,`order_id`,`line_no`),
+  KEY `idx_inv_inbound_line_item` (`tenant_id`,`item_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入库单行';
+
+CREATE TABLE IF NOT EXISTS `inv_outbound_order` (
+  `order_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '出库单ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `bill_no` varchar(64) NOT NULL COMMENT '单据编号',
+  `bill_type` varchar(32) NOT NULL COMMENT '单据类型',
+  `status` varchar(32) NOT NULL COMMENT '单据状态',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `source_order_type` varchar(32) DEFAULT NULL COMMENT '来源单类型',
+  `source_order_id` bigint(20) DEFAULT NULL COMMENT '来源单ID',
+  `source_order_no` varchar(64) DEFAULT NULL COMMENT '来源单编号',
+  `process_key` varchar(64) DEFAULT NULL COMMENT '流程标识',
+  `idempotency_no` varchar(64) DEFAULT NULL COMMENT '幂等号',
+  `version_no` int(11) NOT NULL DEFAULT 1 COMMENT '版本号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`order_id`),
+  UNIQUE KEY `uk_inv_outbound_bill_no` (`tenant_id`,`bill_no`),
+  KEY `idx_inv_outbound_order_status` (`tenant_id`,`status`,`update_time`),
+  KEY `idx_inv_outbound_order_source` (`tenant_id`,`source_order_type`,`source_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='出库单头';
+
+CREATE TABLE IF NOT EXISTS `inv_outbound_order_line` (
+  `line_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '出库单行ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `order_id` bigint(20) NOT NULL COMMENT '出库单ID',
+  `line_no` int(11) NOT NULL COMMENT '行号',
+  `item_id` bigint(20) NOT NULL COMMENT '物料ID',
+  `area_id` bigint(20) DEFAULT NULL COMMENT '库区ID',
+  `location_id` bigint(20) DEFAULT NULL COMMENT '库位ID',
+  `qty` decimal(18,4) NOT NULL COMMENT '数量',
+  `batch_no` varchar(64) DEFAULT NULL COMMENT '批次号',
+  `production_date` datetime DEFAULT NULL COMMENT '生产日期',
+  `expiry_date` datetime DEFAULT NULL COMMENT '到期日期',
+  `serial_no` varchar(128) DEFAULT NULL COMMENT '序列号',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`line_id`),
+  UNIQUE KEY `uk_inv_outbound_order_line` (`tenant_id`,`order_id`,`line_no`),
+  KEY `idx_inv_outbound_line_item` (`tenant_id`,`item_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='出库单行';
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_item` ADD COLUMN `default_expiry_warn_days` int(11) DEFAULT NULL COMMENT ''默认临期预警天数'' AFTER `shelf_life_days`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_item'
+      AND COLUMN_NAME = 'default_expiry_warn_days'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `inv_stock_balance` ADD COLUMN `last_txn_time` datetime DEFAULT NULL COMMENT ''最后事务时间'' AFTER `version_no`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'inv_stock_balance'
+      AND COLUMN_NAME = 'last_txn_time'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `inv_stock_txn` ADD COLUMN `from_area_id` bigint(20) DEFAULT NULL COMMENT ''来源库区ID'' AFTER `serial_no`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'inv_stock_txn'
+      AND COLUMN_NAME = 'from_area_id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `inv_stock_txn` ADD COLUMN `from_location_id` bigint(20) DEFAULT NULL COMMENT ''来源库位ID'' AFTER `from_area_id`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'inv_stock_txn'
+      AND COLUMN_NAME = 'from_location_id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `inv_stock_txn` ADD COLUMN `to_area_id` bigint(20) DEFAULT NULL COMMENT ''目标库区ID'' AFTER `from_location_id`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'inv_stock_txn'
+      AND COLUMN_NAME = 'to_area_id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `inv_stock_txn` ADD COLUMN `to_location_id` bigint(20) DEFAULT NULL COMMENT ''目标库位ID'' AFTER `to_area_id`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'inv_stock_txn'
+      AND COLUMN_NAME = 'to_location_id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

@@ -34,6 +34,8 @@ work/
 *.temp
 *.bak
 *.swp
+AGENTS.md
+upload/imex/
 
 # Keep SQL scripts in version control
 !**/*.sql

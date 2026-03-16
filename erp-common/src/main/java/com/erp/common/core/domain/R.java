@@ -61,6 +61,19 @@ public class R<T> implements Serializable {
     }
 
     /**
+     * 构建自定义业务码响应。
+     *
+     * @param code    业务码
+     * @param message 响应消息
+     * @param data    响应数据
+     * @param <T>     数据类型
+     * @return 统一响应
+     */
+    public static <T> R<T> custom(long code, String message, T data) {
+        return new R<>(code, message, data);
+    }
+
+    /**
      * 构建分页成功响应。
      *
      * @param items    列表数据

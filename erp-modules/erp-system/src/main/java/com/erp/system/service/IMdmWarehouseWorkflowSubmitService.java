@@ -15,7 +15,7 @@ public interface IMdmWarehouseWorkflowSubmitService {
      * @param remark 提交备注
      * @return true 表示提交成功
      */
-    boolean submitDraftActivation(Long warehouseId, String processKey, String remark);
+    boolean submitDraftActivation(Long warehouseId, Integer versionNo, String processKey, String remark);
 
     /**
      * 提交仓库变更审批。
@@ -26,7 +26,7 @@ public interface IMdmWarehouseWorkflowSubmitService {
      * @param remark 提交备注
      * @return true 表示提交成功
      */
-    boolean submitChange(Long warehouseId, MdmWarehouse targetWarehouse, String processKey, String remark);
+    boolean submitChange(Long warehouseId, Integer versionNo, MdmWarehouse targetWarehouse, String processKey, String remark);
 
     /**
      * 提交仓库停用审批。
@@ -36,5 +36,5 @@ public interface IMdmWarehouseWorkflowSubmitService {
      * @param remark 提交备注
      * @return true 表示提交成功
      */
-    boolean submitDisable(Long warehouseId, String processKey, String remark);
+    boolean submitDisable(Long warehouseId, Integer versionNo, String processKey, String remark);
 }

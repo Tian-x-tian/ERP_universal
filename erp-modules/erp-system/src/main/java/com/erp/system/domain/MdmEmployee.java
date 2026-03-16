@@ -3,6 +3,8 @@ package com.erp.system.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.erp.system.sensitive.SensitiveField;
+import com.erp.system.sensitive.SensitiveType;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -19,7 +21,9 @@ public class MdmEmployee implements Serializable {
     private String tenantId;
     private String empCode;
     private String empName;
+    @SensitiveField(SensitiveType.PHONE)
     private String mobile;
+    @SensitiveField(SensitiveType.EMAIL)
     private String email;
     private Long orgId;
     private Long deptId;

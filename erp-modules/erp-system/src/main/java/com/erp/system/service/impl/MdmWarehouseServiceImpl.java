@@ -16,6 +16,7 @@ import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmChangeTypeSupport;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmEmployeeStatusSupport;
+import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmStatusSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.TenantWriteGuard;
@@ -104,6 +105,9 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         if (!isOrgValid(warehouse.getOrgId()) || !isManagerValid(warehouse.getManagerEmpId())) {
             return false;
         }
+        if (!isOrgValid(warehouse.getAccountingOrgId())) {
+            return false;
+        }
         String operator = resolveOperator();
         Date now = new Date();
         warehouse.setTenantId(tenantId);
@@ -112,6 +116,9 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         warehouse.setWhType(MdmValueSupport.trimToNull(warehouse.getWhType()));
         warehouse.setAddress(MdmValueSupport.trimToNull(warehouse.getAddress()));
         warehouse.setAllowNegativeStock(MdmValueSupport.normalizeYN(warehouse.getAllowNegativeStock(), "N"));
+        warehouse.setTemperatureZone(MdmValueSupport.trimToNull(warehouse.getTemperatureZone()));
+        warehouse.setHazardousFlag(MdmValueSupport.normalizeYN(warehouse.getHazardousFlag(), "N"));
+        warehouse.setLocationCodePrefix(MdmValueSupport.trimToNull(warehouse.getLocationCodePrefix()));
         warehouse.setStatus(MdmStatusSupport.DRAFT);
         warehouse.setVersionNo(1);
         warehouse.setDelFlag(DEL_FLAG_EXIST);
@@ -157,6 +164,10 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         if (!MdmStatusSupport.isDraft(existed.getStatus())) {
             throw new IllegalStateException("已生效仓库请通过审批流程提交变更");
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(
+                warehouse.getVersionNo(),
+                existed.getVersionNo(),
+                "仓库");
         MdmWarehouse before = new MdmWarehouse();
         BeanUtils.copyProperties(existed, before);
 
@@ -168,9 +179,10 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
             warehouse.setWhCode(whCode);
         }
         Long orgId = warehouse.getOrgId() == null ? existed.getOrgId() : warehouse.getOrgId();
+        Long accountingOrgId = warehouse.getAccountingOrgId() == null ? existed.getAccountingOrgId() : warehouse.getAccountingOrgId();
         Long managerEmpId = warehouse.getManagerEmpId() == null ? existed.getManagerEmpId()
                 : warehouse.getManagerEmpId();
-        if (!isOrgValid(orgId) || !isManagerValid(managerEmpId)) {
+        if (!isOrgValid(orgId) || !isOrgValid(accountingOrgId) || !isManagerValid(managerEmpId)) {
             return false;
         }
         warehouse.setWhName(MdmValueSupport.trimToNull(warehouse.getWhName()));
@@ -178,6 +190,9 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         warehouse.setAddress(MdmValueSupport.trimToNull(warehouse.getAddress()));
         warehouse.setAllowNegativeStock(MdmValueSupport.normalizeYN(warehouse.getAllowNegativeStock(),
                 existed.getAllowNegativeStock()));
+        warehouse.setTemperatureZone(MdmValueSupport.trimToNull(warehouse.getTemperatureZone()));
+        warehouse.setHazardousFlag(MdmValueSupport.normalizeYN(warehouse.getHazardousFlag(), existed.getHazardousFlag()));
+        warehouse.setLocationCodePrefix(MdmValueSupport.trimToNull(warehouse.getLocationCodePrefix()));
         String newStatus = MdmStatusSupport.normalizeStatusForUpdate(warehouse.getStatus(), existed.getStatus());
         warehouse.setStatus(newStatus);
         warehouse.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
@@ -186,7 +201,7 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         }
         warehouse.setUpdateBy(resolveOperator());
         warehouse.setUpdateTime(new Date());
-        boolean updated = updateWarehouseByVersion(warehouse, existed.getVersionNo());
+        boolean updated = updateWarehouseByVersion(warehouse, expectedVersionNo);
         if (updated) {
             MdmWarehouse after = getById(warehouse.getWarehouseId());
             auditTrailService.record(MdmDomainTypeSupport.WAREHOUSE,
@@ -208,7 +223,7 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean disableWarehouse(Long warehouseId) {
+    public boolean disableWarehouse(Long warehouseId, Integer versionNo) {
         if (warehouseId == null) {
             return false;
         }
@@ -230,13 +245,14 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         if (MdmStatusSupport.DISABLED.equals(existed.getStatus())) {
             return true;
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(versionNo, existed.getVersionNo(), "仓库");
         MdmWarehouse updateEntity = new MdmWarehouse();
         updateEntity.setWarehouseId(warehouseId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateWarehouseByVersion(updateEntity, existed.getVersionNo());
+        boolean updated = updateWarehouseByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             MdmWarehouse after = getById(warehouseId);
             auditTrailService.record(MdmDomainTypeSupport.WAREHOUSE,
@@ -258,7 +274,7 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean removeWarehouse(Long warehouseId) {
+    public boolean removeWarehouse(Long warehouseId, Integer versionNo) {
         if (warehouseId == null) {
             return false;
         }
@@ -274,13 +290,14 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         if (MdmStatusSupport.isSubmitted(existed.getStatus())) {
             return false;
         }
+        Integer expectedVersionNo = MdmOptimisticLockSupport.requireVersion(versionNo, existed.getVersionNo(), "仓库");
         MdmWarehouse updateEntity = new MdmWarehouse();
         updateEntity.setWarehouseId(warehouseId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
-        boolean updated = updateWarehouseByVersion(updateEntity, existed.getVersionNo());
+        boolean updated = updateWarehouseByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.WAREHOUSE,
                     warehouseId,
@@ -328,9 +345,7 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
             updateWrapper.eq(MdmWarehouse::getVersionNo, currentVersionNo);
         }
         boolean updated = update(warehouse, updateWrapper);
-        if (!updated) {
-            throw new IllegalStateException("仓库数据已被其他人更新，请刷新后重试");
-        }
+        MdmOptimisticLockSupport.ensureUpdated(updated, "仓库");
         return true;
     }
 

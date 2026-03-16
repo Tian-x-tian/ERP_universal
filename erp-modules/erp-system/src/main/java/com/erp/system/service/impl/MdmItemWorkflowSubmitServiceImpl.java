@@ -15,6 +15,7 @@ import com.erp.system.service.IMdmItemService;
 import com.erp.system.service.IMdmItemWorkflowSubmitService;
 import com.erp.system.service.ISysUserService;
 import com.erp.system.service.ISysWorkflowEngineService;
+import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmStatusSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.MdmWorkflowActionSupport;
@@ -61,8 +62,9 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitDraftActivation(Long itemId, String processKey, String remark) {
+    public boolean submitDraftActivation(Long itemId, Integer versionNo, String processKey, String remark) {
         MdmItem item = loadEditableItem(itemId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, item.getVersionNo(), "物料");
         if (!MdmStatusSupport.isDraft(item.getStatus())) {
             throw new IllegalStateException("仅草稿物料允许提交生效审批");
         }
@@ -88,8 +90,9 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitChange(Long itemId, MdmItem targetItem, String processKey, String remark) {
+    public boolean submitChange(Long itemId, Integer versionNo, MdmItem targetItem, String processKey, String remark) {
         MdmItem currentItem = loadEditableItem(itemId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, currentItem.getVersionNo(), "物料");
         if (MdmStatusSupport.isSubmitted(currentItem.getStatus())) {
             throw new IllegalStateException("物料审批中，暂不允许提交新的变更");
         }
@@ -111,13 +114,17 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
         if (!startWorkflow(startBody)) {
             throw new IllegalStateException("物料变更审批流程发起失败");
         }
+        if (!updateItemStatus(itemId, currentItem.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("物料状态已变化，请刷新后重试");
+        }
         return true;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean submitDisable(Long itemId, String processKey, String remark) {
+    public boolean submitDisable(Long itemId, Integer versionNo, String processKey, String remark) {
         MdmItem currentItem = loadEditableItem(itemId);
+        MdmOptimisticLockSupport.requireVersion(versionNo, currentItem.getVersionNo(), "物料");
         if (MdmStatusSupport.isSubmitted(currentItem.getStatus())) {
             throw new IllegalStateException("物料审批中，暂不允许提交停用");
         }
@@ -140,6 +147,9 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
                 afterItem);
         if (!startWorkflow(startBody)) {
             throw new IllegalStateException("物料停用审批流程发起失败");
+        }
+        if (!updateItemStatus(itemId, currentItem.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            throw new IllegalStateException("物料状态已变化，请刷新后重试");
         }
         return true;
     }

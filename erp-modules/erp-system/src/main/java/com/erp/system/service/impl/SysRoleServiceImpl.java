@@ -31,6 +31,10 @@ import java.util.Set;
 public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> implements ISysRoleService {
     private static final String PLATFORM_TENANT_ID = "000000";
     private static final String SUPER_ADMIN_ROLE_KEY = "admin";
+    private static final String DEFAULT_DATA_SCOPE = "3";
+    private static final String DEFAULT_STATUS = "0";
+    private static final String DEFAULT_DEL_FLAG = "0";
+    private static final int DEFAULT_ROLE_SORT = 1;
 
     private final ISysRoleMenuService roleMenuService;
     private final ISysUserRoleService userRoleService;
@@ -161,6 +165,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
         if (entity == null) {
             return false;
         }
+        applyCreateDefaults(entity);
         String tenantId = resolveTenantId(entity.getTenantId(), null);
         if (!StringUtils.hasText(tenantId)) {
             return false;
@@ -211,6 +216,26 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
             insertRoleDept(entity);
         }
         return super.updateById(entity);
+    }
+
+    /**
+     * 为新增角色补齐默认字段，避免前端未传字段导致保存失败。
+     *
+     * @param entity 角色对象
+     */
+    private void applyCreateDefaults(SysRole entity) {
+        if (!StringUtils.hasText(entity.getDataScope())) {
+            entity.setDataScope(DEFAULT_DATA_SCOPE);
+        }
+        if (!StringUtils.hasText(entity.getStatus())) {
+            entity.setStatus(DEFAULT_STATUS);
+        }
+        if (!StringUtils.hasText(entity.getDelFlag())) {
+            entity.setDelFlag(DEFAULT_DEL_FLAG);
+        }
+        if (entity.getRoleSort() == null) {
+            entity.setRoleSort(DEFAULT_ROLE_SORT);
+        }
     }
 
     /**
