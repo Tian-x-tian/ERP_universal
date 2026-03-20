@@ -34,20 +34,7 @@ public class SystemApplication {
      * @param args 启动参数
      */
     public static void main(String[] args) {
-        List<ModuleDefinition> modules = loadEnabledModules();
-        if (modules.isEmpty()) {
-            throw new IllegalStateException("No enabled module descriptors found from " + MODULE_DESCRIPTOR_PATH);
-        }
-        List<ConfigurableApplicationContext> contexts = new ArrayList<>();
-        try {
-            for (ModuleDefinition module : modules) {
-                contexts.add(startModule(module, args));
-            }
-            registerShutdownHook(contexts);
-        } catch (RuntimeException ex) {
-            closeContexts(contexts);
-            throw ex;
-        }
+        throw new UnsupportedOperationException("SystemApplication unified launcher is deprecated and disabled. Use module entrypoints (GatewayApplication/AuthApplication/SystemModuleApplication/BusinessApplication).");
     }
 
     /**
