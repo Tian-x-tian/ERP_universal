@@ -27,3 +27,18 @@ spring:
 mybatis-plus:
   configuration:
     map-underline-to-camel-case: true
+
+erp:
+  auth:
+    login:
+      fail:
+        max-attempts: ${ERP_AUTH_LOGIN_FAIL_MAX_ATTEMPTS:5}
+        window-seconds: ${ERP_AUTH_LOGIN_FAIL_WINDOW_SECONDS:300}
+        lock-seconds: ${ERP_AUTH_LOGIN_FAIL_LOCK_SECONDS:900}
+      rate-limit:
+        enabled: ${ERP_AUTH_LOGIN_RATE_LIMIT_ENABLED:true}
+        window-seconds: ${ERP_AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS:60}
+        max-requests: ${ERP_AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS:20}
+    captcha:
+      enabled: ${ERP_AUTH_CAPTCHA_ENABLED:false}
+      fixed-code: ${ERP_AUTH_CAPTCHA_FIXED_CODE:}
