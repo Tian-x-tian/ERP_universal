@@ -1,5 +1,6 @@
 package com.erp.system.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.erp.common.core.context.RequestTraceContextHolder;
 import com.erp.system.domain.MdmChangeLog;
 import com.erp.system.domain.MdmVersion;
@@ -10,6 +11,9 @@ import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.support.TenantWriteGuard;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,6 +26,7 @@ import java.util.Date;
 public class MdmAuditTrailServiceImpl implements IMdmAuditTrailService {
     private static final String SOURCE_API = "API";
     private static final String DEFAULT_OPERATOR = "system";
+    private static final Logger log = LoggerFactory.getLogger(MdmAuditTrailServiceImpl.class);
 
     private final MdmChangeLogMapper changeLogMapper;
     private final MdmVersionMapper versionMapper;
@@ -94,7 +99,73 @@ public class MdmAuditTrailServiceImpl implements IMdmAuditTrailService {
         version.setSnapshotJson(afterJson);
         version.setCreateBy(operator);
         version.setCreateTime(now);
-        versionMapper.insert(version);
+        saveVersionSnapshot(version);
+    }
+
+    /**
+     * 幂等保存版本快照。
+     * 同一租户、域、业务主键、版本号只保留一条记录，重复写入时更新快照内容与状态。
+     *
+     * @param version 待保存版本快照
+     */
+    private void saveVersionSnapshot(MdmVersion version) {
+        if (version == null
+                || !StringUtils.hasText(version.getTenantId())
+                || !StringUtils.hasText(version.getDomainType())
+                || version.getBizId() == null
+                || version.getVersionNo() == null) {
+            return;
+        }
+        MdmVersion existedVersion = findExistingVersion(version);
+        if (existedVersion != null) {
+            updateExistingVersion(existedVersion.getVersionId(), version);
+            return;
+        }
+        try {
+            versionMapper.insert(version);
+        } catch (DuplicateKeyException ex) {
+            // 并发审批或历史补数场景下，唯一键已存在时回退为更新，避免审批流程因留痕失败而回滚。
+            log.warn("MDM version snapshot already exists, fallback to update. tenantId={}, domainType={}, bizId={}, versionNo={}",
+                    version.getTenantId(), version.getDomainType(), version.getBizId(), version.getVersionNo());
+            MdmVersion latestVersion = findExistingVersion(version);
+            if (latestVersion == null) {
+                throw ex;
+            }
+            updateExistingVersion(latestVersion.getVersionId(), version);
+        }
+    }
+
+    /**
+     * 查询唯一版本快照。
+     *
+     * @param version 查询条件
+     * @return 已存在版本快照，不存在时返回 null
+     */
+    private MdmVersion findExistingVersion(MdmVersion version) {
+        return versionMapper.selectOne(new LambdaQueryWrapper<MdmVersion>()
+                .eq(MdmVersion::getTenantId, version.getTenantId())
+                .eq(MdmVersion::getDomainType, version.getDomainType())
+                .eq(MdmVersion::getBizId, version.getBizId())
+                .eq(MdmVersion::getVersionNo, version.getVersionNo())
+                .last("LIMIT 1"));
+    }
+
+    /**
+     * 更新已存在的版本快照。
+     *
+     * @param versionId 目标版本ID
+     * @param version   新快照内容
+     */
+    private void updateExistingVersion(Long versionId, MdmVersion version) {
+        if (versionId == null || version == null) {
+            return;
+        }
+        MdmVersion updateEntity = new MdmVersion();
+        updateEntity.setVersionId(versionId);
+        updateEntity.setStatus(version.getStatus());
+        updateEntity.setEffectiveTime(version.getEffectiveTime());
+        updateEntity.setSnapshotJson(version.getSnapshotJson());
+        versionMapper.updateById(updateEntity);
     }
 
     /**

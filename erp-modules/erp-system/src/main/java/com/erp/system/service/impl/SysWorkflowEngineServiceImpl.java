@@ -1,6 +1,7 @@
 package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.system.domain.SysNotice;
@@ -369,6 +370,12 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
     @Transactional(rollbackFor = Exception.class)
     public boolean approveTask(Long taskId, WorkflowTaskActionBody actionBody, Long actionUserId, String actionUserName, String actionUserNick) {
         SysWorkflowTask task = workflowTaskMapper.selectById(taskId);
+        if (task != null
+                && Objects.equals(task.getAssigneeUserId(), actionUserId)
+                && TASK_STATUS_APPROVED.equals(task.getStatus())) {
+            // 幂等处理：同一任务重复提交“同意”时，直接视为成功，避免并发重放触发状态冲突。
+            return true;
+        }
         if (!canHandleTask(task, actionUserId)) {
             return false;
         }
@@ -382,14 +389,8 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         Date now = new Date();
         String actionComment = normalizeText(actionBody == null ? null : actionBody.getActionComment());
 
-        SysWorkflowTask updateTask = new SysWorkflowTask();
-        updateTask.setTaskId(task.getTaskId());
-        updateTask.setStatus(TASK_STATUS_APPROVED);
-        updateTask.setActionComment(actionComment);
-        updateTask.setClaimTime(task.getClaimTime() == null ? now : task.getClaimTime());
-        updateTask.setFinishTime(now);
-        if (workflowTaskMapper.updateById(updateTask) <= 0) {
-            return false;
+        if (!markTaskApproved(task, actionUserId, actionComment, now)) {
+            return isTaskApprovedByUser(taskId, actionUserId);
         }
 
         finishTodoTask(task.getTodoId(), actionUserId, "审批通过");
@@ -957,6 +958,48 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             return false;
         }
         return TASK_STATUS_PENDING.equals(task.getStatus()) || TASK_STATUS_PROCESSING.equals(task.getStatus());
+    }
+
+    /**
+     * 按当前办理人与可处理状态原子更新任务为“已同意”。
+     *
+     * @param task          当前任务快照
+     * @param actionUserId  操作人ID
+     * @param actionComment 审批意见
+     * @param finishTime    办结时间
+     * @return true 表示更新成功
+     */
+    private boolean markTaskApproved(SysWorkflowTask task, Long actionUserId, String actionComment, Date finishTime) {
+        if (task == null || task.getTaskId() == null || actionUserId == null || finishTime == null) {
+            return false;
+        }
+        SysWorkflowTask updateTask = new SysWorkflowTask();
+        updateTask.setStatus(TASK_STATUS_APPROVED);
+        updateTask.setActionComment(actionComment);
+        updateTask.setClaimTime(task.getClaimTime() == null ? finishTime : task.getClaimTime());
+        updateTask.setFinishTime(finishTime);
+        LambdaUpdateWrapper<SysWorkflowTask> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(SysWorkflowTask::getTaskId, task.getTaskId())
+                .eq(SysWorkflowTask::getAssigneeUserId, actionUserId)
+                .in(SysWorkflowTask::getStatus, TASK_STATUS_PENDING, TASK_STATUS_PROCESSING);
+        return workflowTaskMapper.update(updateTask, updateWrapper) > 0;
+    }
+
+    /**
+     * 判断任务是否已由当前办理人审批通过（用于并发重放幂等）。
+     *
+     * @param taskId       任务ID
+     * @param actionUserId 当前操作人ID
+     * @return true 表示已审批通过
+     */
+    private boolean isTaskApprovedByUser(Long taskId, Long actionUserId) {
+        if (taskId == null || actionUserId == null) {
+            return false;
+        }
+        SysWorkflowTask latestTask = workflowTaskMapper.selectById(taskId);
+        return latestTask != null
+                && Objects.equals(latestTask.getAssigneeUserId(), actionUserId)
+                && TASK_STATUS_APPROVED.equals(latestTask.getStatus());
     }
 
     /**

@@ -6,6 +6,7 @@ import com.erp.common.utils.JwtUtils;
 import com.erp.system.domain.SysLoginLog;
 import com.erp.system.domain.SysUser;
 import com.erp.system.domain.vo.LoginBody;
+import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.ISysLoginLogService;
 import com.erp.system.service.ISysUserService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,13 +31,16 @@ public class LoginController {
     private final ISysUserService userService;
     private final ISysLoginLogService loginLogService;
     private final PasswordEncoder passwordEncoder;
+    private final SecurityUserResolver securityUserResolver;
 
     public LoginController(ISysUserService userService,
             ISysLoginLogService loginLogService,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            SecurityUserResolver securityUserResolver) {
         this.userService = userService;
         this.loginLogService = loginLogService;
         this.passwordEncoder = passwordEncoder;
+        this.securityUserResolver = securityUserResolver;
     }
 
     /**
@@ -226,13 +230,6 @@ public class LoginController {
      * @return 用户ID，未登录时返回 null
      */
     private Long resolveCurrentUserId() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication() == null
-                ? null
-                : SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (!(principal instanceof String) || !StringUtils.hasText((String) principal)) {
-            return null;
-        }
-        SysUser user = userService.selectUserByUserName(((String) principal).trim());
-        return user == null ? null : user.getUserId();
+        return securityUserResolver.getCurrentUserId();
     }
 }

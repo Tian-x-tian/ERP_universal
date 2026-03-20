@@ -21,10 +21,13 @@ import com.erp.system.service.IMdmEmployeeWorkflowSubmitService;
 import com.erp.system.service.ISysDeptService;
 import com.erp.system.service.ISysUserService;
 import com.erp.system.service.ISysWorkflowEngineService;
+import com.erp.system.service.IWorkflowBindingResolver;
+import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmEmployeeStatusSupport;
 import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmValueSupport;
 import com.erp.system.support.MdmWorkflowActionSupport;
+import com.erp.system.support.WorkflowBindingActionSupport;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +50,7 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
 
     private final IMdmEmployeeService employeeService;
     private final ISysWorkflowEngineService workflowEngineService;
+    private final IWorkflowBindingResolver workflowBindingResolver;
     private final SecurityUserResolver securityUserResolver;
     private final ISysUserService userService;
     private final SysWorkflowInstanceMapper workflowInstanceMapper;
@@ -57,6 +61,7 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
 
     public MdmEmployeeWorkflowSubmitServiceImpl(IMdmEmployeeService employeeService,
             ISysWorkflowEngineService workflowEngineService,
+            IWorkflowBindingResolver workflowBindingResolver,
             SecurityUserResolver securityUserResolver,
             ISysUserService userService,
             SysWorkflowInstanceMapper workflowInstanceMapper,
@@ -65,6 +70,7 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
             ISysDeptService deptService) {
         this.employeeService = employeeService;
         this.workflowEngineService = workflowEngineService;
+        this.workflowBindingResolver = workflowBindingResolver;
         this.securityUserResolver = securityUserResolver;
         this.userService = userService;
         this.workflowInstanceMapper = workflowInstanceMapper;
@@ -85,8 +91,12 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
         if (hasRunningWorkflow(employeeId)) {
             throw new IllegalStateException("该员工已有审批流程在处理中");
         }
+        String resolvedProcessKey = workflowBindingResolver.resolveProcessKey(
+                MdmDomainTypeSupport.EMPLOYEE,
+                WorkflowBindingActionSupport.ONBOARD,
+                processKey);
         WorkflowStartBody startBody = buildStartBody(
-                processKey,
+                resolvedProcessKey,
                 remark,
                 employeeId,
                 MdmWorkflowActionSupport.ACTIVATE,
@@ -125,8 +135,12 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
             throw new IllegalStateException("该员工已有审批流程在处理中");
         }
         MdmEmployee afterEmployee = normalizeTargetEmployee(currentEmployee, targetEmployee);
+        String resolvedProcessKey = workflowBindingResolver.resolveProcessKey(
+                MdmDomainTypeSupport.EMPLOYEE,
+                WorkflowBindingActionSupport.CHANGE,
+                processKey);
         WorkflowStartBody startBody = buildStartBody(
-                processKey,
+                resolvedProcessKey,
                 remark,
                 employeeId,
                 MdmWorkflowActionSupport.UPDATE,
@@ -161,8 +175,12 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
         MdmEmployee afterEmployee = new MdmEmployee();
         BeanUtils.copyProperties(currentEmployee, afterEmployee);
         afterEmployee.setStatus(MdmEmployeeStatusSupport.LEAVE);
+        String resolvedProcessKey = workflowBindingResolver.resolveProcessKey(
+                MdmDomainTypeSupport.EMPLOYEE,
+                WorkflowBindingActionSupport.LEAVE,
+                processKey);
         WorkflowStartBody startBody = buildStartBody(
-                processKey,
+                resolvedProcessKey,
                 remark,
                 employeeId,
                 MdmWorkflowActionSupport.DISABLE,

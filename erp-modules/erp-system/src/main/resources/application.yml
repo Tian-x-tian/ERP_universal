@@ -5,6 +5,9 @@ server:
       charset: UTF-8
       enabled: true
       force: true
+  tomcat:
+    accesslog:
+      enabled: ${ERP_ACCESS_LOG_ENABLED:false}
 
 spring:
   application:
@@ -39,3 +42,26 @@ mybatis-plus:
   type-aliases-package: com.erp.system.domain.entity
   configuration:
     map-underline-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+erp:
+  sql:
+    upgrade:
+      enabled: ${ERP_SQL_UPGRADE_ENABLED:true}
+      location: classpath:sql/upgrade/system/*.sql
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-N/A}] %logger{50} - %msg%n"
+  level:
+    root: ${ERP_LOG_ROOT_LEVEL:INFO}
+    com.erp.system: ${ERP_LOG_APP_LEVEL:DEBUG}
+    com.erp.system.controller: ${ERP_LOG_CONTROLLER_LEVEL:DEBUG}
+    com.erp.system.service: ${ERP_LOG_SERVICE_LEVEL:DEBUG}
+    com.erp.system.mapper: ${ERP_LOG_MAPPER_LEVEL:DEBUG}
+    org.mybatis: ${ERP_LOG_MYBATIS_LEVEL:DEBUG}
+    com.baomidou.mybatisplus: ${ERP_LOG_MP_LEVEL:DEBUG}
+    org.springframework.jdbc.core: ${ERP_LOG_JDBC_LEVEL:DEBUG}
+    org.springframework.web: ${ERP_LOG_WEB_LEVEL:DEBUG}
+    org.springframework.security: ${ERP_LOG_SECURITY_LEVEL:DEBUG}
+    com.alibaba.nacos: ${ERP_LOG_NACOS_LEVEL:INFO}

@@ -3,12 +3,16 @@ package com.erp.system.controller;
 import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.system.domain.SysWorkflowInstance;
+import com.erp.system.domain.vo.WorkflowProcessOptionVO;
 import com.erp.system.domain.vo.WorkflowInstanceDetailVO;
 import com.erp.system.domain.vo.WorkflowTaskActionBody;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.ISysWorkflowDefinitionService;
 import com.erp.system.service.ISysWorkflowEngineService;
+import com.erp.system.service.IWorkflowBindingResolver;
+import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmWorkflowBusinessSupport;
+import com.erp.system.support.WorkflowBindingActionSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -30,14 +35,36 @@ public class MdmProcessController {
 
     private final ISysWorkflowEngineService workflowEngineService;
     private final ISysWorkflowDefinitionService workflowDefinitionService;
+    private final IWorkflowBindingResolver workflowBindingResolver;
     private final SecurityUserResolver securityUserResolver;
 
     public MdmProcessController(ISysWorkflowEngineService workflowEngineService,
                                 ISysWorkflowDefinitionService workflowDefinitionService,
+                                IWorkflowBindingResolver workflowBindingResolver,
                                 SecurityUserResolver securityUserResolver) {
         this.workflowEngineService = workflowEngineService;
         this.workflowDefinitionService = workflowDefinitionService;
+        this.workflowBindingResolver = workflowBindingResolver;
         this.securityUserResolver = securityUserResolver;
+    }
+
+    /**
+     * 查询员工审批动作可选流程。
+     *
+     * @param action 审批动作（ONBOARD/CHANGE/LEAVE）
+     * @return 流程选项列表
+     */
+    @GetMapping("/options/employee")
+    @PreAuthorize("@ss.hasAnyPermi('system:mdm:employee:query','system:mdm:employee:edit','business:hr:employee:list','business:hr:employee:submit','business:hr:employee:leave')")
+    public R<List<WorkflowProcessOptionVO>> employeeProcessOptions(@RequestParam("action") String action) {
+        String normalizedAction = WorkflowBindingActionSupport.normalizeAction(action);
+        if (!WorkflowBindingActionSupport.isSupportedAction(normalizedAction)) {
+            return R.failed(ResultCode.PARAM_ERROR, "审批动作不合法，仅支持 ONBOARD/CHANGE/LEAVE");
+        }
+        List<WorkflowProcessOptionVO> optionList = workflowBindingResolver.listProcessOptions(
+                MdmDomainTypeSupport.EMPLOYEE,
+                normalizedAction);
+        return R.success(optionList);
     }
 
     /**

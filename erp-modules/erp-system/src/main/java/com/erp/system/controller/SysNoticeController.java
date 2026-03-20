@@ -42,7 +42,7 @@ public class SysNoticeController {
      * @return 消息列表
      */
     @GetMapping("/list")
-    @PreAuthorize("@ss.hasPermi('system:todo:list')")
+    @PreAuthorize("@ss.hasAnyPermi('system:message:list','system:todo:list')")
     public R<List<SysNotice>> list(@RequestParam(value = "noticeType", required = false) String noticeType,
                                    @RequestParam(value = "status", required = false) String status,
                                    @RequestParam(value = "deliveryChannel", required = false) String deliveryChannel,
@@ -61,7 +61,7 @@ public class SysNoticeController {
      * @return 更新结果
      */
     @PostMapping("/read/{noticeId}")
-    @PreAuthorize("@ss.hasPermi('system:todo:handle')")
+    @PreAuthorize("@ss.hasAnyPermi('system:message:read','system:todo:handle')")
     public R<Boolean> read(@PathVariable("noticeId") Long noticeId) {
         Long currentUserId = resolveCurrentUserId();
         if (currentUserId == null) {
@@ -77,7 +77,7 @@ public class SysNoticeController {
      * @return 更新结果
      */
     @PostMapping("/readAll")
-    @PreAuthorize("@ss.hasPermi('system:todo:handle')")
+    @PreAuthorize("@ss.hasAnyPermi('system:message:read','system:todo:handle')")
     public R<Integer> readAll() {
         Long currentUserId = resolveCurrentUserId();
         if (currentUserId == null) {

@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 流程待办任务控制层
@@ -29,6 +30,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/system/todo")
 public class SysTodoTaskController {
+    private static final String TASK_STATUS_APPROVED = "2";
+    private static final String TASK_STATUS_REJECTED = "3";
+    private static final String TASK_STATUS_TRANSFERRED = "4";
+    private static final String TASK_STATUS_CANCELED = "5";
 
     private final ISysTodoTaskService todoTaskService;
     private final ISysWorkflowEngineService workflowEngineService;
@@ -71,7 +76,7 @@ public class SysTodoTaskController {
      * @return 更新结果
      */
     @PostMapping("/claim/{todoId}")
-    @PreAuthorize("@ss.hasPermi('system:todo:handle')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:claim','system:todo:handle')")
     public R<Boolean> claim(@PathVariable("todoId") Long todoId) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
@@ -95,7 +100,7 @@ public class SysTodoTaskController {
      * @return 更新结果
      */
     @PostMapping("/finish/{todoId}")
-    @PreAuthorize("@ss.hasPermi('system:todo:handle')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:finish','system:todo:handle')")
     public R<Boolean> finish(@PathVariable("todoId") Long todoId) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
@@ -110,9 +115,35 @@ public class SysTodoTaskController {
         if (workflowTaskId == null) {
             success = todoTaskService.finish(todoId, currentUser.userId);
         } else {
+            SysWorkflowTask workflowTask = workflowTaskMapper.selectById(workflowTaskId);
+            if (workflowTask == null) {
+                success = todoTaskService.finish(todoId, currentUser.userId);
+                return success ? R.success(true) : R.failed("待办办结失败，流程任务不存在");
+            }
+            if (!Objects.equals(workflowTask.getAssigneeUserId(), currentUser.userId)) {
+                if (isTaskTerminalStatus(workflowTask.getStatus())) {
+                    success = todoTaskService.finish(todoId, currentUser.userId);
+                    return success ? R.success(true) : R.failed("待办办结失败，任务已处理但待办未同步");
+                }
+                return R.failed("当前任务已转交给其他审批人，请刷新后重试");
+            }
+            if (isTaskTerminalStatus(workflowTask.getStatus())) {
+                success = todoTaskService.finish(todoId, currentUser.userId);
+                return success ? R.success(true) : R.failed("待办办结失败，任务已处理但待办未同步");
+            }
             WorkflowTaskActionBody actionBody = new WorkflowTaskActionBody();
             actionBody.setActionComment("待办中心办结");
             success = workflowEngineService.approveTask(workflowTaskId, actionBody, currentUser.userId, currentUser.userName, currentUser.nickName);
+            if (!success) {
+                SysWorkflowTask latestTask = workflowTaskMapper.selectById(workflowTaskId);
+                if (latestTask != null && isTaskTerminalStatus(latestTask.getStatus())) {
+                    success = todoTaskService.finish(todoId, currentUser.userId);
+                    if (success) {
+                        return R.success(true);
+                    }
+                }
+                return R.failed("待办办结失败，流程任务状态已变化，请刷新后重试");
+            }
         }
         return success ? R.success(true) : R.failed("待办办结失败");
     }
@@ -128,7 +159,10 @@ public class SysTodoTaskController {
             return null;
         }
         if (todoTask.getTaskId() != null) {
-            return todoTask.getTaskId();
+            SysWorkflowTask linkedTask = workflowTaskMapper.selectById(todoTask.getTaskId());
+            if (linkedTask != null && Objects.equals(todoTask.getTodoId(), linkedTask.getTodoId())) {
+                return linkedTask.getTaskId();
+            }
         }
         SysWorkflowTask workflowTask = workflowTaskMapper.selectOne(new LambdaQueryWrapper<SysWorkflowTask>()
                 .eq(SysWorkflowTask::getTodoId, todoTask.getTodoId())
@@ -143,6 +177,19 @@ public class SysTodoTaskController {
         updateTodo.setTaskId(workflowTask.getTaskId());
         todoTaskService.updateById(updateTodo);
         return workflowTask.getTaskId();
+    }
+
+    /**
+     * 判断流程任务是否处于终态。
+     *
+     * @param status 任务状态
+     * @return true 表示终态
+     */
+    private boolean isTaskTerminalStatus(String status) {
+        return TASK_STATUS_APPROVED.equals(status)
+                || TASK_STATUS_REJECTED.equals(status)
+                || TASK_STATUS_TRANSFERRED.equals(status)
+                || TASK_STATUS_CANCELED.equals(status);
     }
 
     /**

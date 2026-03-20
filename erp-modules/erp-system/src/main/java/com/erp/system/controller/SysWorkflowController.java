@@ -102,7 +102,7 @@ public class SysWorkflowController {
      * @return 流程定义列表
      */
     @GetMapping("/definition/list")
-    @PreAuthorize("@ss.hasPermi('system:workflow:list')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:list','system:workflow:list')")
     public R<List<SysWorkflowDefinition>> definitionList(
             @RequestParam(value = "processName", required = false) String processName,
             @RequestParam(value = "processKey", required = false) String processKey,
@@ -118,7 +118,7 @@ public class SysWorkflowController {
      * @return 流程定义详情
      */
     @GetMapping("/definition/{definitionId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:query')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:query','system:workflow:query')")
     public R<SysWorkflowDefinition> definitionDetail(@PathVariable("definitionId") Long definitionId) {
         return R.success(workflowDefinitionService.getById(definitionId));
     }
@@ -130,7 +130,7 @@ public class SysWorkflowController {
      * @return 新增结果
      */
     @PostMapping("/definition")
-    @PreAuthorize("@ss.hasAnyPermi('system:workflow:add','system:workflow:design')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:add','system:workflow:definition:design','system:workflow:add','system:workflow:design')")
     public R<Boolean> addDefinition(@RequestBody SysWorkflowDefinition definition) {
         String operator = resolveCurrentUsername();
         if (!StringUtils.hasText(operator)) {
@@ -147,7 +147,7 @@ public class SysWorkflowController {
      * @return 修改结果
      */
     @PutMapping("/definition")
-    @PreAuthorize("@ss.hasAnyPermi('system:workflow:edit','system:workflow:design')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:edit','system:workflow:definition:design','system:workflow:edit','system:workflow:design')")
     public R<Boolean> editDefinition(@RequestBody SysWorkflowDefinition definition) {
         String operator = resolveCurrentUsername();
         if (!StringUtils.hasText(operator)) {
@@ -164,7 +164,7 @@ public class SysWorkflowController {
      * @return 发布结果
      */
     @PostMapping("/definition/publish/{definitionId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:publish')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:publish','system:workflow:publish')")
     public R<Boolean> publishDefinition(@PathVariable("definitionId") Long definitionId) {
         String operator = resolveCurrentUsername();
         if (!StringUtils.hasText(operator)) {
@@ -181,7 +181,7 @@ public class SysWorkflowController {
      * @return 停用结果
      */
     @PostMapping("/definition/disable/{definitionId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:publish')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:publish','system:workflow:publish')")
     public R<Boolean> disableDefinition(@PathVariable("definitionId") Long definitionId) {
         String operator = resolveCurrentUsername();
         if (!StringUtils.hasText(operator)) {
@@ -198,7 +198,7 @@ public class SysWorkflowController {
      * @return 版本历史列表
      */
     @GetMapping("/definition/history/{processKey}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:query')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:query','system:workflow:query')")
     public R<List<SysWorkflowDefinition>> definitionHistory(@PathVariable("processKey") String processKey) {
         return R.success(workflowDefinitionService.selectHistoryByProcessKey(processKey));
     }
@@ -210,7 +210,7 @@ public class SysWorkflowController {
      * @return 新版本草稿
      */
     @PostMapping("/definition/version/{definitionId}")
-    @PreAuthorize("@ss.hasAnyPermi('system:workflow:edit','system:workflow:design')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:edit','system:workflow:definition:design','system:workflow:edit','system:workflow:design')")
     public R<SysWorkflowDefinition> createDefinitionVersion(@PathVariable("definitionId") Long definitionId) {
         String operator = resolveCurrentUsername();
         if (!StringUtils.hasText(operator)) {
@@ -230,7 +230,7 @@ public class SysWorkflowController {
      * @return 删除结果
      */
     @DeleteMapping("/definition/{definitionIds}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:remove')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:remove','system:workflow:remove')")
     public R<Boolean> removeDefinition(@PathVariable("definitionIds") List<Long> definitionIds) {
         String operator = resolveCurrentUsername();
         if (!StringUtils.hasText(operator)) {
@@ -249,7 +249,7 @@ public class SysWorkflowController {
      * @return 流程实例列表
      */
     @GetMapping("/instance/list")
-    @PreAuthorize("@ss.hasPermi('system:workflow:list')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:instance:list','system:workflow:list')")
     public R<List<SysWorkflowInstance>> instanceList(
             @RequestParam(value = "processKey", required = false) String processKey,
             @RequestParam(value = "status", required = false) String status,
@@ -264,7 +264,7 @@ public class SysWorkflowController {
      * @return 流程实例详情
      */
     @GetMapping("/instance/{instanceId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:query')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:instance:query','system:workflow:query')")
     public R<WorkflowInstanceDetailVO> instanceDetail(@PathVariable("instanceId") Long instanceId) {
         return R.success(workflowEngineService.selectInstanceDetail(instanceId));
     }
@@ -276,7 +276,7 @@ public class SysWorkflowController {
      * @return 发起结果
      */
     @PostMapping("/instance/start")
-    @PreAuthorize("@ss.hasPermi('system:workflow:start')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:instance:start','system:workflow:start')")
     public R<Boolean> startInstance(@RequestBody WorkflowStartBody startBody) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
@@ -298,7 +298,7 @@ public class SysWorkflowController {
      * @return 撤回结果
      */
     @PostMapping("/instance/withdraw/{instanceId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:withdraw')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:instance:withdraw','system:workflow:withdraw')")
     public R<Boolean> withdrawInstance(@PathVariable("instanceId") Long instanceId, @RequestBody(required = false) WorkflowTaskActionBody actionBody) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
@@ -320,7 +320,7 @@ public class SysWorkflowController {
      * @return 任务列表
      */
     @GetMapping("/task/list")
-    @PreAuthorize("@ss.hasPermi('system:workflow:list')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:list','system:workflow:list')")
     public R<List<SysWorkflowTask>> taskList(@RequestParam(value = "status", required = false) String status) {
         Long currentUserId = securityUserResolver.getCurrentUserId();
         if (currentUserId == null) {
@@ -336,7 +336,7 @@ public class SysWorkflowController {
      * @return 看板结果
      */
     @GetMapping("/report/dashboard")
-    @PreAuthorize("@ss.hasPermi('system:workflow:list')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:instance:report','system:workflow:list')")
     public R<WorkflowDashboardVO> reportDashboard(WorkflowDashboardQueryVO queryVO) {
         return R.success(workflowAnalyticsService.buildDashboard(queryVO));
     }
@@ -347,7 +347,7 @@ public class SysWorkflowController {
      * @return 用户、部门、角色、岗位选项
      */
     @GetMapping("/options/participants")
-    @PreAuthorize("@ss.hasPermi('system:workflow:list')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:query','system:workflow:definition:design','system:workflow:list')")
     public R<WorkflowParticipantOptionsVO> participantOptions() {
         Long currentUserId = securityUserResolver.getCurrentUserId();
         if (currentUserId == null) {
@@ -372,7 +372,7 @@ public class SysWorkflowController {
      * @return 扫描结果
      */
     @PostMapping("/sla/scan")
-    @PreAuthorize("@ss.hasPermi('system:workflow:remind')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:instance:sla','system:workflow:remind')")
     public R<WorkflowSlaScanResultVO> scanWorkflowSla() {
         return R.success(workflowEngineService.scanTimeoutTasks());
     }
@@ -384,7 +384,7 @@ public class SysWorkflowController {
      * @return 模板列表
      */
     @GetMapping("/template/list")
-    @PreAuthorize("@ss.hasPermi('system:workflow:list')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:template','system:workflow:definition:list','system:workflow:list')")
     public R<List<WorkflowTemplateVO>> templateList(@RequestParam(value = "industry", required = false) String industry) {
         return R.success(workflowTemplateService.selectTemplateList(industry));
     }
@@ -397,7 +397,7 @@ public class SysWorkflowController {
      * @return 新建流程定义
      */
     @PostMapping("/template/activate/{templateCode}")
-    @PreAuthorize("@ss.hasAnyPermi('system:workflow:add','system:workflow:design')")
+    @PreAuthorize("@ss.hasAnyPermi('system:workflow:definition:template','system:workflow:definition:add','system:workflow:definition:design','system:workflow:add','system:workflow:design')")
     public R<SysWorkflowDefinition> activateTemplate(@PathVariable("templateCode") String templateCode,
                                                      @RequestBody(required = false) WorkflowTemplateActivateBody activateBody) {
         String operator = resolveCurrentUsername();
@@ -418,7 +418,7 @@ public class SysWorkflowController {
      * @return 动态表单
      */
     @GetMapping("/task/form/{taskId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:form')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:form','system:todo:handle','system:workflow:form')")
     public R<WorkflowTaskFormVO> taskForm(@PathVariable("taskId") Long taskId) {
         Long currentUserId = securityUserResolver.getCurrentUserId();
         if (currentUserId == null) {
@@ -439,7 +439,7 @@ public class SysWorkflowController {
      * @return 处理结果
      */
     @PostMapping("/task/approve/{taskId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:handle')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:approve','system:todo:handle','system:workflow:handle')")
     public R<Boolean> approveTask(@PathVariable("taskId") Long taskId, @RequestBody(required = false) WorkflowTaskActionBody actionBody) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
@@ -457,7 +457,7 @@ public class SysWorkflowController {
      * @return 处理结果
      */
     @PostMapping("/task/reject/{taskId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:handle')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:reject','system:todo:handle','system:workflow:handle')")
     public R<Boolean> rejectTask(@PathVariable("taskId") Long taskId, @RequestBody(required = false) WorkflowTaskActionBody actionBody) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
@@ -475,7 +475,7 @@ public class SysWorkflowController {
      * @return 处理结果
      */
     @PostMapping("/task/transfer/{taskId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:handle')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:transfer','system:todo:handle','system:workflow:handle')")
     public R<Boolean> transferTask(@PathVariable("taskId") Long taskId, @RequestBody WorkflowTaskTransferBody transferBody) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
@@ -493,7 +493,7 @@ public class SysWorkflowController {
      * @return 处理结果
      */
     @PostMapping("/task/return/{taskId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:return')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:return','system:todo:handle','system:workflow:return')")
     public R<Boolean> returnTask(@PathVariable("taskId") Long taskId, @RequestBody WorkflowTaskReturnBody returnBody) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
@@ -511,7 +511,7 @@ public class SysWorkflowController {
      * @return 处理结果
      */
     @PostMapping("/task/addSign/{taskId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:addSign')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:addSign','system:todo:handle','system:workflow:addSign')")
     public R<Boolean> addSign(@PathVariable("taskId") Long taskId, @RequestBody WorkflowTaskTransferBody transferBody) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
@@ -529,7 +529,7 @@ public class SysWorkflowController {
      * @return 处理结果
      */
     @PostMapping("/task/removeSign/{taskId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:removeSign')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:removeSign','system:todo:handle','system:workflow:removeSign')")
     public R<Boolean> removeSign(@PathVariable("taskId") Long taskId, @RequestBody WorkflowTaskTransferBody transferBody) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
@@ -547,7 +547,7 @@ public class SysWorkflowController {
      * @return 处理结果
      */
     @PostMapping("/task/delegate/{taskId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:delegate')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:delegate','system:todo:handle','system:workflow:delegate')")
     public R<Boolean> delegateTask(@PathVariable("taskId") Long taskId, @RequestBody WorkflowTaskTransferBody transferBody) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
@@ -565,7 +565,7 @@ public class SysWorkflowController {
      * @return 处理结果
      */
     @PostMapping("/task/remind/{taskId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:remind')")
+    @PreAuthorize("@ss.hasAnyPermi('system:todo:remind','system:todo:handle','system:workflow:remind')")
     public R<Boolean> remindTask(@PathVariable("taskId") Long taskId, @RequestBody(required = false) WorkflowTaskRemindBody remindBody) {
         CurrentUser currentUser = resolveCurrentUser();
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
