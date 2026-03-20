@@ -10,6 +10,8 @@ import java.util.Date;
 public interface AuthAccountService {
     SysUser selectUserByUserNameAndTenant(String userName, String tenantId);
 
+    SysUser selectUserByIdAndTenant(Long userId, String tenantId);
+
     boolean updateLoginInfo(Long userId, String loginIp, Date loginDate);
 
     boolean incrementTokenVersion(Long userId);

@@ -4,10 +4,11 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+
 import java.nio.charset.StandardCharsets;
+import java.security.Key;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,10 +26,11 @@ public class JwtUtils {
     private static final long EXPIRE = initExpireMillis();
 
     /**
-     * 生成令牌
+     * 生成令牌。
      */
-    public static String createToken(String userName, String tenantId, Integer tokenVersion) {
+    public static String createToken(Long userId, String userName, String tenantId, Integer tokenVersion) {
         Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userId);
         claims.put("userName", userName);
         claims.put("tenantId", tenantId);
         claims.put("tokenVersion", tokenVersion == null ? 0 : tokenVersion);
@@ -42,7 +44,14 @@ public class JwtUtils {
     }
 
     /**
-     * 从令牌中获取数据声明
+     * 兼容旧签名（无 userId）生成令牌。
+     */
+    public static String createToken(String userName, String tenantId, Integer tokenVersion) {
+        return createToken(null, userName, tenantId, tokenVersion);
+    }
+
+    /**
+     * 从令牌中获取数据声明。
      */
     public static Claims parseToken(String token) {
         return Jwts.parserBuilder()

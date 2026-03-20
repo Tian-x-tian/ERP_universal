@@ -32,6 +32,16 @@ public class AuthAccountServiceImpl implements AuthAccountService {
     }
 
     @Override
+    public SysUser selectUserByIdAndTenant(Long userId, String tenantId) {
+        if (userId == null || !StringUtils.hasText(tenantId)) {
+            return null;
+        }
+        return userMapper.selectOne(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getUserId, userId)
+                .eq(SysUser::getTenantId, tenantId.trim()));
+    }
+
+    @Override
     public boolean updateLoginInfo(Long userId, String loginIp, Date loginDate) {
         if (userId == null) {
             return false;

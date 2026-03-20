@@ -92,7 +92,7 @@ public class LoginController {
         }
 
         String tenantId = user.getTenantId();
-        String token = JwtUtils.createToken(user.getUserName(), tenantId, user.getTokenVersion());
+        String token = JwtUtils.createToken(user.getUserId(), user.getUserName(), tenantId, user.getTokenVersion());
         accountService.updateLoginInfo(user.getUserId(), requestIp, new Date());
         loginLogService.record(tenantId, user.getUserName(), "0", "登录成功", requestIp);
         loginGuardService.onLoginSuccess(tenantId, user.getUserName());
@@ -110,10 +110,10 @@ public class LoginController {
     public R<Void> logout(HttpServletRequest request) {
         String tenantId = resolveTenantId(request);
         String authorization = request == null ? null : request.getHeader("Authorization");
-        String userName = resolveUserNameFromAuthorization(authorization);
+        Long userId = resolveUserIdFromAuthorization(authorization);
 
-        if (StringUtils.hasText(tenantId) && StringUtils.hasText(userName)) {
-            SysUser user = accountService.selectUserByUserNameAndTenant(userName, tenantId);
+        if (StringUtils.hasText(tenantId) && userId != null) {
+            SysUser user = accountService.selectUserByIdAndTenant(userId, tenantId);
             if (user != null) {
                 accountService.incrementTokenVersion(user.getUserId());
             }
@@ -121,7 +121,7 @@ public class LoginController {
         return R.success();
     }
 
-    private String resolveUserNameFromAuthorization(String authorization) {
+    private Long resolveUserIdFromAuthorization(String authorization) {
         if (!StringUtils.hasText(authorization) || !authorization.startsWith("Bearer ")) {
             return null;
         }
@@ -130,7 +130,14 @@ public class LoginController {
             return null;
         }
         try {
-            return JwtUtils.parseToken(token).getSubject();
+            Object rawUserId = JwtUtils.parseToken(token).get("userId");
+            if (rawUserId instanceof Number) {
+                return ((Number) rawUserId).longValue();
+            }
+            if (rawUserId != null) {
+                return Long.parseLong(String.valueOf(rawUserId));
+            }
+            return null;
         } catch (Exception ex) {
             return null;
         }

@@ -51,7 +51,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (token != null) {
                 try {
                     Claims claims = JwtUtils.parseToken(token);
-                    String userName = claims.getSubject();
+                    Object rawUserId = claims.get("userId");
+                    String userName = claims.get("userName") == null ? claims.getSubject() : String.valueOf(claims.get("userName"));
                     String tenantIdFromToken = toTenantId(claims.get("tenantId"));
                     if (StringUtils.hasText(tenantIdFromHeader) && StringUtils.hasText(tenantIdFromToken)
                             && !tenantIdFromHeader.equals(tenantIdFromToken)) {
@@ -63,7 +64,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         return;
                     }
                     TenantContextHolder.setTenantId(tenantIdFromToken);
-                    if (!StringUtils.hasText(userName)) {
+                    if (!StringUtils.hasText(userName) && rawUserId == null) {
                         writeUnauthorized(response, ResultCode.UNAUTHORIZED.getMessage());
                         return;
                     }

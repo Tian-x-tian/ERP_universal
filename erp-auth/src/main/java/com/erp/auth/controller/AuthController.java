@@ -50,7 +50,9 @@ public class AuthController {
             Claims claims = JwtUtils.parseToken(token);
             Map<String, Object> data = new HashMap<>();
             data.put("valid", true);
-            data.put("userId", claims.getSubject());
+            Object userId = claims.get("userId");
+            data.put("userId", userId != null ? userId : claims.getSubject());
+            data.put("userName", claims.get("userName") != null ? claims.get("userName") : claims.getSubject());
             data.put("tenantId", claims.get("tenantId"));
             data.put("expiresAt", claims.getExpiration());
             return R.success(data);

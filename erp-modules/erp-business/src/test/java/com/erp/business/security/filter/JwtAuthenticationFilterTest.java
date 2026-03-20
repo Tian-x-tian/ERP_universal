@@ -38,7 +38,7 @@ class JwtAuthenticationFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/business/inventory/ledger/list");
         request.addHeader("tenantId", "TENANT_A");
-        request.addHeader("Authorization", "Bearer " + JwtUtils.createToken("tester", "TENANT_A", 3));
+        request.addHeader("Authorization", "Bearer " + JwtUtils.createToken(1001L, "tester", "TENANT_A", 3));
         MockHttpServletResponse response = new MockHttpServletResponse();
         AtomicBoolean chainInvoked = new AtomicBoolean(false);
 
@@ -59,7 +59,7 @@ class JwtAuthenticationFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/business/inventory/ledger/list");
         request.addHeader("tenantId", "TENANT_B");
-        request.addHeader("Authorization", "Bearer " + JwtUtils.createToken("tester", "TENANT_A", 1));
+        request.addHeader("Authorization", "Bearer " + JwtUtils.createToken(1001L, "tester", "TENANT_A", 1));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, buildFilterChain(new AtomicBoolean(false)));

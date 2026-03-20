@@ -46,6 +46,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (token != null) {
                 try {
                     Claims claims = JwtUtils.parseToken(token);
+                    Long userIdFromToken = toLong(claims.get("userId"));
                     String userName = claims.getSubject();
                     String tenantIdFromToken = toTenantId(claims.get("tenantId"));
                     Integer tokenVersion = toInteger(claims.get("tokenVersion"));
@@ -61,7 +62,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         return;
                     }
                     TenantContextHolder.setTenantId(tenantIdFromToken);
-                    SysUser user = userService.selectUserByUserName(userName);
+                    SysUser user = resolveUser(userIdFromToken, userName);
                     if (user == null || !tenantIdFromToken.equals(toTenantId(user.getTenantId()))) {
                         writeUnauthorized(response, ResultCode.UNAUTHORIZED.getMessage());
                         return;
@@ -76,8 +77,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     }
 
                     // 将用户信息存入 SecurityContext
+                    String principal = StringUtils.hasText(user.getUserName()) ? user.getUserName() : userName;
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                            userName, null, new ArrayList<>());
+                            principal, null, new ArrayList<>());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 } catch (Exception e) {
@@ -125,6 +127,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
+     * 规范化用户ID。
+     *
+     * @param rawUserId 原始用户ID
+     * @return 用户ID，缺失时返回 null
+     */
+    private Long toLong(Object rawUserId) {
+        if (rawUserId == null) {
+            return null;
+        }
+        if (rawUserId instanceof Number) {
+            return ((Number) rawUserId).longValue();
+        }
+        String userId = String.valueOf(rawUserId).trim();
+        if (!StringUtils.hasText(userId)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(userId);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    /**
      * 规范化 Token 版本号。
      *
      * @param rawTokenVersion 原始版本号
@@ -142,6 +168,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return 0;
         }
         return Integer.parseInt(tokenVersion);
+    }
+
+    /**
+     * 按 userId 优先、userName 兜底解析用户。
+     *
+     * @param userIdFromToken   令牌中的用户ID
+     * @param userNameFromToken 令牌中的用户名
+     * @return 用户对象
+     */
+    private SysUser resolveUser(Long userIdFromToken, String userNameFromToken) {
+        if (userIdFromToken != null) {
+            return userService.getById(userIdFromToken);
+        }
+        if (StringUtils.hasText(userNameFromToken)) {
+            return userService.selectUserByUserName(userNameFromToken);
+        }
+        return null;
     }
 
     /**
