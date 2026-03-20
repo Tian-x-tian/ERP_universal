@@ -21,6 +21,22 @@ public interface ISysMenuService extends IService<SysMenu> {
     List<SysMenu> selectMenuTreeByUserId(Long userId);
 
     /**
+     * 查询指定父菜单下的直接子菜单列表。
+     *
+     * @param parentId 父菜单ID
+     * @return 直接子菜单列表
+     */
+    List<SysMenu> listMenuChildren(Long parentId);
+
+    /**
+     * 按关键字搜索菜单树。
+     *
+     * @param keyword 关键字
+     * @return 命中节点及其祖先链组成的菜单树
+     */
+    List<SysMenu> searchMenuTree(String keyword);
+
+    /**
      * 按当前页面菜单蓝图同步菜单结构。
      *
      * @param menuTree 菜单同步树

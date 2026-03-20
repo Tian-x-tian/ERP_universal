@@ -19,6 +19,7 @@ import com.erp.business.hr.support.HrEmployeeSupport;
 import com.erp.business.security.service.SecurityUserResolver;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.core.exception.ServiceException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -35,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 薪资接口中心服务实现。
+ * 薪酬核算同步服务实现。
  */
 @Service
 public class HrSalaryIntegrationServiceImpl implements IHrSalaryIntegrationService {
@@ -53,18 +54,30 @@ public class HrSalaryIntegrationServiceImpl implements IHrSalaryIntegrationServi
     @Value("${hr.integration.salary.callback-token:}")
     private String callbackToken;
 
+    @Autowired
     public HrSalaryIntegrationServiceImpl(HrSalaryFieldMappingMapper fieldMappingMapper,
             HrSalarySyncLogMapper syncLogMapper,
             HrSalaryRetryTaskMapper retryTaskMapper,
             HrEmployeeCoreMapper employeeCoreMapper,
             SecurityUserResolver securityUserResolver) {
+        this(fieldMappingMapper, syncLogMapper, retryTaskMapper, employeeCoreMapper, securityUserResolver,
+                new ObjectMapper(), new RestTemplate());
+    }
+
+    HrSalaryIntegrationServiceImpl(HrSalaryFieldMappingMapper fieldMappingMapper,
+            HrSalarySyncLogMapper syncLogMapper,
+            HrSalaryRetryTaskMapper retryTaskMapper,
+            HrEmployeeCoreMapper employeeCoreMapper,
+            SecurityUserResolver securityUserResolver,
+            ObjectMapper objectMapper,
+            RestTemplate restTemplate) {
         this.fieldMappingMapper = fieldMappingMapper;
         this.syncLogMapper = syncLogMapper;
         this.retryTaskMapper = retryTaskMapper;
         this.employeeCoreMapper = employeeCoreMapper;
         this.securityUserResolver = securityUserResolver;
-        this.objectMapper = new ObjectMapper();
-        this.restTemplate = new RestTemplate();
+        this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
+        this.restTemplate = restTemplate == null ? new RestTemplate() : restTemplate;
     }
 
     /**
@@ -115,7 +128,7 @@ public class HrSalaryIntegrationServiceImpl implements IHrSalaryIntegrationServi
     }
 
     /**
-     * 发起薪资推送。
+     * 发起薪酬推送。
      *
      * @param body 推送参数
      * @return 生成的同步日志
@@ -134,7 +147,7 @@ public class HrSalaryIntegrationServiceImpl implements IHrSalaryIntegrationServi
     }
 
     /**
-     * 处理薪资回传。
+     * 处理薪酬回传。
      *
      * @param body 回传参数
      * @return 最新日志
@@ -193,7 +206,7 @@ public class HrSalaryIntegrationServiceImpl implements IHrSalaryIntegrationServi
                 .eq(HrSalarySyncLog::getLogId, logId)
                 .eq(StringUtils.hasText(currentTenantId()), HrSalarySyncLog::getTenantId, currentTenantId()));
         if (log == null) {
-            throw new ServiceException("薪资同步日志不存在", (int) ResultCode.NOT_FOUND.getCode());
+            throw new ServiceException("薪酬同步日志不存在", (int) ResultCode.NOT_FOUND.getCode());
         }
         HrSalaryRetryTask retryTask = new HrSalaryRetryTask();
         retryTask.setTenantId(log.getTenantId());
@@ -272,7 +285,7 @@ public class HrSalaryIntegrationServiceImpl implements IHrSalaryIntegrationServi
             return;
         }
         if (!StringUtils.hasText(pushUrl)) {
-            markLogFailed(log.getLogId(), "未配置薪资推送地址");
+            markLogFailed(log.getLogId(), "未配置薪酬推送地址");
             return;
         }
         try {
@@ -348,11 +361,11 @@ public class HrSalaryIntegrationServiceImpl implements IHrSalaryIntegrationServi
         } else if (body != null && StringUtils.hasText(body.getExternalBizNo())) {
             queryWrapper.eq(HrSalarySyncLog::getRequestNo, body.getExternalBizNo().trim());
         } else {
-            throw new IllegalArgumentException("薪资回传必须提供日志ID或外部业务号");
+            throw new IllegalArgumentException("薪酬回传必须提供日志ID或外部业务号");
         }
         HrSalarySyncLog log = syncLogMapper.selectOne(queryWrapper.last("limit 1"));
         if (log == null) {
-            throw new ServiceException("薪资同步日志不存在", (int) ResultCode.NOT_FOUND.getCode());
+            throw new ServiceException("薪酬同步日志不存在", (int) ResultCode.NOT_FOUND.getCode());
         }
         return log;
     }
@@ -367,7 +380,7 @@ public class HrSalaryIntegrationServiceImpl implements IHrSalaryIntegrationServi
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("薪资同步载荷序列化失败", ex);
+            throw new IllegalStateException("薪酬同步载荷序列化失败", ex);
         }
     }
 

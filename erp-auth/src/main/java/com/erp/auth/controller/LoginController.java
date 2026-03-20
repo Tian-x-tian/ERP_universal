@@ -1,88 +1,110 @@
 package com.erp.auth.controller;
 
+import com.erp.auth.domain.SysUser;
 import com.erp.auth.domain.vo.LoginBody;
+import com.erp.auth.service.AuthAccountService;
+import com.erp.auth.service.AuthLoginLogService;
 import com.erp.common.core.domain.R;
-import com.erp.common.core.domain.ResultCode;
+import com.erp.common.utils.JwtUtils;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.RestTemplate;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * 认证登录/登出入口（标准化迁移到 erp-auth）。
+ * 认证登录/登出入口。
  */
 @RestController
 public class LoginController {
-    private final RestTemplate restTemplate;
+    private final AuthAccountService accountService;
+    private final AuthLoginLogService loginLogService;
+    private final PasswordEncoder passwordEncoder;
 
-    public LoginController(RestTemplate restTemplate) {
-        this.restTemplate = restTemplate;
+    public LoginController(AuthAccountService accountService,
+            AuthLoginLogService loginLogService,
+            PasswordEncoder passwordEncoder) {
+        this.accountService = accountService;
+        this.loginLogService = loginLogService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /**
-     * 登录入口，转发到 erp-system 执行账号校验与令牌签发。
+     * 登录入口（auth 本地校验并签发 token）。
      */
     @PostMapping("/login")
-    public R<?> login(@RequestBody LoginBody loginBody, HttpServletRequest request) {
-        HttpHeaders headers = buildHeaders(request, false);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<LoginBody> entity = new HttpEntity<>(loginBody, headers);
-        try {
-            ResponseEntity<R> response = restTemplate.exchange(
-                    "http://erp-system/internal/auth/login",
-                    HttpMethod.POST,
-                    entity,
-                    R.class);
-            return response.getBody() == null ? R.failed(ResultCode.ERROR, "登录服务无响应") : response.getBody();
-        } catch (HttpStatusCodeException ex) {
-            return R.failed(ResultCode.ERROR, "登录服务调用失败: " + ex.getStatusCode().value());
-        } catch (Exception ex) {
-            return R.failed(ResultCode.ERROR, "登录服务异常: " + ex.getMessage());
+    public R<Map<String, Object>> login(@RequestBody LoginBody loginBody, HttpServletRequest request) {
+        String username = loginBody == null ? null : trim(loginBody.getUsername());
+        String loginTenantId = resolveTenantId(request);
+        String requestIp = resolveRequestIp(request);
+
+        if (!StringUtils.hasText(loginTenantId)) {
+            loginLogService.record(null, username, "1", "租户编号不能为空", requestIp);
+            return R.failed("租户编号不能为空");
         }
+        if (loginBody == null || !StringUtils.hasText(loginBody.getUsername())
+                || !StringUtils.hasText(loginBody.getPassword())) {
+            loginLogService.record(loginTenantId, username, "1", "用户名或密码不能为空", requestIp);
+            return R.failed("用户名或密码不能为空");
+        }
+
+        SysUser user = accountService.selectUserByUserNameAndTenant(username, loginTenantId);
+        if (user == null || !passwordEncoder.matches(loginBody.getPassword(), user.getPassword())) {
+            loginLogService.record(loginTenantId, username, "1", "用户名或密码错误", requestIp);
+            return R.failed("用户名或密码错误");
+        }
+        if (!"0".equals(user.getStatus()) || "2".equals(user.getDelFlag())) {
+            loginLogService.record(loginTenantId, username, "1", "账号不可用", requestIp);
+            return R.failed("账号不可用");
+        }
+
+        String tenantId = user.getTenantId();
+        String token = JwtUtils.createToken(user.getUserName(), tenantId, user.getTokenVersion());
+        accountService.updateLoginInfo(user.getUserId(), requestIp, new Date());
+        loginLogService.record(tenantId, user.getUserName(), "0", "登录成功", requestIp);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("token", token);
+        data.put("tenantId", tenantId);
+        return R.success(data);
     }
 
     /**
-     * 登出入口，转发到 erp-system 失效令牌版本。
+     * 登出入口（auth 本地失效 tokenVersion）。
      */
     @PostMapping("/logout")
-    public R<?> logout(HttpServletRequest request) {
-        HttpHeaders headers = buildHeaders(request, true);
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-        try {
-            ResponseEntity<R> response = restTemplate.exchange(
-                    "http://erp-system/internal/auth/logout",
-                    HttpMethod.POST,
-                    entity,
-                    R.class);
-            return response.getBody() == null ? R.success() : response.getBody();
-        } catch (HttpStatusCodeException ex) {
-            return R.failed(ResultCode.ERROR, "登出服务调用失败: " + ex.getStatusCode().value());
-        } catch (Exception ex) {
-            return R.failed(ResultCode.ERROR, "登出服务异常: " + ex.getMessage());
-        }
-    }
-
-    private HttpHeaders buildHeaders(HttpServletRequest request, boolean includeAuthorization) {
-        HttpHeaders headers = new HttpHeaders();
+    public R<Void> logout(HttpServletRequest request) {
         String tenantId = resolveTenantId(request);
-        if (StringUtils.hasText(tenantId)) {
-            headers.set("tenantId", tenantId);
-        }
-        if (includeAuthorization) {
-            String authorization = request == null ? null : request.getHeader("Authorization");
-            if (StringUtils.hasText(authorization)) {
-                headers.set("Authorization", authorization);
+        String authorization = request == null ? null : request.getHeader("Authorization");
+        String userName = resolveUserNameFromAuthorization(authorization);
+
+        if (StringUtils.hasText(tenantId) && StringUtils.hasText(userName)) {
+            SysUser user = accountService.selectUserByUserNameAndTenant(userName, tenantId);
+            if (user != null) {
+                accountService.incrementTokenVersion(user.getUserId());
             }
         }
-        return headers;
+        return R.success();
+    }
+
+    private String resolveUserNameFromAuthorization(String authorization) {
+        if (!StringUtils.hasText(authorization) || !authorization.startsWith("Bearer ")) {
+            return null;
+        }
+        String token = authorization.substring(7).trim();
+        if (!StringUtils.hasText(token)) {
+            return null;
+        }
+        try {
+            return JwtUtils.parseToken(token).getSubject();
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private String resolveTenantId(HttpServletRequest request) {
@@ -97,5 +119,20 @@ public class LoginController {
             return null;
         }
         return tenantId.trim();
+    }
+
+    private String resolveRequestIp(HttpServletRequest request) {
+        if (request == null) {
+            return "unknown";
+        }
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (StringUtils.hasText(forwardedFor)) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    private String trim(String value) {
+        return value == null ? null : value.trim();
     }
 }

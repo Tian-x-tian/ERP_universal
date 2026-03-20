@@ -34,6 +34,24 @@ public class SysMenuController {
     }
 
     /**
+     * 查询菜单树节点。
+     *
+     * @param parentId 父菜单ID
+     * @param keyword  搜索关键字
+     * @return 懒加载子节点或搜索树结果
+     */
+    @PreAuthorize("@ss.hasPermi('system:menu:list')")
+    @GetMapping("/tree")
+    public R<List<SysMenu>> tree(
+            @RequestParam(value = "parentId", required = false) Long parentId,
+            @RequestParam(value = "keyword", required = false) String keyword) {
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            return R.success(menuService.searchMenuTree(keyword));
+        }
+        return R.success(menuService.listMenuChildren(parentId == null ? 0L : parentId));
+    }
+
+    /**
      * 获取菜单详细信息
      */
     @PreAuthorize("@ss.hasPermi('system:menu:query')")

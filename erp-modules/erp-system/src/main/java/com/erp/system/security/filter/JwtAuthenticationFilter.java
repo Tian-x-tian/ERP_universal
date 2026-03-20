@@ -27,8 +27,6 @@ import java.util.ArrayList;
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    private static final String LOGIN_URI_SUFFIX = "/login";
-    private static final String INTERNAL_LOGIN_URI_SUFFIX = "/internal/auth/login";
     private static final String JSON_CONTENT_TYPE = "application/json; charset=UTF-8";
     private final ObjectMapper objectMapper;
     private final ISysUserService userService;
@@ -42,57 +40,50 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String tenantIdFromHeader = resolveTenantIdFromHeader(request);
-        boolean loginRequest = isLoginRequest(request);
 
         try {
-            if (loginRequest && StringUtils.hasText(tenantIdFromHeader)) {
-                TenantContextHolder.setTenantId(tenantIdFromHeader);
-            }
+            String token = parseJwt(request);
+            if (token != null) {
+                try {
+                    Claims claims = JwtUtils.parseToken(token);
+                    String userName = claims.getSubject();
+                    String tenantIdFromToken = toTenantId(claims.get("tenantId"));
+                    Integer tokenVersion = toInteger(claims.get("tokenVersion"));
 
-            if (!loginRequest) {
-                String token = parseJwt(request);
-                if (token != null) {
-                    try {
-                        Claims claims = JwtUtils.parseToken(token);
-                        String userName = claims.getSubject();
-                        String tenantIdFromToken = toTenantId(claims.get("tenantId"));
-                        Integer tokenVersion = toInteger(claims.get("tokenVersion"));
-
-                        if (StringUtils.hasText(tenantIdFromHeader) && StringUtils.hasText(tenantIdFromToken)
-                                && !tenantIdFromHeader.equals(tenantIdFromToken)) {
-                            writeUnauthorized(response, "租户与令牌不匹配");
-                            return;
-                        }
-
-                        if (!StringUtils.hasText(tenantIdFromToken)) {
-                            writeUnauthorized(response, ResultCode.UNAUTHORIZED.getMessage());
-                            return;
-                        }
-                        TenantContextHolder.setTenantId(tenantIdFromToken);
-                        SysUser user = userService.selectUserByUserName(userName);
-                        if (user == null || !tenantIdFromToken.equals(toTenantId(user.getTenantId()))) {
-                            writeUnauthorized(response, ResultCode.UNAUTHORIZED.getMessage());
-                            return;
-                        }
-                        if (!"0".equals(user.getStatus()) || "2".equals(user.getDelFlag())) {
-                            writeUnauthorized(response, "账号不可用");
-                            return;
-                        }
-                        if (!tokenVersionMatches(user.getTokenVersion(), tokenVersion)) {
-                            writeUnauthorized(response, "登录状态已失效，请重新登录");
-                            return;
-                        }
-
-                        // 将用户信息存入 SecurityContext
-                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                                userName, null, new ArrayList<>());
-                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-                    } catch (Exception e) {
-                        // Token 无效或过期时直接输出统一响应，避免部分场景漏套壳
-                        writeUnauthorized(response, "Token无效或已过期");
+                    if (StringUtils.hasText(tenantIdFromHeader) && StringUtils.hasText(tenantIdFromToken)
+                            && !tenantIdFromHeader.equals(tenantIdFromToken)) {
+                        writeUnauthorized(response, "租户与令牌不匹配");
                         return;
                     }
+
+                    if (!StringUtils.hasText(tenantIdFromToken)) {
+                        writeUnauthorized(response, ResultCode.UNAUTHORIZED.getMessage());
+                        return;
+                    }
+                    TenantContextHolder.setTenantId(tenantIdFromToken);
+                    SysUser user = userService.selectUserByUserName(userName);
+                    if (user == null || !tenantIdFromToken.equals(toTenantId(user.getTenantId()))) {
+                        writeUnauthorized(response, ResultCode.UNAUTHORIZED.getMessage());
+                        return;
+                    }
+                    if (!"0".equals(user.getStatus()) || "2".equals(user.getDelFlag())) {
+                        writeUnauthorized(response, "账号不可用");
+                        return;
+                    }
+                    if (!tokenVersionMatches(user.getTokenVersion(), tokenVersion)) {
+                        writeUnauthorized(response, "登录状态已失效，请重新登录");
+                        return;
+                    }
+
+                    // 将用户信息存入 SecurityContext
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            userName, null, new ArrayList<>());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                } catch (Exception e) {
+                    // Token 无效或过期时直接输出统一响应，避免部分场景漏套壳
+                    writeUnauthorized(response, "Token无效或已过期");
+                    return;
                 }
             }
             chain.doFilter(request, response);
@@ -100,18 +91,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.clearContext();
             TenantContextHolder.clear();
         }
-    }
-
-    /**
-     * 判断是否为登录请求。
-     *
-     * @param request 请求对象
-     * @return true 表示登录请求
-     */
-    private boolean isLoginRequest(HttpServletRequest request) {
-        String requestUri = request == null ? null : request.getRequestURI();
-        return StringUtils.hasText(requestUri)
-                && (requestUri.endsWith(LOGIN_URI_SUFFIX) || requestUri.endsWith(INTERNAL_LOGIN_URI_SUFFIX));
     }
 
     /**

@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -119,6 +120,69 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
                 .sorted(Comparator.comparing(SysMenu::getOrderNum, Comparator.nullsLast(Integer::compareTo)))
                 .collect(Collectors.toList());
         return buildMenuTree(menus, 0L);
+    }
+
+    /**
+     * 查询指定父菜单下的直接子菜单列表。
+     *
+     * @param parentId 父菜单ID
+     * @return 直接子菜单列表
+     */
+    @Override
+    public List<SysMenu> listMenuChildren(Long parentId) {
+        Long actualParentId = parentId == null ? 0L : parentId;
+        List<SysMenu> childMenuList = list(new LambdaQueryWrapper<SysMenu>()
+                .eq(SysMenu::getParentId, actualParentId)
+                .orderByAsc(SysMenu::getOrderNum)
+                .orderByAsc(SysMenu::getMenuId));
+        if (childMenuList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        fillHasChildren(childMenuList);
+        childMenuList.forEach(menu -> menu.setChildren(null));
+        return childMenuList;
+    }
+
+    /**
+     * 按关键字搜索菜单树。
+     *
+     * @param keyword 关键字
+     * @return 命中节点及其祖先链组成的菜单树
+     */
+    @Override
+    public List<SysMenu> searchMenuTree(String keyword) {
+        String normalizedKeyword = trimToNull(keyword);
+        if (!StringUtils.hasText(normalizedKeyword)) {
+            return Collections.emptyList();
+        }
+        List<SysMenu> matchedMenuList = list(new LambdaQueryWrapper<SysMenu>()
+                .and(wrapper -> wrapper.like(SysMenu::getMenuName, normalizedKeyword)
+                        .or()
+                        .like(SysMenu::getPath, normalizedKeyword))
+                .orderByAsc(SysMenu::getOrderNum)
+                .orderByAsc(SysMenu::getMenuId));
+        if (matchedMenuList.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<SysMenu> allMenuList = list(new LambdaQueryWrapper<SysMenu>()
+                .orderByAsc(SysMenu::getOrderNum)
+                .orderByAsc(SysMenu::getMenuId));
+        if (allMenuList.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Set<Long> treeMenuIdSet = matchedMenuList.stream()
+                .map(SysMenu::getMenuId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        appendParentMenuIds(treeMenuIdSet, allMenuList);
+
+        List<SysMenu> treeMenuList = allMenuList.stream()
+                .filter(menu -> treeMenuIdSet.contains(menu.getMenuId()))
+                .collect(Collectors.toList());
+        fillHasChildren(treeMenuList, allMenuList);
+        return buildMenuTree(treeMenuList, 0L);
     }
 
     /**
@@ -220,19 +284,31 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
             matchedMenu = buildNewMenu(syncNode, parentId, context.getOperator());
             baseMapper.insert(matchedMenu);
             context.addMenu(matchedMenu);
-        } else {
-            applySyncNode(matchedMenu, syncNode, parentId, false, context.getOperator());
+            context.markConsumed(matchedMenu.getMenuId());
+            int insertedCount = 1;
+            List<SysMenuSyncNode> childNodes = syncNode.getChildren();
+            if (childNodes == null || childNodes.isEmpty()) {
+                return insertedCount;
+            }
+            for (SysMenuSyncNode child : childNodes) {
+                insertedCount += syncMenuNode(child, matchedMenu.getMenuId(), context);
+            }
+            return insertedCount;
+        }
+
+        boolean changed = applySyncNode(matchedMenu, syncNode, parentId, false, context.getOperator());
+        if (changed) {
             baseMapper.updateById(matchedMenu);
             context.refreshMenu(matchedMenu);
         }
         context.markConsumed(matchedMenu.getMenuId());
 
-        int handledCount = 1;
-        List<SysMenuSyncNode> children = syncNode.getChildren();
-        if (children == null || children.isEmpty()) {
+        int handledCount = changed ? 1 : 0;
+        List<SysMenuSyncNode> childNodes = syncNode.getChildren();
+        if (childNodes == null || childNodes.isEmpty()) {
             return handledCount;
         }
-        for (SysMenuSyncNode child : children) {
+        for (SysMenuSyncNode child : childNodes) {
             handledCount += syncMenuNode(child, matchedMenu.getMenuId(), context);
         }
         return handledCount;
@@ -261,25 +337,52 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
      * @param createNew 是否为新建菜单
      * @param operator  操作人
      */
-    private void applySyncNode(SysMenu menu, SysMenuSyncNode syncNode, Long parentId, boolean createNew, String operator) {
+    private boolean applySyncNode(SysMenu menu, SysMenuSyncNode syncNode, Long parentId, boolean createNew, String operator) {
         Date now = new Date();
+        String targetMenuName = trimToNull(syncNode.getMenuName());
+        Integer targetOrderNum = syncNode.getOrderNum() == null ? 0 : syncNode.getOrderNum();
+        String targetPath = defaultString(syncNode.getPath());
+        String targetComponent = resolveComponent(syncNode);
+        Integer targetIsFrame = syncNode.getIsFrame() == null ? 1 : syncNode.getIsFrame();
+        String targetMenuType = defaultMenuType(syncNode.getMenuType());
+        String targetVisible = defaultFlag(syncNode.getVisible());
+        String targetStatus = defaultFlag(syncNode.getStatus());
+        String targetPerms = resolvePerms(syncNode);
+        String targetIcon = defaultIcon(syncNode.getIcon());
+
+        boolean changed = createNew
+                || !Objects.equals(menu.getParentId(), parentId)
+                || !Objects.equals(menu.getMenuName(), targetMenuName)
+                || !Objects.equals(menu.getOrderNum(), targetOrderNum)
+                || !Objects.equals(menu.getPath(), targetPath)
+                || !Objects.equals(menu.getComponent(), targetComponent)
+                || !Objects.equals(menu.getIsFrame(), targetIsFrame)
+                || !Objects.equals(menu.getMenuType(), targetMenuType)
+                || !Objects.equals(menu.getVisible(), targetVisible)
+                || !Objects.equals(menu.getStatus(), targetStatus)
+                || !Objects.equals(menu.getPerms(), targetPerms)
+                || !Objects.equals(menu.getIcon(), targetIcon);
+
         menu.setParentId(parentId);
-        menu.setMenuName(trimToNull(syncNode.getMenuName()));
-        menu.setOrderNum(syncNode.getOrderNum() == null ? 0 : syncNode.getOrderNum());
-        menu.setPath(defaultString(syncNode.getPath()));
-        menu.setComponent(resolveComponent(syncNode));
-        menu.setIsFrame(syncNode.getIsFrame() == null ? 1 : syncNode.getIsFrame());
-        menu.setMenuType(defaultMenuType(syncNode.getMenuType()));
-        menu.setVisible(defaultFlag(syncNode.getVisible()));
-        menu.setStatus(defaultFlag(syncNode.getStatus()));
-        menu.setPerms(resolvePerms(syncNode));
-        menu.setIcon(defaultIcon(syncNode.getIcon()));
-        menu.setUpdateBy(operator);
-        menu.setUpdateTime(now);
+        menu.setMenuName(targetMenuName);
+        menu.setOrderNum(targetOrderNum);
+        menu.setPath(targetPath);
+        menu.setComponent(targetComponent);
+        menu.setIsFrame(targetIsFrame);
+        menu.setMenuType(targetMenuType);
+        menu.setVisible(targetVisible);
+        menu.setStatus(targetStatus);
+        menu.setPerms(targetPerms);
+        menu.setIcon(targetIcon);
+        if (changed || createNew) {
+            menu.setUpdateBy(operator);
+            menu.setUpdateTime(now);
+        }
         if (createNew) {
             menu.setCreateBy(operator);
             menu.setCreateTime(now);
         }
+        return changed;
     }
 
     /**
@@ -368,6 +471,48 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
      */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    /**
+     * 为菜单列表补齐是否存在子菜单标记。
+     *
+     * @param menuList 当前菜单列表
+     */
+    private void fillHasChildren(List<SysMenu> menuList) {
+        if (menuList == null || menuList.isEmpty()) {
+            return;
+        }
+        List<Long> parentIdList = menuList.stream()
+                .map(SysMenu::getMenuId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (parentIdList.isEmpty()) {
+            return;
+        }
+        Set<Long> childParentIdSet = list(new LambdaQueryWrapper<SysMenu>()
+                .in(SysMenu::getParentId, parentIdList))
+                .stream()
+                .map(SysMenu::getParentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        menuList.forEach(menu -> menu.setHasChildren(childParentIdSet.contains(menu.getMenuId())));
+    }
+
+    /**
+     * 基于完整菜单集为搜索树补齐是否存在子菜单标记。
+     *
+     * @param targetMenuList 搜索结果菜单集合
+     * @param fullMenuList   系统全部菜单
+     */
+    private void fillHasChildren(List<SysMenu> targetMenuList, List<SysMenu> fullMenuList) {
+        if (targetMenuList == null || targetMenuList.isEmpty()) {
+            return;
+        }
+        Set<Long> childParentIdSet = fullMenuList.stream()
+                .map(SysMenu::getParentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        targetMenuList.forEach(menu -> menu.setHasChildren(childParentIdSet.contains(menu.getMenuId())));
     }
 
     /**

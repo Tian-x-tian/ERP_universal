@@ -9,7 +9,7 @@ import com.erp.business.hr.domain.vo.HrSalaryPushBody;
 import java.util.List;
 
 /**
- * 薪资接口中心服务接口。
+ * 薪酬核算同步服务接口。
  */
 public interface IHrSalaryIntegrationService {
 
@@ -29,7 +29,7 @@ public interface IHrSalaryIntegrationService {
     List<HrSalaryFieldMapping> saveMappings(List<HrSalaryFieldMapping> mappings);
 
     /**
-     * 发起薪资推送。
+     * 发起薪酬推送。
      *
      * @param body 推送参数
      * @return 生成的同步日志
@@ -37,7 +37,7 @@ public interface IHrSalaryIntegrationService {
     List<HrSalarySyncLog> pushSalary(HrSalaryPushBody body);
 
     /**
-     * 处理薪资回传。
+     * 处理薪酬回传。
      *
      * @param body 回传参数
      * @return 最新日志

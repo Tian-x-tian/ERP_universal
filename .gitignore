@@ -34,6 +34,7 @@ work/
 *.temp
 *.bak
 *.swp
+_tmp_*.json
 AGENTS.md
 upload/imex/
 

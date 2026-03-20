@@ -21,10 +21,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 薪资接口中心控制层。
+ * 薪酬核算同步控制层。
  */
 @RestController
-@RequestMapping("/business/hr/integration/salary")
+@RequestMapping({"/business/hr/integration/salary", "/business/hr/payroll"})
 public class HrSalaryIntegrationController {
     private final IHrSalaryIntegrationService salaryIntegrationService;
 
@@ -33,42 +33,42 @@ public class HrSalaryIntegrationController {
     }
 
     /**
-     * 查询字段映射。
+     * 查询薪酬字段映射。
      *
      * @return 映射列表
      */
     @GetMapping("/mapping")
-    @PreAuthorize("@ss.hasPermi('business:hr:integration:salary')")
+    @PreAuthorize("@ss.hasAnyPermi('business:hr:payroll:list','business:hr:integration:salary')")
     public R<List<HrSalaryFieldMapping>> mapping() {
         return R.success(salaryIntegrationService.listMappings());
     }
 
     /**
-     * 保存字段映射。
+     * 保存薪酬字段映射。
      *
      * @param mappings 映射列表
      * @return 最新配置
      */
     @PutMapping("/mapping")
-    @PreAuthorize("@ss.hasPermi('business:hr:integration:salary')")
+    @PreAuthorize("@ss.hasAnyPermi('business:hr:payroll:config','business:hr:integration:salary')")
     public R<List<HrSalaryFieldMapping>> saveMapping(@RequestBody List<HrSalaryFieldMapping> mappings) {
         return R.success(salaryIntegrationService.saveMappings(mappings));
     }
 
     /**
-     * 发起薪资推送。
+     * 发起薪酬推送。
      *
      * @param body 推送参数
      * @return 同步日志
      */
     @PostMapping("/push")
-    @PreAuthorize("@ss.hasPermi('business:hr:integration:salary')")
+    @PreAuthorize("@ss.hasAnyPermi('business:hr:payroll:push','business:hr:integration:salary')")
     public R<List<HrSalarySyncLog>> push(@RequestBody HrSalaryPushBody body) {
         return R.success(salaryIntegrationService.pushSalary(body));
     }
 
     /**
-     * 处理薪资回传。
+     * 处理薪酬回传。
      *
      * @param body 回传参数
      * @return 同步日志
@@ -79,7 +79,7 @@ public class HrSalaryIntegrationController {
     }
 
     /**
-     * 分页查询同步日志。
+     * 分页查询薪酬同步日志。
      *
      * @param periodCode 期间
      * @param syncStatus 状态
@@ -89,7 +89,7 @@ public class HrSalaryIntegrationController {
      * @return 分页结果
      */
     @GetMapping("/log/list")
-    @PreAuthorize("@ss.hasPermi('business:hr:integration:salary')")
+    @PreAuthorize("@ss.hasAnyPermi('business:hr:payroll:list','business:hr:integration:salary')")
     public R<PageData<HrSalarySyncLog>> logList(@RequestParam(value = "periodCode", required = false) String periodCode,
             @RequestParam(value = "syncStatus", required = false) String syncStatus,
             @RequestParam(value = "employeeId", required = false) Long employeeId,
@@ -100,13 +100,13 @@ public class HrSalaryIntegrationController {
     }
 
     /**
-     * 重试薪资同步。
+     * 重试薪酬同步。
      *
      * @param logId 日志ID
      * @return 最新日志
      */
     @PostMapping("/retry/{logId}")
-    @PreAuthorize("@ss.hasPermi('business:hr:integration:salary')")
+    @PreAuthorize("@ss.hasAnyPermi('business:hr:payroll:retry','business:hr:integration:salary')")
     public R<HrSalarySyncLog> retry(@PathVariable("logId") Long logId) {
         return R.success(salaryIntegrationService.retry(logId));
     }

@@ -27,10 +27,18 @@ public final class HrEmployeeSupport {
     public static final String WARNING_STATUS_NEW = "NEW";
     public static final String WARNING_STATUS_IGNORED = "IGNORED";
     public static final String WARNING_STATUS_HANDLED = "HANDLED";
+    public static final String ATTENDANCE_SYNC_STATUS_PENDING = "PENDING";
+    public static final String ATTENDANCE_SYNC_STATUS_SUCCESS = "SUCCESS";
+    public static final String ATTENDANCE_SYNC_STATUS_FAILED = "FAILED";
+    public static final String ATTENDANCE_SYNC_STATUS_RETRYING = "RETRYING";
     public static final String SALARY_SYNC_STATUS_PENDING = "PENDING";
     public static final String SALARY_SYNC_STATUS_SUCCESS = "SUCCESS";
     public static final String SALARY_SYNC_STATUS_FAILED = "FAILED";
     public static final String SALARY_SYNC_STATUS_RETRYING = "RETRYING";
+    public static final String PERFORMANCE_SYNC_STATUS_PENDING = "PENDING";
+    public static final String PERFORMANCE_SYNC_STATUS_SUCCESS = "SUCCESS";
+    public static final String PERFORMANCE_SYNC_STATUS_FAILED = "FAILED";
+    public static final String PERFORMANCE_SYNC_STATUS_RETRYING = "RETRYING";
     public static final String PRIMARY_FLAG_YES = "Y";
     public static final String PRIMARY_FLAG_NO = "N";
 

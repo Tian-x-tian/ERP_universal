@@ -72,6 +72,10 @@ public class SysMenu implements Serializable {
     @TableField(exist = false)
     private List<SysMenu> children = new ArrayList<>();
 
+    /** 是否存在子菜单 */
+    @TableField(exist = false)
+    private Boolean hasChildren;
+
 
     public Long getMenuId() {
         return menuId;
@@ -215,5 +219,13 @@ public class SysMenu implements Serializable {
 
     public void setChildren(List<SysMenu> children) {
         this.children = children;
+    }
+
+    public Boolean getHasChildren() {
+        return hasChildren;
+    }
+
+    public void setHasChildren(Boolean hasChildren) {
+        this.hasChildren = hasChildren;
     }
 }

@@ -33,7 +33,7 @@ spring:
   sql:
     init:
       mode: ${SQL_INIT_MODE:never}
-      schema-locations: classpath:sql/init_business.sql,classpath:sql/upgrade_business.sql
+      schema-locations: classpath:sql/init_business.sql,classpath:sql/upgrade_business.sql,classpath*:sql/upgrade/business/*.sql
 
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
@@ -61,6 +61,12 @@ hr:
       preview-expire-seconds: ${HR_STORAGE_S3_PREVIEW_EXPIRE_SECONDS:900}
       download-expire-seconds: ${HR_STORAGE_S3_DOWNLOAD_EXPIRE_SECONDS:900}
   integration:
+    attendance:
+      push-url: ${HR_INTEGRATION_ATTENDANCE_PUSH_URL:}
+      callback-token: ${HR_INTEGRATION_ATTENDANCE_CALLBACK_TOKEN:}
     salary:
       push-url: ${HR_INTEGRATION_SALARY_PUSH_URL:}
       callback-token: ${HR_INTEGRATION_SALARY_CALLBACK_TOKEN:}
+    performance:
+      push-url: ${HR_INTEGRATION_PERFORMANCE_PUSH_URL:}
+      callback-token: ${HR_INTEGRATION_PERFORMANCE_CALLBACK_TOKEN:}
