@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Date;
@@ -25,6 +26,7 @@ import java.util.Map;
  * 登录验证控制层
  */
 @RestController
+@RequestMapping("/internal/auth")
 public class LoginController {
     private static final String DEFAULT_LOG_TENANT_ID = "UNKNOWN";
 

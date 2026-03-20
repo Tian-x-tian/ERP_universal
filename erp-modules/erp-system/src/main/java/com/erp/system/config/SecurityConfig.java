@@ -47,7 +47,7 @@ public class SecurityConfig {
                                 // 过滤请求
                                 .authorizeHttpRequests(auth -> auth
                                                 // 对于登录接口 允许匿名访问
-                                                .requestMatchers("/login", "/logout", "/doc.html", "/webjars/**",
+                                                .requestMatchers("/internal/auth/login", "/internal/auth/logout", "/doc.html", "/webjars/**",
                                                                 "/v3/api-docs/**",
                                                                 "/swagger-ui/**")
                                                 .permitAll()

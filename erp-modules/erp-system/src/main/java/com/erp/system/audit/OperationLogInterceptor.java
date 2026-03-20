@@ -115,6 +115,8 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         String requestUri = request.getRequestURI();
         return !"/login".equals(requestUri)
                 && !"/logout".equals(requestUri)
+                && !"/internal/auth/login".equals(requestUri)
+                && !"/internal/auth/logout".equals(requestUri)
                 && !requestUri.startsWith("/system/login/log")
                 && !requestUri.startsWith("/system/audit/log")
                 && !requestUri.startsWith("/system/oper/log");

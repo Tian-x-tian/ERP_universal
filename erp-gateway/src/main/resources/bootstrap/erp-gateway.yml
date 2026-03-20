@@ -29,12 +29,12 @@ spring:
           enabled: true
           lower-case-service-id: true
       routes:
-        - id: erp-system-login
-          uri: lb://erp-system
+        - id: erp-auth-login
+          uri: lb://erp-auth
           predicates:
             - Path=/login
-        - id: erp-system-logout
-          uri: lb://erp-system
+        - id: erp-auth-logout
+          uri: lb://erp-auth
           predicates:
             - Path=/logout
         - id: erp-auth

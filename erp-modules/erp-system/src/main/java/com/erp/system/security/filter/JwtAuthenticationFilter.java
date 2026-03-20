@@ -28,6 +28,7 @@ import java.util.ArrayList;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String LOGIN_URI_SUFFIX = "/login";
+    private static final String INTERNAL_LOGIN_URI_SUFFIX = "/internal/auth/login";
     private static final String JSON_CONTENT_TYPE = "application/json; charset=UTF-8";
     private final ObjectMapper objectMapper;
     private final ISysUserService userService;
@@ -109,7 +110,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     private boolean isLoginRequest(HttpServletRequest request) {
         String requestUri = request == null ? null : request.getRequestURI();
-        return StringUtils.hasText(requestUri) && requestUri.endsWith(LOGIN_URI_SUFFIX);
+        return StringUtils.hasText(requestUri)
+                && (requestUri.endsWith(LOGIN_URI_SUFFIX) || requestUri.endsWith(INTERNAL_LOGIN_URI_SUFFIX));
     }
 
     /**
