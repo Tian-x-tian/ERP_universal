@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: erp-gateway
+  config:
+    import:
+      - optional:nacos:erp-gateway.yml?refreshable=true
   cloud:
     nacos:
       discovery:

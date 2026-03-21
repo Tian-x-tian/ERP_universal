@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: erp-auth
+  config:
+    import:
+      - optional:nacos:erp-auth.yml?refreshable=true
   cloud:
     nacos:
       discovery:
