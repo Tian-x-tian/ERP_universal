@@ -1,0 +1,53 @@
+server:
+  port: 9094
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  application:
+    name: erp-workflow
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        register-enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        server-addr: ${spring.cloud.nacos.server-addr}
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:true}
+        server-addr: ${spring.cloud.nacos.server-addr}
+        file-extension: yml
+        refresh-enabled: true
+  config:
+    import:
+      - optional:nacos:erp-workflow.yml?refreshable=true
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_system}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:never}
+      schema-locations: classpath:sql/init_workflow.sql,classpath*:sql/upgrade/workflow/*.sql
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underline-to-camel-case: true
+
+erp:
+  internal:
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:erp-internal-auth-signature-2026}
+    system-base-url: ${ERP_INTERNAL_SYSTEM_BASE_URL:http://127.0.0.1:9092}
+    service-user-name: ${ERP_INTERNAL_SERVICE_USER_NAME:erp-workflow}
+  workflow:
+    http-enabled: true
+    scheduler-enabled: true
+  sql:
+    upgrade:
+      enabled: ${ERP_SQL_UPGRADE_ENABLED:true}
+      location: classpath:sql/upgrade/workflow/*.sql

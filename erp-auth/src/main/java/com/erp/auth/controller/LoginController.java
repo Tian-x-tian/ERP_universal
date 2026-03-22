@@ -6,8 +6,8 @@ import com.erp.auth.security.CaptchaVerifier;
 import com.erp.auth.security.LoginGuardService;
 import com.erp.auth.service.AuthAccountService;
 import com.erp.auth.service.AuthLoginLogService;
+import com.erp.auth.service.AuthTokenService;
 import com.erp.common.core.domain.R;
-import com.erp.common.utils.JwtUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
@@ -29,17 +29,20 @@ public class LoginController {
     private final PasswordEncoder passwordEncoder;
     private final LoginGuardService loginGuardService;
     private final CaptchaVerifier captchaVerifier;
+    private final AuthTokenService authTokenService;
 
     public LoginController(AuthAccountService accountService,
             AuthLoginLogService loginLogService,
             PasswordEncoder passwordEncoder,
             LoginGuardService loginGuardService,
-            CaptchaVerifier captchaVerifier) {
+            CaptchaVerifier captchaVerifier,
+            AuthTokenService authTokenService) {
         this.accountService = accountService;
         this.loginLogService = loginLogService;
         this.passwordEncoder = passwordEncoder;
         this.loginGuardService = loginGuardService;
         this.captchaVerifier = captchaVerifier;
+        this.authTokenService = authTokenService;
     }
 
     /**
@@ -92,7 +95,7 @@ public class LoginController {
         }
 
         String tenantId = user.getTenantId();
-        String token = JwtUtils.createToken(user.getUserId(), user.getUserName(), tenantId, user.getTokenVersion());
+        String token = authTokenService.createToken(user);
         accountService.updateLoginInfo(user.getUserId(), requestIp, new Date());
         loginLogService.record(tenantId, user.getUserName(), "0", "登录成功", requestIp);
         loginGuardService.onLoginSuccess(tenantId, user.getUserName());
@@ -110,7 +113,7 @@ public class LoginController {
     public R<Void> logout(HttpServletRequest request) {
         String tenantId = resolveTenantId(request);
         String authorization = request == null ? null : request.getHeader("Authorization");
-        Long userId = resolveUserIdFromAuthorization(authorization);
+        Long userId = resolveUserIdFromAuthorization(authorization, tenantId);
 
         if (StringUtils.hasText(tenantId) && userId != null) {
             SysUser user = accountService.selectUserByIdAndTenant(userId, tenantId);
@@ -121,7 +124,7 @@ public class LoginController {
         return R.success();
     }
 
-    private Long resolveUserIdFromAuthorization(String authorization) {
+    private Long resolveUserIdFromAuthorization(String authorization, String tenantId) {
         if (!StringUtils.hasText(authorization) || !authorization.startsWith("Bearer ")) {
             return null;
         }
@@ -130,14 +133,7 @@ public class LoginController {
             return null;
         }
         try {
-            Object rawUserId = JwtUtils.parseToken(token).get("userId");
-            if (rawUserId instanceof Number) {
-                return ((Number) rawUserId).longValue();
-            }
-            if (rawUserId != null) {
-                return Long.parseLong(String.valueOf(rawUserId));
-            }
-            return null;
+            return authTokenService.verifyToken(token, tenantId).getUserId();
         } catch (Exception ex) {
             return null;
         }

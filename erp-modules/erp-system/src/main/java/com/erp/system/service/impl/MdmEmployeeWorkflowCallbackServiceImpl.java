@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.system.domain.HrEmployeeArchiveMirror;
 import com.erp.system.domain.HrEmployeeChangeMirror;
 import com.erp.system.domain.MdmEmployee;
-import com.erp.system.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
 import com.erp.system.mapper.HrEmployeeArchiveMirrorMapper;
 import com.erp.system.mapper.HrEmployeeChangeMirrorMapper;
 import com.erp.system.mapper.MdmEmployeeMapper;
@@ -363,3 +363,4 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         return "system";
     }
 }
+

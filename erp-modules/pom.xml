@@ -14,7 +14,10 @@
     <description>Aggregator for business modules</description>
 
     <modules>
+        <module>erp-platform-contract</module>
+        <module>erp-workflow-contract</module>
         <module>erp-system</module>
+        <module>erp-workflow</module>
         <module>erp-business</module>
     </modules>
 </project>

@@ -7,7 +7,7 @@ import com.erp.system.domain.MdmCurrency;
 import com.erp.system.domain.MdmSettleMethod;
 import com.erp.system.domain.MdmTaxRate;
 import com.erp.system.domain.MdmUom;
-import com.erp.system.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
 import com.erp.system.mapper.MdmCurrencyMapper;
 import com.erp.system.mapper.MdmSettleMethodMapper;
 import com.erp.system.mapper.MdmTaxRateMapper;
@@ -543,3 +543,4 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
     private Integer readInteger(Object value) { try { return value == null ? null : Integer.valueOf(String.valueOf(value)); } catch (Exception ex) { return null; } }
     private String resolveOperator(SysWorkflowInstance instance) { return instance != null && StringUtils.hasText(instance.getLastActionUserName()) ? instance.getLastActionUserName().trim() : "system"; }
 }
+

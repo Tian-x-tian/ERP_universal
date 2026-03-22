@@ -16,11 +16,12 @@ import com.erp.business.inventory.mapper.InventoryBatchRecordMapper;
 import com.erp.business.inventory.mapper.InventorySerialRecordMapper;
 import com.erp.business.inventory.mapper.InventoryStockBalanceMapper;
 import com.erp.business.inventory.mapper.InventoryStockTxnMapper;
-import com.erp.business.inventory.mapper.MdmItemMapper;
-import com.erp.business.inventory.mapper.MdmWarehouseMapper;
 import com.erp.business.security.service.SecurityUserResolver;
+import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.core.exception.ServiceException;
+import com.erp.platform.contract.model.PlatformItemView;
+import com.erp.platform.contract.model.PlatformWarehouseView;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,10 +53,7 @@ class InventoryStockEngineSupportTest {
     private InventoryStockTxnMapper stockTxnMapper;
 
     @Mock
-    private MdmWarehouseMapper warehouseMapper;
-
-    @Mock
-    private MdmItemMapper itemMapper;
+    private InternalSystemClient internalSystemClient;
 
     @Mock
     private InventoryBatchRecordMapper batchRecordMapper;
@@ -73,14 +71,14 @@ class InventoryStockEngineSupportTest {
      */
     @BeforeEach
     void setUp() {
-        stockEngineSupport = new InventoryStockEngineSupport(stockBalanceMapper, stockTxnMapper, warehouseMapper,
-                itemMapper, batchRecordMapper, serialRecordMapper, securityUserResolver);
+        stockEngineSupport = new InventoryStockEngineSupport(stockBalanceMapper, stockTxnMapper, internalSystemClient,
+                batchRecordMapper, serialRecordMapper, securityUserResolver);
         initTableInfoIfAbsent(InventoryStockBalance.class);
         initTableInfoIfAbsent(InventoryStockTxn.class);
-        MdmItem item = new MdmItem();
+        PlatformItemView item = new PlatformItemView();
         item.setBatchControl("N");
         item.setSerialControl("N");
-        lenient().when(itemMapper.selectById(any())).thenReturn(item);
+        lenient().when(internalSystemClient.getItem(any())).thenReturn(item);
     }
 
     /**
@@ -125,11 +123,11 @@ class InventoryStockEngineSupportTest {
         balance.setOnHandQty(BigDecimal.ONE);
         balance.setAvailableQty(BigDecimal.ONE);
         balance.setVersionNo(1);
-        MdmWarehouse warehouse = new MdmWarehouse();
+        PlatformWarehouseView warehouse = new PlatformWarehouseView();
         warehouse.setAllowNegativeStock("N");
         when(stockTxnMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
         when(stockBalanceMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(balance);
-        when(warehouseMapper.selectById(order.getWarehouseId())).thenReturn(warehouse);
+        when(internalSystemClient.getWarehouse(order.getWarehouseId())).thenReturn(warehouse);
 
         ServiceException exception = Assertions.assertThrows(ServiceException.class,
                 () -> stockEngineSupport.applyOutbound(order, Collections.singletonList(line)));
@@ -146,11 +144,11 @@ class InventoryStockEngineSupportTest {
         when(securityUserResolver.getCurrentUsername()).thenReturn("tester");
         InventoryOutboundOrder order = buildOutboundOrder();
         InventoryOutboundOrderLine line = buildOutboundLine(BigDecimal.valueOf(3));
-        MdmWarehouse warehouse = new MdmWarehouse();
+        PlatformWarehouseView warehouse = new PlatformWarehouseView();
         warehouse.setAllowNegativeStock("Y");
         when(stockTxnMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
         when(stockBalanceMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-        when(warehouseMapper.selectById(order.getWarehouseId())).thenReturn(warehouse);
+        when(internalSystemClient.getWarehouse(order.getWarehouseId())).thenReturn(warehouse);
         when(stockBalanceMapper.insert(any(InventoryStockBalance.class))).thenReturn(1);
         when(stockTxnMapper.insert(any(InventoryStockTxn.class))).thenReturn(1);
 
@@ -179,13 +177,13 @@ class InventoryStockEngineSupportTest {
         balance.setOnHandQty(BigDecimal.TEN);
         balance.setAvailableQty(BigDecimal.TEN);
         balance.setVersionNo(1);
-        MdmWarehouse warehouse = new MdmWarehouse();
+        PlatformWarehouseView warehouse = new PlatformWarehouseView();
         warehouse.setAllowNegativeStock("N");
         when(stockTxnMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
         when(stockBalanceMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(balance);
         when(stockBalanceMapper.update(any(InventoryStockBalance.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(stockTxnMapper.insert(any(InventoryStockTxn.class))).thenReturn(1);
-        when(warehouseMapper.selectById(order.getWarehouseId())).thenReturn(warehouse);
+        when(internalSystemClient.getWarehouse(order.getWarehouseId())).thenReturn(warehouse);
 
         Assertions.assertDoesNotThrow(() -> stockEngineSupport.applyOutbound(order, Collections.singletonList(line)));
 
@@ -263,3 +261,4 @@ class InventoryStockEngineSupportTest {
         return line;
     }
 }
+

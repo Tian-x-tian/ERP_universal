@@ -45,6 +45,21 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
 erp:
+  ai:
+    enabled: ${ERP_AI_ENABLED:true}
+    base-url: ${ERP_AI_BASE_URL:http://127.0.0.1:8317/v1}
+    chat-path: ${ERP_AI_CHAT_PATH:/chat/completions}
+    model: ${ERP_AI_MODEL:gpt-5.1}
+    connect-timeout-ms: ${ERP_AI_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms: ${ERP_AI_READ_TIMEOUT_MS:120000}
+    max-history-turns: ${ERP_AI_MAX_HISTORY_TURNS:12}
+    max-todo-items: ${ERP_AI_MAX_TODO_ITEMS:10}
+    max-notice-items: ${ERP_AI_MAX_NOTICE_ITEMS:10}
+  internal:
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:erp-internal-auth-signature-2026}
+  workflow:
+    http-enabled: ${ERP_WORKFLOW_HTTP_ENABLED:false}
+    scheduler-enabled: ${ERP_WORKFLOW_SCHEDULER_ENABLED:false}
   sql:
     upgrade:
       enabled: ${ERP_SQL_UPGRADE_ENABLED:true}

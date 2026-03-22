@@ -1,0 +1,39 @@
+package com.erp.platform.contract.model;
+
+import java.io.Serializable;
+
+/**
+ * 平台仓库只读投影。
+ */
+public class PlatformWarehouseView implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+    private Long warehouseId;
+    private Long accountingOrgId;
+    private String allowNegativeStock;
+
+    public Long getWarehouseId() {
+        return warehouseId;
+    }
+
+    public void setWarehouseId(Long warehouseId) {
+        this.warehouseId = warehouseId;
+    }
+
+    public Long getAccountingOrgId() {
+        return accountingOrgId;
+    }
+
+    public void setAccountingOrgId(Long accountingOrgId) {
+        this.accountingOrgId = accountingOrgId;
+    }
+
+    public String getAllowNegativeStock() {
+        return allowNegativeStock;
+    }
+
+    public void setAllowNegativeStock(String allowNegativeStock) {
+        this.allowNegativeStock = allowNegativeStock;
+    }
+}
+

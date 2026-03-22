@@ -1,8 +1,13 @@
 package com.erp.business.security.service;
 
-import com.erp.business.mapper.SecurityPermissionMapper;
+import com.erp.common.client.internal.InternalSystemClient;
+import com.erp.platform.contract.model.PlatformAuthorityBundle;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.Collections;
 import java.util.List;
@@ -16,13 +21,14 @@ import java.util.stream.Collectors;
 public class PermissionService {
     private static final String ALL_PERMISSION = "*:*:*";
     private static final String SUPER_ADMIN_ROLE = "admin";
+    private static final String AUTHORITY_CACHE_KEY = PermissionService.class.getName() + ".AUTHORITY_BUNDLE";
 
     private final SecurityUserResolver securityUserResolver;
-    private final SecurityPermissionMapper permissionMapper;
+    private final InternalSystemClient internalSystemClient;
 
-    public PermissionService(SecurityUserResolver securityUserResolver, SecurityPermissionMapper permissionMapper) {
+    public PermissionService(SecurityUserResolver securityUserResolver, InternalSystemClient internalSystemClient) {
         this.securityUserResolver = securityUserResolver;
-        this.permissionMapper = permissionMapper;
+        this.internalSystemClient = internalSystemClient;
     }
 
     /**
@@ -32,18 +38,14 @@ public class PermissionService {
      * @return true 表示具备权限
      */
     public boolean hasPermi(String permission) {
-        if (!StringUtils.hasText(permission)) {
+        if (!StringUtils.hasText(permission) || securityUserResolver.getCurrentUserId() == null) {
             return false;
         }
-        String currentUsername = securityUserResolver.getCurrentUsername();
-        String currentTenantId = securityUserResolver.getCurrentTenantId();
-        if (!StringUtils.hasText(currentUsername) || !StringUtils.hasText(currentTenantId)) {
-            return false;
-        }
-        if (isSuperAdmin(currentTenantId, currentUsername)) {
+        PlatformAuthorityBundle authorityBundle = resolveAuthorityBundle();
+        if (isSuperAdmin(authorityBundle)) {
             return true;
         }
-        Set<String> permissions = normalize(permissionMapper.selectPermissionsByUserName(currentTenantId, currentUsername));
+        Set<String> permissions = normalize(authorityBundle == null ? null : authorityBundle.getPermissions());
         return containsPermission(permissions, permission.trim());
     }
 
@@ -66,14 +68,13 @@ public class PermissionService {
     }
 
     /**
-     * 判断用户是否为超级管理员。
+     * 判断当前权限包是否包含超级管理员角色。
      *
-     * @param tenantId 租户编号
-     * @param userName 用户账号
+     * @param authorityBundle 权限包
      * @return true 表示平台超级管理员
      */
-    private boolean isSuperAdmin(String tenantId, String userName) {
-        List<String> roleKeys = permissionMapper.selectRoleKeysByUserName(tenantId, userName);
+    private boolean isSuperAdmin(PlatformAuthorityBundle authorityBundle) {
+        List<String> roleKeys = authorityBundle == null ? null : authorityBundle.getRoleKeys();
         if (roleKeys == null || roleKeys.isEmpty()) {
             return false;
         }
@@ -102,8 +103,8 @@ public class PermissionService {
     /**
      * 在用户权限集中匹配目标权限。
      *
-     * @param userPerms 用户权限集合
-     * @param requiredPermission 目标权限
+     * @param userPerms           用户权限集合
+     * @param requiredPermission  目标权限
      * @return true 表示匹配成功
      */
     private boolean containsPermission(Set<String> userPerms, String requiredPermission) {
@@ -120,4 +121,37 @@ public class PermissionService {
         }
         return false;
     }
+
+    /**
+     * 获取当前请求缓存的权限包。
+     *
+     * @return 权限包
+     */
+    private PlatformAuthorityBundle resolveAuthorityBundle() {
+        HttpServletRequest request = currentRequest();
+        if (request == null) {
+            return internalSystemClient.getAuthorities();
+        }
+        Object cachedValue = request.getAttribute(AUTHORITY_CACHE_KEY);
+        if (cachedValue instanceof PlatformAuthorityBundle platformAuthorityBundle) {
+            return platformAuthorityBundle;
+        }
+        PlatformAuthorityBundle authorityBundle = internalSystemClient.getAuthorities();
+        request.setAttribute(AUTHORITY_CACHE_KEY, authorityBundle);
+        return authorityBundle;
+    }
+
+    /**
+     * 获取当前线程绑定的 HTTP 请求。
+     *
+     * @return 当前请求
+     */
+    private HttpServletRequest currentRequest() {
+        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+        if (requestAttributes instanceof ServletRequestAttributes servletRequestAttributes) {
+            return servletRequestAttributes.getRequest();
+        }
+        return null;
+    }
 }
+

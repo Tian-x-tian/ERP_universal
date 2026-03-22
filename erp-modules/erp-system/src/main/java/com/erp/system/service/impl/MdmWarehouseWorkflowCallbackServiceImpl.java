@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.system.domain.MdmWarehouse;
-import com.erp.system.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
 import com.erp.system.mapper.MdmWarehouseMapper;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IWorkflowBusinessCallback;
@@ -269,3 +269,4 @@ public class MdmWarehouseWorkflowCallbackServiceImpl implements IWorkflowBusines
         return "system";
     }
 }
+

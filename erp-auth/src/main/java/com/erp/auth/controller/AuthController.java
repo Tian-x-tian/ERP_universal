@@ -1,9 +1,9 @@
 package com.erp.auth.controller;
 
+import com.erp.auth.domain.vo.AuthTokenVerifyResult;
+import com.erp.auth.service.AuthTokenService;
 import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
-import com.erp.common.utils.JwtUtils;
-import io.jsonwebtoken.Claims;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -19,6 +19,11 @@ import java.util.Map;
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
+    private final AuthTokenService authTokenService;
+
+    public AuthController(AuthTokenService authTokenService) {
+        this.authTokenService = authTokenService;
+    }
 
     /**
      * 健康探针。
@@ -40,24 +45,27 @@ public class AuthController {
      * @return 校验结果
      */
     @GetMapping("/token/verify")
-    public R<Map<String, Object>> verifyToken(@RequestHeader(value = "Authorization", required = false) String authorization) {
+    public R<Map<String, Object>> verifyToken(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "tenantId", required = false) String tenantId) {
         String token = parseBearerToken(authorization);
         if (!StringUtils.hasText(token)) {
             return R.failed(ResultCode.UNAUTHORIZED, "缺少Bearer Token");
         }
 
         try {
-            Claims claims = JwtUtils.parseToken(token);
+            AuthTokenVerifyResult verifyResult = authTokenService.verifyToken(token, tenantId);
             Map<String, Object> data = new HashMap<>();
             data.put("valid", true);
-            Object userId = claims.get("userId");
-            data.put("userId", userId != null ? userId : claims.getSubject());
-            data.put("userName", claims.get("userName") != null ? claims.get("userName") : claims.getSubject());
-            data.put("tenantId", claims.get("tenantId"));
-            data.put("expiresAt", claims.getExpiration());
+            data.put("userId", verifyResult.getUserId());
+            data.put("userName", verifyResult.getUserName());
+            data.put("tenantId", verifyResult.getTenantId());
+            data.put("tokenVersion", verifyResult.getTokenVersion());
+            data.put("expiresAt", verifyResult.getExpiresAt());
             return R.success(data);
         } catch (Exception ex) {
-            return R.failed(ResultCode.UNAUTHORIZED, "Token无效或已过期");
+            return R.failed(ResultCode.UNAUTHORIZED,
+                    StringUtils.hasText(ex.getMessage()) ? ex.getMessage() : "Token无效或已过期");
         }
     }
 

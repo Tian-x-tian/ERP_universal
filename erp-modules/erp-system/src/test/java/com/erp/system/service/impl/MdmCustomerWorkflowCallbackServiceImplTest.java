@@ -1,7 +1,7 @@
 package com.erp.system.service.impl;
 
 import com.erp.system.domain.MdmCustomer;
-import com.erp.system.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
 import com.erp.system.mapper.MdmCustomerMapper;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.support.MdmStatusSupport;
@@ -83,3 +83,4 @@ class MdmCustomerWorkflowCallbackServiceImplTest {
         verify(auditTrailService).record(any(), any(), any(), any(), any(), any(), any());
     }
 }
+

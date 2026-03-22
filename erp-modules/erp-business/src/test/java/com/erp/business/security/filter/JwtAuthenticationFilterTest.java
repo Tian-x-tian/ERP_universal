@@ -1,7 +1,9 @@
 package com.erp.business.security.filter;
 
 import com.erp.common.core.context.TenantContextHolder;
-import com.erp.common.utils.JwtUtils;
+import com.erp.common.security.AuthHeaders;
+import com.erp.common.security.AuthenticatedUserPrincipal;
+import com.erp.common.security.InternalAuthSignatureUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.AfterEach;
@@ -17,6 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * JWT 认证过滤器单元测试。
  */
 class JwtAuthenticationFilterTest {
+    private static final String INTERNAL_SECRET = "test-internal-secret";
 
     /**
      * 清理线程上下文，避免测试相互污染。
@@ -34,11 +37,18 @@ class JwtAuthenticationFilterTest {
      */
     @Test
     void shouldAuthenticateBusinessRequestByJwtClaims() throws Exception {
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(new ObjectMapper());
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(new ObjectMapper(), INTERNAL_SECRET);
+        AuthenticatedUserPrincipal principal = new AuthenticatedUserPrincipal(1001L, "tester", "TENANT_A", 3,
+                System.currentTimeMillis() + 60000);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/business/inventory/ledger/list");
         request.addHeader("tenantId", "TENANT_A");
-        request.addHeader("Authorization", "Bearer " + JwtUtils.createToken(1001L, "tester", "TENANT_A", 3));
+        request.addHeader(AuthHeaders.USER_ID, String.valueOf(principal.getUserId()));
+        request.addHeader(AuthHeaders.USER_NAME, principal.getUserName());
+        request.addHeader(AuthHeaders.TENANT_ID, principal.getTenantId());
+        request.addHeader(AuthHeaders.TOKEN_VERSION, String.valueOf(principal.getTokenVersion()));
+        request.addHeader(AuthHeaders.EXPIRES_AT, String.valueOf(principal.getExpiresAt()));
+        request.addHeader(AuthHeaders.SIGNATURE, InternalAuthSignatureUtils.sign(INTERNAL_SECRET, principal));
         MockHttpServletResponse response = new MockHttpServletResponse();
         AtomicBoolean chainInvoked = new AtomicBoolean(false);
 
@@ -55,11 +65,18 @@ class JwtAuthenticationFilterTest {
      */
     @Test
     void shouldRejectRequestWhenTenantHeaderDoesNotMatchToken() throws Exception {
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(new ObjectMapper());
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(new ObjectMapper(), INTERNAL_SECRET);
+        AuthenticatedUserPrincipal principal = new AuthenticatedUserPrincipal(1001L, "tester", "TENANT_A", 1,
+                System.currentTimeMillis() + 60000);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/business/inventory/ledger/list");
         request.addHeader("tenantId", "TENANT_B");
-        request.addHeader("Authorization", "Bearer " + JwtUtils.createToken(1001L, "tester", "TENANT_A", 1));
+        request.addHeader(AuthHeaders.USER_ID, String.valueOf(principal.getUserId()));
+        request.addHeader(AuthHeaders.USER_NAME, principal.getUserName());
+        request.addHeader(AuthHeaders.TENANT_ID, principal.getTenantId());
+        request.addHeader(AuthHeaders.TOKEN_VERSION, String.valueOf(principal.getTokenVersion()));
+        request.addHeader(AuthHeaders.EXPIRES_AT, String.valueOf(principal.getExpiresAt()));
+        request.addHeader(AuthHeaders.SIGNATURE, InternalAuthSignatureUtils.sign(INTERNAL_SECRET, principal));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, buildFilterChain(new AtomicBoolean(false)));

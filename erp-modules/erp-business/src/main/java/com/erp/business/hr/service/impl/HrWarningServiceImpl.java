@@ -6,8 +6,6 @@ import com.erp.business.hr.domain.HrEmployeeArchive;
 import com.erp.business.hr.domain.HrEmployeeContract;
 import com.erp.business.hr.domain.HrEmployeeCore;
 import com.erp.business.hr.domain.HrEmployeeDocument;
-import com.erp.business.hr.domain.HrSysNotice;
-import com.erp.business.hr.domain.HrSysUser;
 import com.erp.business.hr.domain.HrWarningRecord;
 import com.erp.business.hr.domain.vo.HrWarningHandleBody;
 import com.erp.business.hr.domain.vo.HrWarningQuery;
@@ -15,14 +13,15 @@ import com.erp.business.hr.mapper.HrEmployeeArchiveMapper;
 import com.erp.business.hr.mapper.HrEmployeeContractMapper;
 import com.erp.business.hr.mapper.HrEmployeeCoreMapper;
 import com.erp.business.hr.mapper.HrEmployeeDocumentMapper;
-import com.erp.business.hr.mapper.HrSysNoticeMapper;
-import com.erp.business.hr.mapper.HrSysUserMapper;
 import com.erp.business.hr.mapper.HrWarningRecordMapper;
 import com.erp.business.hr.service.IHrWarningService;
 import com.erp.business.hr.support.HrEmployeeSupport;
 import com.erp.business.security.service.SecurityUserResolver;
+import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.core.exception.ServiceException;
+import com.erp.platform.contract.model.PlatformNoticeCreateRequest;
+import com.erp.platform.contract.model.PlatformUserView;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -43,8 +42,7 @@ public class HrWarningServiceImpl implements IHrWarningService {
     private final HrEmployeeArchiveMapper archiveMapper;
     private final HrEmployeeContractMapper contractMapper;
     private final HrEmployeeDocumentMapper documentMapper;
-    private final HrSysNoticeMapper noticeMapper;
-    private final HrSysUserMapper userMapper;
+    private final InternalSystemClient internalSystemClient;
     private final SecurityUserResolver securityUserResolver;
 
     public HrWarningServiceImpl(HrWarningRecordMapper warningRecordMapper,
@@ -52,16 +50,14 @@ public class HrWarningServiceImpl implements IHrWarningService {
             HrEmployeeArchiveMapper archiveMapper,
             HrEmployeeContractMapper contractMapper,
             HrEmployeeDocumentMapper documentMapper,
-            HrSysNoticeMapper noticeMapper,
-            HrSysUserMapper userMapper,
+            InternalSystemClient internalSystemClient,
             SecurityUserResolver securityUserResolver) {
         this.warningRecordMapper = warningRecordMapper;
         this.employeeCoreMapper = employeeCoreMapper;
         this.archiveMapper = archiveMapper;
         this.contractMapper = contractMapper;
         this.documentMapper = documentMapper;
-        this.noticeMapper = noticeMapper;
-        this.userMapper = userMapper;
+        this.internalSystemClient = internalSystemClient;
         this.securityUserResolver = securityUserResolver;
     }
 
@@ -245,11 +241,11 @@ public class HrWarningServiceImpl implements IHrWarningService {
      * @param warning 预警记录
      */
     private void createNotice(HrWarningRecord warning) {
-        HrSysUser receiver = resolveReceiver();
+        PlatformUserView receiver = resolveReceiver();
         if (receiver == null || receiver.getUserId() == null) {
             return;
         }
-        HrSysNotice notice = new HrSysNotice();
+        PlatformNoticeCreateRequest notice = new PlatformNoticeCreateRequest();
         notice.setTenantId(warning.getTenantId());
         notice.setTitle(warning.getWarningTitle());
         notice.setNoticeType("HR_WARNING");
@@ -262,7 +258,7 @@ public class HrWarningServiceImpl implements IHrWarningService {
         notice.setDeliveryTime(new Date());
         notice.setStatus("0");
         notice.setCreateTime(new Date());
-        noticeMapper.insert(notice);
+        internalSystemClient.createNotice(notice);
     }
 
     /**
@@ -270,24 +266,15 @@ public class HrWarningServiceImpl implements IHrWarningService {
      *
      * @return 接收人
      */
-    private HrSysUser resolveReceiver() {
+    private PlatformUserView resolveReceiver() {
         String username = securityUserResolver.getCurrentUsername();
         if (StringUtils.hasText(username)) {
-            HrSysUser currentUser = userMapper.selectOne(new LambdaQueryWrapper<HrSysUser>()
-                    .eq(HrSysUser::getTenantId, currentTenantId())
-                    .eq(HrSysUser::getUserName, username.trim())
-                    .eq(HrSysUser::getDelFlag, HrEmployeeSupport.EXIST_DEL_FLAG)
-                    .last("limit 1"));
+            PlatformUserView currentUser = internalSystemClient.getActiveUserByUsername(currentTenantId(), username.trim());
             if (currentUser != null) {
                 return currentUser;
             }
         }
-        return userMapper.selectOne(new LambdaQueryWrapper<HrSysUser>()
-                .eq(HrSysUser::getTenantId, currentTenantId())
-                .eq(HrSysUser::getStatus, "0")
-                .eq(HrSysUser::getDelFlag, HrEmployeeSupport.EXIST_DEL_FLAG)
-                .orderByAsc(HrSysUser::getUserId)
-                .last("limit 1"));
+        return internalSystemClient.getFirstActiveUser(currentTenantId());
     }
 
     /**
@@ -319,3 +306,4 @@ public class HrWarningServiceImpl implements IHrWarningService {
         return StringUtils.hasText(username) ? username.trim() : "system";
     }
 }
+

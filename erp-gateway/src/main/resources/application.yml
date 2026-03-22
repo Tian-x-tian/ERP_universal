@@ -6,6 +6,7 @@ spring:
     name: erp-gateway
   config:
     import:
+      - optional:classpath:/bootstrap/erp-gateway.yml
       - optional:nacos:erp-gateway.yml?refreshable=true
   cloud:
     nacos:

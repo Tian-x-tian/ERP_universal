@@ -41,6 +41,10 @@ spring:
           uri: lb://erp-auth
           predicates:
             - Path=/auth/**
+        - id: erp-workflow
+          uri: lb://erp-workflow
+          predicates:
+            - Path=/workflow/**
         - id: erp-system
           uri: lb://erp-system
           predicates:
@@ -49,3 +53,7 @@ spring:
           uri: lb://erp-business
           predicates:
             - Path=/business/**
+
+erp:
+  internal:
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:erp-internal-auth-signature-2026}

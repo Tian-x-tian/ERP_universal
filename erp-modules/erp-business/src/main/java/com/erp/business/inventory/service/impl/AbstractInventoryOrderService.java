@@ -180,7 +180,14 @@ public abstract class AbstractInventoryOrderService<T extends AbstractInventoryO
             }
             targetStatus = InventoryBillStatusSupport.PENDING_APPROVAL;
         }
-        return updateStatus(existed, targetStatus);
+        try {
+            return updateStatus(existed, targetStatus);
+        } catch (RuntimeException ex) {
+            if (InventoryBillStatusSupport.PENDING_APPROVAL.equals(targetStatus)) {
+                workflowGateway.abortWorkflow(existed.getBillType(), existed.getBillNo(), "库存单据状态更新失败，自动中止流程");
+            }
+            throw ex;
+        }
     }
 
     /**

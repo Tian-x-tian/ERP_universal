@@ -6,17 +6,17 @@ import com.erp.business.inventory.domain.InventoryBatchRecord;
 import com.erp.business.inventory.domain.InventoryStockBalance;
 import com.erp.business.inventory.domain.InventoryStockPolicy;
 import com.erp.business.inventory.domain.InventoryWarningRecord;
-import com.erp.business.inventory.domain.MdmItem;
 import com.erp.business.inventory.mapper.InventoryBatchRecordMapper;
 import com.erp.business.inventory.mapper.InventoryStockBalanceMapper;
 import com.erp.business.inventory.mapper.InventoryStockPolicyMapper;
 import com.erp.business.inventory.mapper.InventoryWarningRecordMapper;
-import com.erp.business.inventory.mapper.MdmItemMapper;
 import com.erp.business.inventory.service.IInventoryWarningService;
 import com.erp.business.security.service.SecurityUserResolver;
+import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.core.exception.ServiceException;
+import com.erp.platform.contract.model.PlatformItemView;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -38,20 +38,20 @@ public class InventoryWarningServiceImpl implements IInventoryWarningService {
     private final InventoryStockPolicyMapper stockPolicyMapper;
     private final InventoryStockBalanceMapper stockBalanceMapper;
     private final InventoryBatchRecordMapper batchRecordMapper;
-    private final MdmItemMapper itemMapper;
+    private final InternalSystemClient internalSystemClient;
     private final SecurityUserResolver securityUserResolver;
 
     public InventoryWarningServiceImpl(InventoryWarningRecordMapper warningRecordMapper,
             InventoryStockPolicyMapper stockPolicyMapper,
             InventoryStockBalanceMapper stockBalanceMapper,
             InventoryBatchRecordMapper batchRecordMapper,
-            MdmItemMapper itemMapper,
+            InternalSystemClient internalSystemClient,
             SecurityUserResolver securityUserResolver) {
         this.warningRecordMapper = warningRecordMapper;
         this.stockPolicyMapper = stockPolicyMapper;
         this.stockBalanceMapper = stockBalanceMapper;
         this.batchRecordMapper = batchRecordMapper;
-        this.itemMapper = itemMapper;
+        this.internalSystemClient = internalSystemClient;
         this.securityUserResolver = securityUserResolver;
     }
 
@@ -158,7 +158,7 @@ public class InventoryWarningServiceImpl implements IInventoryWarningService {
                     .last("limit 1"));
             InventoryStockPolicy policy = findPolicy(balance == null ? batch.getOrgId() : balance.getOrgId(),
                     batch.getWarehouseId(), batch.getItemId());
-            MdmItem item = itemMapper.selectById(batch.getItemId());
+            PlatformItemView item = internalSystemClient.getItem(batch.getItemId());
             int warnDays = policy != null && policy.getExpiryWarnDays() != null
                     ? policy.getExpiryWarnDays()
                     : (item != null && item.getDefaultExpiryWarnDays() != null ? item.getDefaultExpiryWarnDays() : 0);
@@ -365,3 +365,4 @@ public class InventoryWarningServiceImpl implements IInventoryWarningService {
         return Math.min(pageSize, 200L);
     }
 }
+

@@ -5,7 +5,6 @@ import com.erp.common.core.exception.ServiceException;
 import com.erp.system.domain.MdmCustomer;
 import com.erp.system.domain.SysUser;
 import com.erp.system.mapper.MdmCustomerMapper;
-import com.erp.system.mapper.SysWorkflowInstanceMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmCustomerService;
 import com.erp.system.service.ISysUserService;
@@ -42,9 +41,6 @@ class MdmCustomerWorkflowSubmitServiceImplTest {
     private ISysUserService userService;
 
     @Mock
-    private SysWorkflowInstanceMapper workflowInstanceMapper;
-
-    @Mock
     private MdmCustomerMapper customerMapper;
 
     private MdmCustomerWorkflowSubmitServiceImpl workflowSubmitService;
@@ -59,7 +55,6 @@ class MdmCustomerWorkflowSubmitServiceImplTest {
                 workflowEngineService,
                 securityUserResolver,
                 userService,
-                workflowInstanceMapper,
                 customerMapper);
     }
 
@@ -89,7 +84,7 @@ class MdmCustomerWorkflowSubmitServiceImplTest {
         user.setUserName("tester");
         user.setNickName("测试员");
         when(customerService.getOne(any())).thenReturn(customer);
-        when(workflowInstanceMapper.selectCount(any())).thenReturn(0L);
+        when(workflowEngineService.hasRunningInstance(any(), any())).thenReturn(false);
         when(securityUserResolver.getCurrentUserId()).thenReturn(99L);
         when(securityUserResolver.getCurrentUsername()).thenReturn("tester");
         when(userService.selectUserByUserName("tester")).thenReturn(user);

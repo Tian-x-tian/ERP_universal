@@ -9,11 +9,10 @@ import com.erp.system.domain.MdmEmployee;
 import com.erp.system.domain.MdmOrg;
 import com.erp.system.domain.MdmWarehouse;
 import com.erp.system.domain.SysUser;
-import com.erp.system.domain.SysWorkflowInstance;
-import com.erp.system.domain.vo.WorkflowStartBody;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.vo.WorkflowStartBody;
 import com.erp.system.mapper.MdmEmployeeMapper;
 import com.erp.system.mapper.MdmOrgMapper;
-import com.erp.system.mapper.SysWorkflowInstanceMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmWarehouseService;
 import com.erp.system.service.IMdmWarehouseWorkflowSubmitService;
@@ -48,7 +47,6 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
     private final ISysWorkflowEngineService workflowEngineService;
     private final SecurityUserResolver securityUserResolver;
     private final ISysUserService userService;
-    private final SysWorkflowInstanceMapper workflowInstanceMapper;
     private final MdmOrgMapper orgMapper;
     private final MdmEmployeeMapper employeeMapper;
     private final ObjectMapper objectMapper;
@@ -57,14 +55,12 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
             ISysWorkflowEngineService workflowEngineService,
             SecurityUserResolver securityUserResolver,
             ISysUserService userService,
-            SysWorkflowInstanceMapper workflowInstanceMapper,
             MdmOrgMapper orgMapper,
             MdmEmployeeMapper employeeMapper) {
         this.warehouseService = warehouseService;
         this.workflowEngineService = workflowEngineService;
         this.securityUserResolver = securityUserResolver;
         this.userService = userService;
-        this.workflowInstanceMapper = workflowInstanceMapper;
         this.orgMapper = orgMapper;
         this.employeeMapper = employeeMapper;
         this.objectMapper = new ObjectMapper();
@@ -93,6 +89,7 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
             throw new IllegalStateException("仓库审批流程发起失败");
         }
         if (!updateWarehouseStatus(warehouseId, warehouse.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "仓库状态更新失败，自动中止流程");
             throw new IllegalStateException("仓库状态已变化，请刷新后重试");
         }
         return true;
@@ -125,6 +122,7 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
             throw new IllegalStateException("仓库变更审批流程发起失败");
         }
         if (!updateWarehouseStatus(warehouseId, currentWarehouse.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "仓库状态更新失败，自动中止流程");
             throw new IllegalStateException("仓库状态已变化，请刷新后重试");
         }
         return true;
@@ -159,6 +157,7 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
             throw new IllegalStateException("仓库停用审批流程发起失败");
         }
         if (!updateWarehouseStatus(warehouseId, currentWarehouse.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "仓库状态更新失败，自动中止流程");
             throw new IllegalStateException("仓库状态已变化，请刷新后重试");
         }
         return true;
@@ -178,11 +177,7 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
     }
 
     private boolean hasRunningWorkflow(Long warehouseId) {
-        Long count = workflowInstanceMapper.selectCount(new LambdaQueryWrapper<SysWorkflowInstance>()
-                .eq(SysWorkflowInstance::getBusinessType, BUSINESS_TYPE)
-                .eq(SysWorkflowInstance::getBusinessNo, buildBusinessNo(warehouseId))
-                .eq(SysWorkflowInstance::getStatus, WORKFLOW_STATUS_RUNNING));
-        return count != null && count > 0;
+        return workflowEngineService.hasRunningInstance(BUSINESS_TYPE, buildBusinessNo(warehouseId));
     }
 
     private WorkflowStartBody buildStartBody(String processKey,
@@ -209,8 +204,14 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
 
         WorkflowStartBody startBody = new WorkflowStartBody();
         startBody.setProcessKey(processKey.trim());
+        startBody.setRequestedProcessKey(processKey.trim());
+        startBody.setOwnerService("system");
         startBody.setBusinessNo(buildBusinessNo(warehouseId));
         startBody.setBusinessType(BUSINESS_TYPE);
+        startBody.setDomainType(BUSINESS_TYPE);
+        startBody.setActionCode(action);
+        startBody.setIdempotencyKey(buildBusinessNo(warehouseId));
+        startBody.setOperator(resolveOperator());
         startBody.setRemark(MdmValueSupport.trimToNull(remark));
         startBody.setFormData(writeJson(formData));
         return startBody;
@@ -225,6 +226,19 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
         SysUser user = userService.selectUserByUserName(userName);
         String nickName = user == null ? userName : user.getNickName();
         return workflowEngineService.startProcess(startBody, userId, userName, nickName);
+    }
+
+    /**
+     * 在本地状态回写失败时中止已发起的流程实例。
+     *
+     * @param startBody 流程启动参数
+     * @param remark 中止原因
+     */
+    private void abortWorkflow(WorkflowStartBody startBody, String remark) {
+        if (startBody == null) {
+            return;
+        }
+        workflowEngineService.abortProcess(startBody.getBusinessType(), startBody.getBusinessNo(), remark);
     }
 
     private boolean updateWarehouseStatus(Long warehouseId, Integer currentVersion, String targetStatus) {
@@ -306,3 +320,5 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
         return StringUtils.hasText(userName) ? userName.trim() : "system";
     }
 }
+
+

@@ -10,7 +10,7 @@ import com.erp.system.domain.MdmItem;
 import com.erp.system.domain.MdmProject;
 import com.erp.system.domain.MdmSupplier;
 import com.erp.system.domain.MdmWarehouse;
-import com.erp.system.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
 import com.erp.system.mapper.MdmCustomerMapper;
 import com.erp.system.mapper.MdmCurrencyMapper;
 import com.erp.system.mapper.MdmEmployeeMapper;
@@ -19,7 +19,7 @@ import com.erp.system.mapper.MdmItemMapper;
 import com.erp.system.mapper.MdmProjectMapper;
 import com.erp.system.mapper.MdmSupplierMapper;
 import com.erp.system.mapper.MdmWarehouseMapper;
-import com.erp.system.mapper.SysWorkflowInstanceMapper;
+import com.erp.system.service.ISysWorkflowEngineService;
 import com.erp.system.service.IMdmReferenceCheckService;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmWorkflowBusinessSupport;
@@ -45,7 +45,7 @@ public class MdmReferenceCheckServiceImpl implements IMdmReferenceCheckService {
     private final MdmSupplierMapper supplierMapper;
     private final MdmItemMapper itemMapper;
     private final MdmCurrencyMapper currencyMapper;
-    private final SysWorkflowInstanceMapper workflowInstanceMapper;
+    private final ISysWorkflowEngineService workflowEngineService;
     private final InventoryReferenceMapper inventoryReferenceMapper;
 
     public MdmReferenceCheckServiceImpl(
@@ -56,7 +56,7 @@ public class MdmReferenceCheckServiceImpl implements IMdmReferenceCheckService {
             MdmSupplierMapper supplierMapper,
             MdmItemMapper itemMapper,
             MdmCurrencyMapper currencyMapper,
-            SysWorkflowInstanceMapper workflowInstanceMapper,
+            ISysWorkflowEngineService workflowEngineService,
             InventoryReferenceMapper inventoryReferenceMapper) {
         this.projectMapper = projectMapper;
         this.customerMapper = customerMapper;
@@ -65,7 +65,7 @@ public class MdmReferenceCheckServiceImpl implements IMdmReferenceCheckService {
         this.supplierMapper = supplierMapper;
         this.itemMapper = itemMapper;
         this.currencyMapper = currencyMapper;
-        this.workflowInstanceMapper = workflowInstanceMapper;
+        this.workflowEngineService = workflowEngineService;
         this.inventoryReferenceMapper = inventoryReferenceMapper;
     }
 
@@ -202,12 +202,9 @@ public class MdmReferenceCheckServiceImpl implements IMdmReferenceCheckService {
         if (!StringUtils.hasText(businessType) || !StringUtils.hasText(businessNo)) {
             return;
         }
-        addReferenceDetail(referenceDetails,
-                workflowInstanceMapper.selectCount(new LambdaQueryWrapper<SysWorkflowInstance>()
-                        .eq(SysWorkflowInstance::getBusinessType, businessType)
-                        .eq(SysWorkflowInstance::getBusinessNo, businessNo)
-                        .eq(SysWorkflowInstance::getStatus, WORKFLOW_STATUS_RUNNING)),
-                "流程中心: 当前主数据存在运行中的审批流程");
+        if (workflowEngineService.hasRunningInstance(businessType, businessNo)) {
+            referenceDetails.add("流程中心: 当前主数据存在运行中的审批流程");
+        }
     }
 
     /**
@@ -223,3 +220,4 @@ public class MdmReferenceCheckServiceImpl implements IMdmReferenceCheckService {
         }
     }
 }
+

@@ -41,6 +41,8 @@ mybatis-plus:
     map-underline-to-camel-case: true
 
 erp:
+  internal:
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:erp-internal-auth-signature-2026}
   business:
     datasource:
       enabled: false

@@ -1,6 +1,7 @@
 package com.erp.business.security.service;
 
-import com.erp.business.mapper.SecurityPermissionMapper;
+import com.erp.common.client.internal.InternalSystemClient;
+import com.erp.platform.contract.model.PlatformAuthorityBundle;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,20 +23,20 @@ class PermissionServiceTest {
     private SecurityUserResolver securityUserResolver;
 
     @Mock
-    private SecurityPermissionMapper permissionMapper;
+    private InternalSystemClient internalSystemClient;
 
     /**
      * 验证按租户和用户名可以命中库存权限。
      */
     @Test
     void shouldMatchPermissionByTenantAndUserName() {
-        when(securityUserResolver.getCurrentUsername()).thenReturn("tester");
-        when(securityUserResolver.getCurrentTenantId()).thenReturn("TENANT_A");
-        when(permissionMapper.selectRoleKeysByUserName("TENANT_A", "tester")).thenReturn(Collections.singletonList("user"));
-        when(permissionMapper.selectPermissionsByUserName("TENANT_A", "tester"))
-                .thenReturn(Arrays.asList("business:inventory:ledger:list", "business:inventory:inbound:*"));
+        when(securityUserResolver.getCurrentUserId()).thenReturn(1L);
+        PlatformAuthorityBundle authorityBundle = new PlatformAuthorityBundle();
+        authorityBundle.setRoleKeys(Collections.singletonList("user"));
+        authorityBundle.setPermissions(Arrays.asList("business:inventory:ledger:list", "business:inventory:inbound:*"));
+        when(internalSystemClient.getAuthorities()).thenReturn(authorityBundle);
 
-        PermissionService permissionService = new PermissionService(securityUserResolver, permissionMapper);
+        PermissionService permissionService = new PermissionService(securityUserResolver, internalSystemClient);
 
         Assertions.assertTrue(permissionService.hasPermi("business:inventory:ledger:list"));
         Assertions.assertTrue(permissionService.hasPermi("business:inventory:inbound:execute"));
@@ -47,12 +48,14 @@ class PermissionServiceTest {
      */
     @Test
     void shouldTreatAdminRoleAsSuperAdmin() {
-        when(securityUserResolver.getCurrentUsername()).thenReturn("admin");
-        when(securityUserResolver.getCurrentTenantId()).thenReturn("TENANT_A");
-        when(permissionMapper.selectRoleKeysByUserName("TENANT_A", "admin")).thenReturn(Collections.singletonList("admin"));
+        when(securityUserResolver.getCurrentUserId()).thenReturn(1L);
+        PlatformAuthorityBundle authorityBundle = new PlatformAuthorityBundle();
+        authorityBundle.setRoleKeys(Collections.singletonList("admin"));
+        when(internalSystemClient.getAuthorities()).thenReturn(authorityBundle);
 
-        PermissionService permissionService = new PermissionService(securityUserResolver, permissionMapper);
+        PermissionService permissionService = new PermissionService(securityUserResolver, internalSystemClient);
 
         Assertions.assertTrue(permissionService.hasPermi("business:inventory:outbound:execute"));
     }
 }
+

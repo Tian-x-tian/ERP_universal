@@ -10,7 +10,7 @@ import com.erp.system.mapper.MdmItemMapper;
 import com.erp.system.mapper.MdmProjectMapper;
 import com.erp.system.mapper.MdmSupplierMapper;
 import com.erp.system.mapper.MdmWarehouseMapper;
-import com.erp.system.mapper.SysWorkflowInstanceMapper;
+import com.erp.system.service.ISysWorkflowEngineService;
 import com.erp.system.support.MdmDomainTypeSupport;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,7 +50,7 @@ class MdmReferenceCheckServiceImplTest {
     private MdmCurrencyMapper currencyMapper;
 
     @Mock
-    private SysWorkflowInstanceMapper workflowInstanceMapper;
+    private ISysWorkflowEngineService workflowEngineService;
 
     @Mock
     private InventoryReferenceMapper inventoryReferenceMapper;
@@ -70,7 +70,7 @@ class MdmReferenceCheckServiceImplTest {
                 supplierMapper,
                 itemMapper,
                 currencyMapper,
-                workflowInstanceMapper,
+                workflowEngineService,
                 inventoryReferenceMapper);
     }
 
@@ -80,7 +80,7 @@ class MdmReferenceCheckServiceImplTest {
     @Test
     void shouldAggregateReferenceConflictDetails() {
         when(projectMapper.selectCount(any())).thenReturn(1L);
-        when(workflowInstanceMapper.selectCount(any())).thenReturn(1L);
+        when(workflowEngineService.hasRunningInstance(any(), any())).thenReturn(true);
 
         ServiceException exception = Assertions.assertThrows(ServiceException.class,
                 () -> referenceCheckService.check(MdmDomainTypeSupport.CUSTOMER, 100L));

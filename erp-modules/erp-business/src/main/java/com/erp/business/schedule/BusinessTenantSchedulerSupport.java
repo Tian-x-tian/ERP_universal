@@ -1,9 +1,10 @@
 package com.erp.business.schedule;
 
+import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.context.TenantContextHolder;
+import com.erp.platform.contract.model.PlatformTenantView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -18,28 +19,27 @@ public class BusinessTenantSchedulerSupport {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessTenantSchedulerSupport.class);
 
-    private final JdbcTemplate jdbcTemplate;
+    private final InternalSystemClient internalSystemClient;
 
-    public BusinessTenantSchedulerSupport(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public BusinessTenantSchedulerSupport(InternalSystemClient internalSystemClient) {
+        this.internalSystemClient = internalSystemClient;
     }
 
     /**
      * 按活动租户逐个执行后台任务。
      *
-     * @param taskName 任务名称
+     * @param taskName     任务名称
      * @param tenantAction 租户执行动作
      */
     public void executeForEachActiveTenant(String taskName, Consumer<String> tenantAction) {
         if (tenantAction == null) {
             return;
         }
-        List<String> tenantIdList = jdbcTemplate.queryForList(
-                "SELECT tenant_id FROM sys_tenant WHERE status = '0' AND del_flag = '0' ORDER BY id",
-                String.class);
+        List<PlatformTenantView> tenantList = internalSystemClient.listActiveTenants();
         String originalTenantId = TenantContextHolder.getTenantId();
         try {
-            for (String tenantIdValue : tenantIdList) {
+            for (PlatformTenantView tenant : tenantList) {
+                String tenantIdValue = tenant == null ? null : tenant.getTenantId();
                 if (!StringUtils.hasText(tenantIdValue)) {
                     continue;
                 }
@@ -62,3 +62,4 @@ public class BusinessTenantSchedulerSupport {
         }
     }
 }
+

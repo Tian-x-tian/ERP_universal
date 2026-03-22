@@ -7,9 +7,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.system.domain.MdmSupplier;
 import com.erp.system.domain.SysUser;
-import com.erp.system.domain.SysWorkflowInstance;
-import com.erp.system.domain.vo.WorkflowStartBody;
-import com.erp.system.mapper.SysWorkflowInstanceMapper;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.vo.WorkflowStartBody;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmSupplierService;
 import com.erp.system.service.IMdmSupplierWorkflowSubmitService;
@@ -43,19 +42,16 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
     private final ISysWorkflowEngineService workflowEngineService;
     private final SecurityUserResolver securityUserResolver;
     private final ISysUserService userService;
-    private final SysWorkflowInstanceMapper workflowInstanceMapper;
     private final ObjectMapper objectMapper;
 
     public MdmSupplierWorkflowSubmitServiceImpl(IMdmSupplierService supplierService,
                                                 ISysWorkflowEngineService workflowEngineService,
                                                 SecurityUserResolver securityUserResolver,
-                                                ISysUserService userService,
-                                                SysWorkflowInstanceMapper workflowInstanceMapper) {
+                                                ISysUserService userService) {
         this.supplierService = supplierService;
         this.workflowEngineService = workflowEngineService;
         this.securityUserResolver = securityUserResolver;
         this.userService = userService;
-        this.workflowInstanceMapper = workflowInstanceMapper;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -82,6 +78,7 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
             throw new IllegalStateException("供应商审批流程发起失败");
         }
         if (!updateSupplierStatus(supplierId, supplier.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "供应商状态更新失败，自动中止流程");
             throw new IllegalStateException("供应商状态已变化，请刷新后重试");
         }
         return true;
@@ -114,6 +111,7 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
             throw new IllegalStateException("供应商变更审批流程发起失败");
         }
         if (!updateSupplierStatus(supplierId, currentSupplier.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "供应商状态更新失败，自动中止流程");
             throw new IllegalStateException("供应商状态已变化，请刷新后重试");
         }
         return true;
@@ -148,6 +146,7 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
             throw new IllegalStateException("供应商停用审批流程发起失败");
         }
         if (!updateSupplierStatus(supplierId, currentSupplier.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "供应商状态更新失败，自动中止流程");
             throw new IllegalStateException("供应商状态已变化，请刷新后重试");
         }
         return true;
@@ -167,11 +166,7 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
     }
 
     private boolean hasRunningWorkflow(Long supplierId) {
-        Long count = workflowInstanceMapper.selectCount(new LambdaQueryWrapper<SysWorkflowInstance>()
-                .eq(SysWorkflowInstance::getBusinessType, BUSINESS_TYPE)
-                .eq(SysWorkflowInstance::getBusinessNo, buildBusinessNo(supplierId))
-                .eq(SysWorkflowInstance::getStatus, WORKFLOW_STATUS_RUNNING));
-        return count != null && count > 0;
+        return workflowEngineService.hasRunningInstance(BUSINESS_TYPE, buildBusinessNo(supplierId));
     }
 
     private WorkflowStartBody buildStartBody(String processKey,
@@ -198,8 +193,14 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
 
         WorkflowStartBody startBody = new WorkflowStartBody();
         startBody.setProcessKey(processKey.trim());
+        startBody.setRequestedProcessKey(processKey.trim());
+        startBody.setOwnerService("system");
         startBody.setBusinessNo(buildBusinessNo(supplierId));
         startBody.setBusinessType(BUSINESS_TYPE);
+        startBody.setDomainType(BUSINESS_TYPE);
+        startBody.setActionCode(action);
+        startBody.setIdempotencyKey(buildBusinessNo(supplierId));
+        startBody.setOperator(resolveOperator());
         startBody.setRemark(MdmValueSupport.trimToNull(remark));
         startBody.setFormData(writeJson(formData));
         return startBody;
@@ -214,6 +215,19 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
         SysUser user = userService.selectUserByUserName(userName);
         String nickName = user == null ? userName : user.getNickName();
         return workflowEngineService.startProcess(startBody, userId, userName, nickName);
+    }
+
+    /**
+     * 在本地状态回写失败时中止已发起的流程实例。
+     *
+     * @param startBody 流程启动参数
+     * @param remark 中止原因
+     */
+    private void abortWorkflow(WorkflowStartBody startBody, String remark) {
+        if (startBody == null) {
+            return;
+        }
+        workflowEngineService.abortProcess(startBody.getBusinessType(), startBody.getBusinessNo(), remark);
     }
 
     private boolean updateSupplierStatus(Long supplierId, Integer currentVersion, String targetStatus) {
@@ -283,3 +297,5 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
         return StringUtils.hasText(userName) ? userName.trim() : "system";
     }
 }
+
+

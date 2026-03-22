@@ -113,9 +113,26 @@ public class OperationLogInterceptor implements HandlerInterceptor {
             return false;
         }
         String requestUri = request.getRequestURI();
+        if (isAuthLifecycleRequest(requestUri)) {
+            return false;
+        }
         return !requestUri.startsWith("/system/login/log")
                 && !requestUri.startsWith("/system/audit/log")
                 && !requestUri.startsWith("/system/oper/log");
+    }
+
+    /**
+     * 判断当前请求是否属于登录态生命周期接口。
+     * 这些接口会记录专用登录日志，不应重复写入普通操作日志。
+     *
+     * @param requestUri 请求路径
+     * @return true 表示为认证生命周期接口
+     */
+    private boolean isAuthLifecycleRequest(String requestUri) {
+        return "/login".equals(requestUri)
+                || "/logout".equals(requestUri)
+                || "/auth/login".equals(requestUri)
+                || "/auth/logout".equals(requestUri);
     }
 
     /**

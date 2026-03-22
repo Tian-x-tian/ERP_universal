@@ -7,9 +7,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.system.domain.MdmItem;
 import com.erp.system.domain.SysUser;
-import com.erp.system.domain.SysWorkflowInstance;
-import com.erp.system.domain.vo.WorkflowStartBody;
-import com.erp.system.mapper.SysWorkflowInstanceMapper;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.vo.WorkflowStartBody;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmItemService;
 import com.erp.system.service.IMdmItemWorkflowSubmitService;
@@ -44,19 +43,16 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
     private final ISysWorkflowEngineService workflowEngineService;
     private final SecurityUserResolver securityUserResolver;
     private final ISysUserService userService;
-    private final SysWorkflowInstanceMapper workflowInstanceMapper;
     private final ObjectMapper objectMapper;
 
     public MdmItemWorkflowSubmitServiceImpl(IMdmItemService itemService,
                                             ISysWorkflowEngineService workflowEngineService,
                                             SecurityUserResolver securityUserResolver,
-                                            ISysUserService userService,
-                                            SysWorkflowInstanceMapper workflowInstanceMapper) {
+                                            ISysUserService userService) {
         this.itemService = itemService;
         this.workflowEngineService = workflowEngineService;
         this.securityUserResolver = securityUserResolver;
         this.userService = userService;
-        this.workflowInstanceMapper = workflowInstanceMapper;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -83,6 +79,7 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
             throw new IllegalStateException("物料审批流程发起失败");
         }
         if (!updateItemStatus(itemId, item.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "物料状态更新失败，自动中止流程");
             throw new IllegalStateException("物料状态已变化，请刷新后重试");
         }
         return true;
@@ -115,6 +112,7 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
             throw new IllegalStateException("物料变更审批流程发起失败");
         }
         if (!updateItemStatus(itemId, currentItem.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "物料状态更新失败，自动中止流程");
             throw new IllegalStateException("物料状态已变化，请刷新后重试");
         }
         return true;
@@ -149,6 +147,7 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
             throw new IllegalStateException("物料停用审批流程发起失败");
         }
         if (!updateItemStatus(itemId, currentItem.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "物料状态更新失败，自动中止流程");
             throw new IllegalStateException("物料状态已变化，请刷新后重试");
         }
         return true;
@@ -168,11 +167,7 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
     }
 
     private boolean hasRunningWorkflow(Long itemId) {
-        Long count = workflowInstanceMapper.selectCount(new LambdaQueryWrapper<SysWorkflowInstance>()
-                .eq(SysWorkflowInstance::getBusinessType, BUSINESS_TYPE)
-                .eq(SysWorkflowInstance::getBusinessNo, buildBusinessNo(itemId))
-                .eq(SysWorkflowInstance::getStatus, WORKFLOW_STATUS_RUNNING));
-        return count != null && count > 0;
+        return workflowEngineService.hasRunningInstance(BUSINESS_TYPE, buildBusinessNo(itemId));
     }
 
     private WorkflowStartBody buildStartBody(String processKey,
@@ -199,8 +194,14 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
 
         WorkflowStartBody startBody = new WorkflowStartBody();
         startBody.setProcessKey(processKey.trim());
+        startBody.setRequestedProcessKey(processKey.trim());
+        startBody.setOwnerService("system");
         startBody.setBusinessNo(buildBusinessNo(itemId));
         startBody.setBusinessType(BUSINESS_TYPE);
+        startBody.setDomainType(BUSINESS_TYPE);
+        startBody.setActionCode(action);
+        startBody.setIdempotencyKey(buildBusinessNo(itemId));
+        startBody.setOperator(resolveOperator());
         startBody.setRemark(MdmValueSupport.trimToNull(remark));
         startBody.setFormData(writeJson(formData));
         return startBody;
@@ -215,6 +216,19 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
         SysUser user = userService.selectUserByUserName(userName);
         String nickName = user == null ? userName : user.getNickName();
         return workflowEngineService.startProcess(startBody, userId, userName, nickName);
+    }
+
+    /**
+     * 在本地状态回写失败时中止已发起的流程实例。
+     *
+     * @param startBody 流程启动参数
+     * @param remark 中止原因
+     */
+    private void abortWorkflow(WorkflowStartBody startBody, String remark) {
+        if (startBody == null) {
+            return;
+        }
+        workflowEngineService.abortProcess(startBody.getBusinessType(), startBody.getBusinessNo(), remark);
     }
 
     private boolean updateItemStatus(Long itemId, Integer currentVersion, String targetStatus) {
@@ -287,3 +301,5 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
         return StringUtils.hasText(userName) ? userName.trim() : "system";
     }
 }
+
+

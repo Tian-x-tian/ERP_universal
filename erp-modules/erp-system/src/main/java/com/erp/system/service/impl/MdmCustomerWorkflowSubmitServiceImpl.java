@@ -7,10 +7,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.system.domain.MdmCustomer;
 import com.erp.system.domain.SysUser;
-import com.erp.system.domain.SysWorkflowInstance;
-import com.erp.system.domain.vo.WorkflowStartBody;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.vo.WorkflowStartBody;
 import com.erp.system.mapper.MdmCustomerMapper;
-import com.erp.system.mapper.SysWorkflowInstanceMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmCustomerService;
 import com.erp.system.service.IMdmCustomerWorkflowSubmitService;
@@ -44,7 +43,6 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
     private final ISysWorkflowEngineService workflowEngineService;
     private final SecurityUserResolver securityUserResolver;
     private final ISysUserService userService;
-    private final SysWorkflowInstanceMapper workflowInstanceMapper;
     private final MdmCustomerMapper customerMapper;
     private final ObjectMapper objectMapper;
 
@@ -52,13 +50,11 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
                                                 ISysWorkflowEngineService workflowEngineService,
                                                 SecurityUserResolver securityUserResolver,
                                                 ISysUserService userService,
-                                                SysWorkflowInstanceMapper workflowInstanceMapper,
                                                 MdmCustomerMapper customerMapper) {
         this.customerService = customerService;
         this.workflowEngineService = workflowEngineService;
         this.securityUserResolver = securityUserResolver;
         this.userService = userService;
-        this.workflowInstanceMapper = workflowInstanceMapper;
         this.customerMapper = customerMapper;
         this.objectMapper = new ObjectMapper();
     }
@@ -94,6 +90,7 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
             throw new IllegalStateException("客户审批流程发起失败");
         }
         if (!updateCustomerStatus(customerId, customer.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "客户状态更新失败，自动中止流程");
             throw new IllegalStateException("客户状态已变化，请刷新后重试");
         }
         return true;
@@ -135,6 +132,7 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
             throw new IllegalStateException("客户变更审批流程发起失败");
         }
         if (!updateCustomerStatus(customerId, currentCustomer.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "客户状态更新失败，自动中止流程");
             throw new IllegalStateException("客户状态已变化，请刷新后重试");
         }
         return true;
@@ -177,6 +175,7 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
             throw new IllegalStateException("客户停用审批流程发起失败");
         }
         if (!updateCustomerStatus(customerId, currentCustomer.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "客户状态更新失败，自动中止流程");
             throw new IllegalStateException("客户状态已变化，请刷新后重试");
         }
         return true;
@@ -208,11 +207,7 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
      * @return true 表示存在
      */
     private boolean hasRunningWorkflow(Long customerId) {
-        Long count = workflowInstanceMapper.selectCount(new LambdaQueryWrapper<SysWorkflowInstance>()
-                .eq(SysWorkflowInstance::getBusinessType, BUSINESS_TYPE)
-                .eq(SysWorkflowInstance::getBusinessNo, buildBusinessNo(customerId))
-                .eq(SysWorkflowInstance::getStatus, WORKFLOW_STATUS_RUNNING));
-        return count != null && count > 0;
+        return workflowEngineService.hasRunningInstance(BUSINESS_TYPE, buildBusinessNo(customerId));
     }
 
     /**
@@ -251,8 +246,14 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
 
         WorkflowStartBody startBody = new WorkflowStartBody();
         startBody.setProcessKey(processKey.trim());
+        startBody.setRequestedProcessKey(processKey.trim());
+        startBody.setOwnerService("system");
         startBody.setBusinessNo(buildBusinessNo(customerId));
         startBody.setBusinessType(BUSINESS_TYPE);
+        startBody.setDomainType(BUSINESS_TYPE);
+        startBody.setActionCode(action);
+        startBody.setIdempotencyKey(buildBusinessNo(customerId));
+        startBody.setOperator(resolveOperator());
         startBody.setRemark(MdmValueSupport.trimToNull(remark));
         startBody.setFormData(writeJson(formData));
         return startBody;
@@ -273,6 +274,19 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
         SysUser user = userService.selectUserByUserName(userName);
         String nickName = user == null ? userName : user.getNickName();
         return workflowEngineService.startProcess(startBody, userId, userName, nickName);
+    }
+
+    /**
+     * 在本地状态回写失败时中止已发起的流程实例。
+     *
+     * @param startBody 流程启动参数
+     * @param remark 中止原因
+     */
+    private void abortWorkflow(WorkflowStartBody startBody, String remark) {
+        if (startBody == null) {
+            return;
+        }
+        workflowEngineService.abortProcess(startBody.getBusinessType(), startBody.getBusinessNo(), remark);
     }
 
     /**
@@ -386,3 +400,5 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
         return StringUtils.hasText(userName) ? userName.trim() : "system";
     }
 }
+
+

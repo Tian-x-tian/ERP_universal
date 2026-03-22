@@ -11,7 +11,10 @@ import com.erp.business.hr.service.IHrEmployeeImportService;
 import com.erp.business.hr.support.HrEmployeeSupport;
 import com.erp.business.security.service.SecurityUserResolver;
 import com.erp.business.system.domain.SysImexJob;
-import com.erp.business.system.mapper.SysImexJobMapper;
+import com.erp.common.client.internal.InternalSystemClient;
+import com.erp.platform.contract.model.PlatformImexJob;
+import com.erp.platform.contract.model.PlatformImexJobCreateRequest;
+import com.erp.platform.contract.model.PlatformImexJobUpdateRequest;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -35,18 +38,18 @@ public class HrEmployeeImportServiceImpl implements IHrEmployeeImportService {
     private static final String MODULE_CODE = "HR_EMPLOYEE";
     private static final String JOB_TYPE = "IMPORT";
 
-    private final SysImexJobMapper imexJobMapper;
+    private final InternalSystemClient internalSystemClient;
     private final HrEmployeeCoreMapper employeeCoreMapper;
     private final HrEmployeeArchiveMapper employeeArchiveMapper;
     private final IHrEmployeeArchiveService archiveService;
     private final SecurityUserResolver securityUserResolver;
 
-    public HrEmployeeImportServiceImpl(SysImexJobMapper imexJobMapper,
+    public HrEmployeeImportServiceImpl(InternalSystemClient internalSystemClient,
             HrEmployeeCoreMapper employeeCoreMapper,
             HrEmployeeArchiveMapper employeeArchiveMapper,
             IHrEmployeeArchiveService archiveService,
             SecurityUserResolver securityUserResolver) {
-        this.imexJobMapper = imexJobMapper;
+        this.internalSystemClient = internalSystemClient;
         this.employeeCoreMapper = employeeCoreMapper;
         this.employeeArchiveMapper = employeeArchiveMapper;
         this.archiveService = archiveService;
@@ -98,7 +101,7 @@ public class HrEmployeeImportServiceImpl implements IHrEmployeeImportService {
             }
             Path summaryPath = writeSummaryFile(summaryLines);
             updateJob(job, successCount > 0 ? "SUCCESS" : "FAILED", 100, "导入执行完成", summaryPath);
-            return imexJobMapper.selectById(job.getJobId());
+            return internalSystemToLocal(internalSystemClient.getImexJob(job.getJobId()));
         } catch (Exception ex) {
             updateJob(job, "FAILED", 100, ex.getMessage(), null);
             throw new IllegalStateException("员工导入失败", ex);
@@ -113,22 +116,21 @@ public class HrEmployeeImportServiceImpl implements IHrEmployeeImportService {
      */
     private SysImexJob createJob(String fileName) {
         Date now = new Date();
-        SysImexJob job = new SysImexJob();
-        job.setTenantId(currentTenantId());
-        job.setJobNo("IMP-" + System.currentTimeMillis());
-        job.setJobType(JOB_TYPE);
-        job.setModuleCode(MODULE_CODE);
-        job.setFileName(fileName);
-        job.setStatus("RUNNING");
-        job.setProgress(0);
-        job.setTriggerType("MANUAL");
-        job.setMessage("导入处理中");
-        job.setCreateBy(resolveOperator());
-        job.setCreateTime(now);
-        job.setUpdateBy(resolveOperator());
-        job.setUpdateTime(now);
-        imexJobMapper.insert(job);
-        return job;
+        PlatformImexJobCreateRequest request = new PlatformImexJobCreateRequest();
+        request.setTenantId(currentTenantId());
+        request.setJobNo("IMP-" + System.currentTimeMillis());
+        request.setJobType(JOB_TYPE);
+        request.setModuleCode(MODULE_CODE);
+        request.setFileName(fileName);
+        request.setStatus("RUNNING");
+        request.setProgress(0);
+        request.setTriggerType("MANUAL");
+        request.setMessage("导入处理中");
+        request.setCreateBy(resolveOperator());
+        request.setCreateTime(now);
+        request.setUpdateBy(resolveOperator());
+        request.setUpdateTime(now);
+        return internalSystemToLocal(internalSystemClient.createImexJob(request));
     }
 
     /**
@@ -217,15 +219,17 @@ public class HrEmployeeImportServiceImpl implements IHrEmployeeImportService {
      * @param summaryPath 结果文件
      */
     private void updateJob(SysImexJob job, String status, int progress, String message, Path summaryPath) {
-        SysImexJob updateEntity = new SysImexJob();
-        updateEntity.setJobId(job.getJobId());
-        updateEntity.setStatus(status);
-        updateEntity.setProgress(progress);
-        updateEntity.setMessage(message);
-        updateEntity.setFilePath(summaryPath == null ? job.getFilePath() : summaryPath.toString());
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
-        imexJobMapper.updateById(updateEntity);
+        if (job == null || job.getJobId() == null) {
+            return;
+        }
+        PlatformImexJobUpdateRequest request = new PlatformImexJobUpdateRequest();
+        request.setStatus(status);
+        request.setProgress(progress);
+        request.setMessage(message);
+        request.setFilePath(summaryPath == null ? job.getFilePath() : summaryPath.toString());
+        request.setUpdateBy(resolveOperator());
+        request.setUpdateTime(new Date());
+        internalSystemClient.updateImexJob(job.getJobId(), request);
     }
 
     /**
@@ -326,4 +330,34 @@ public class HrEmployeeImportServiceImpl implements IHrEmployeeImportService {
         String username = securityUserResolver.getCurrentUsername();
         return StringUtils.hasText(username) ? username.trim() : "system";
     }
+
+    /**
+     * 将平台任务投影映射为业务任务 DTO。
+     *
+     * @param source 平台任务投影
+     * @return 业务任务 DTO
+     */
+    private SysImexJob internalSystemToLocal(PlatformImexJob source) {
+        if (source == null) {
+            return null;
+        }
+        SysImexJob target = new SysImexJob();
+        target.setJobId(source.getJobId());
+        target.setTenantId(source.getTenantId());
+        target.setJobNo(source.getJobNo());
+        target.setJobType(source.getJobType());
+        target.setModuleCode(source.getModuleCode());
+        target.setFileName(source.getFileName());
+        target.setFilePath(source.getFilePath());
+        target.setStatus(source.getStatus());
+        target.setProgress(source.getProgress());
+        target.setTriggerType(source.getTriggerType());
+        target.setMessage(source.getMessage());
+        target.setCreateBy(source.getCreateBy());
+        target.setCreateTime(source.getCreateTime());
+        target.setUpdateBy(source.getUpdateBy());
+        target.setUpdateTime(source.getUpdateTime());
+        return target;
+    }
 }
+

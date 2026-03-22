@@ -1,13 +1,14 @@
 package com.erp.business.schedule;
 
+import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.context.TenantContextHolder;
+import com.erp.platform.contract.model.PlatformTenantView;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.Arrays;
 import java.util.List;
@@ -21,7 +22,7 @@ import static org.mockito.Mockito.when;
 class BusinessTenantSchedulerSupportTest {
 
     @Mock
-    private JdbcTemplate jdbcTemplate;
+    private InternalSystemClient internalSystemClient;
 
     /**
      * 清理租户上下文。
@@ -36,11 +37,9 @@ class BusinessTenantSchedulerSupportTest {
      */
     @Test
     void shouldExecuteTaskWithTenantContextForEachActiveTenant() {
-        List<String> tenantIdList = Arrays.asList(" 000001 ", "", "000002");
-        when(jdbcTemplate.queryForList(
-                "SELECT tenant_id FROM sys_tenant WHERE status = '0' AND del_flag = '0' ORDER BY id",
-                String.class)).thenReturn(tenantIdList);
-        BusinessTenantSchedulerSupport schedulerSupport = new BusinessTenantSchedulerSupport(jdbcTemplate);
+        List<PlatformTenantView> tenantList = Arrays.asList(buildTenant(" 000001 "), buildTenant(""), buildTenant("000002"));
+        when(internalSystemClient.listActiveTenants()).thenReturn(tenantList);
+        BusinessTenantSchedulerSupport schedulerSupport = new BusinessTenantSchedulerSupport(internalSystemClient);
         StringBuilder executionLog = new StringBuilder();
 
         schedulerSupport.executeForEachActiveTenant("库存任务", tenantId -> executionLog
@@ -58,10 +57,8 @@ class BusinessTenantSchedulerSupportTest {
      */
     @Test
     void shouldRestoreOriginalTenantContextAfterExecution() {
-        when(jdbcTemplate.queryForList(
-                "SELECT tenant_id FROM sys_tenant WHERE status = '0' AND del_flag = '0' ORDER BY id",
-                String.class)).thenReturn(List.of("000003"));
-        BusinessTenantSchedulerSupport schedulerSupport = new BusinessTenantSchedulerSupport(jdbcTemplate);
+        when(internalSystemClient.listActiveTenants()).thenReturn(List.of(buildTenant("000003")));
+        BusinessTenantSchedulerSupport schedulerSupport = new BusinessTenantSchedulerSupport(internalSystemClient);
         TenantContextHolder.setTenantId("ORIGINAL");
 
         schedulerSupport.executeForEachActiveTenant("库存任务", tenantId ->
@@ -69,4 +66,17 @@ class BusinessTenantSchedulerSupportTest {
 
         Assertions.assertEquals("ORIGINAL", TenantContextHolder.getTenantId());
     }
+
+    /**
+     * 构造租户只读投影。
+     *
+     * @param tenantId 租户编号
+     * @return 租户投影
+     */
+    private PlatformTenantView buildTenant(String tenantId) {
+        PlatformTenantView tenantView = new PlatformTenantView();
+        tenantView.setTenantId(tenantId);
+        return tenantView;
+    }
 }
+

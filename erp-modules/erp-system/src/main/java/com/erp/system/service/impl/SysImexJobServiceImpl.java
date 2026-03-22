@@ -5,11 +5,15 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.core.exception.ServiceException;
+import com.erp.platform.contract.model.PlatformImexJobCreateRequest;
+import com.erp.platform.contract.model.PlatformImexJobUpdateRequest;
 import com.erp.system.domain.SysImexJob;
 import com.erp.system.mapper.SysImexJobMapper;
 import com.erp.system.service.ISysImexJobService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+import java.util.Date;
 
 /**
  * 导入导出任务服务实现。
@@ -64,6 +68,65 @@ public class SysImexJobServiceImpl implements ISysImexJobService {
     }
 
     /**
+     * 通过内部契约创建导入导出任务。
+     *
+     * @param request 创建参数
+     * @return 新建任务
+     */
+    @Override
+    public SysImexJob createInternalJob(PlatformImexJobCreateRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("导入导出任务参数不能为空");
+        }
+        Date now = new Date();
+        SysImexJob job = new SysImexJob();
+        job.setTenantId(trimToNull(request.getTenantId()));
+        job.setJobNo(trimToNull(request.getJobNo()));
+        job.setJobType(trimToNull(request.getJobType()));
+        job.setModuleCode(trimToNull(request.getModuleCode()));
+        job.setFileName(trimToNull(request.getFileName()));
+        job.setFilePath(trimToNull(request.getFilePath()));
+        job.setStatus(trimToNull(request.getStatus()));
+        job.setProgress(request.getProgress());
+        job.setTriggerType(trimToNull(request.getTriggerType()));
+        job.setMessage(trimToNull(request.getMessage()));
+        job.setCreateBy(trimToNull(request.getCreateBy()));
+        job.setCreateTime(request.getCreateTime() == null ? now : request.getCreateTime());
+        job.setUpdateBy(trimToNull(request.getUpdateBy()));
+        job.setUpdateTime(request.getUpdateTime() == null ? now : request.getUpdateTime());
+        imexJobMapper.insert(job);
+        return imexJobMapper.selectById(job.getJobId());
+    }
+
+    /**
+     * 通过内部契约更新导入导出任务。
+     *
+     * @param jobId   任务ID
+     * @param request 更新参数
+     * @return 更新后的任务
+     */
+    @Override
+    public SysImexJob updateInternalJob(Long jobId, PlatformImexJobUpdateRequest request) {
+        if (jobId == null || request == null) {
+            throw new IllegalArgumentException("导入导出任务更新参数不能为空");
+        }
+        SysImexJob existed = imexJobMapper.selectById(jobId);
+        if (existed == null) {
+            throw new ServiceException("导入导出任务不存在", (int) ResultCode.NOT_FOUND.getCode());
+        }
+        SysImexJob updateEntity = new SysImexJob();
+        updateEntity.setJobId(jobId);
+        updateEntity.setFilePath(trimToNull(request.getFilePath()));
+        updateEntity.setStatus(trimToNull(request.getStatus()));
+        updateEntity.setProgress(request.getProgress());
+        updateEntity.setMessage(trimToNull(request.getMessage()));
+        updateEntity.setUpdateBy(trimToNull(request.getUpdateBy()));
+        updateEntity.setUpdateTime(request.getUpdateTime() == null ? new Date() : request.getUpdateTime());
+        imexJobMapper.updateById(updateEntity);
+        return imexJobMapper.selectById(jobId);
+    }
+
+    /**
      * 获取当前租户编号。
      *
      * @return 租户编号
@@ -95,4 +158,15 @@ public class SysImexJobServiceImpl implements ISysImexJobService {
         }
         return Math.min(pageSize, 200L);
     }
+
+    /**
+     * 规范化文本值。
+     *
+     * @param value 原始值
+     * @return 规范化结果
+     */
+    private String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
 }
+

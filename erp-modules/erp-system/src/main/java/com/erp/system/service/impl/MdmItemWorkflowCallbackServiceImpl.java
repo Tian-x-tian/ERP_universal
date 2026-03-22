@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.system.domain.MdmItem;
-import com.erp.system.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
 import com.erp.system.mapper.MdmItemMapper;
 import com.erp.system.service.IMdmAuditTrailService;
 import com.erp.system.service.IWorkflowBusinessCallback;
@@ -278,3 +278,4 @@ public class MdmItemWorkflowCallbackServiceImpl implements IWorkflowBusinessCall
         return "system";
     }
 }
+

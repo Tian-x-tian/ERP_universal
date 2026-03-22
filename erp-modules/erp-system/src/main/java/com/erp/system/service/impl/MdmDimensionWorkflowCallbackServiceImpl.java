@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.system.domain.MdmCostCenter;
 import com.erp.system.domain.MdmOrg;
 import com.erp.system.domain.MdmProject;
-import com.erp.system.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
 import com.erp.system.mapper.MdmCostCenterMapper;
 import com.erp.system.mapper.MdmOrgMapper;
 import com.erp.system.mapper.MdmProjectMapper;
@@ -513,3 +513,4 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         return "system";
     }
 }
+

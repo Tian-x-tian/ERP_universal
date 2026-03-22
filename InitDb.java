@@ -54,8 +54,9 @@ public class InitDb {
             return Arrays.asList(args);
         }
         List<String> defaultPaths = new ArrayList<>();
-        defaultPaths.add("erp-modules/erp-system/src/main/resources/sql/upgrade_system.sql");
-        defaultPaths.add("erp-modules/erp-business/src/main/resources/sql/upgrade_business.sql");
+        defaultPaths.add("erp-modules/erp-system/src/main/resources/sql/init_system.sql");
+        defaultPaths.add("erp-modules/erp-workflow/src/main/resources/sql/init_workflow.sql");
+        defaultPaths.add("erp-modules/erp-business/src/main/resources/sql/init_business.sql");
         return defaultPaths;
     }
 

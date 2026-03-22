@@ -6,8 +6,8 @@ import com.erp.business.hr.domain.HrEmployeeCore;
 import com.erp.business.hr.domain.vo.HrEmployeeArchiveBody;
 import com.erp.business.hr.mapper.HrEmployeeArchiveMapper;
 import com.erp.business.hr.mapper.HrEmployeeCoreMapper;
-import com.erp.business.hr.mapper.HrSystemConfigMapper;
 import com.erp.business.security.service.SecurityUserResolver;
+import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.exception.ServiceException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +38,7 @@ class HrEmployeeArchiveServiceImplTest {
     private HrEmployeeCoreMapper employeeCoreMapper;
 
     @Mock
-    private HrSystemConfigMapper systemConfigMapper;
+    private InternalSystemClient internalSystemClient;
 
     @Mock
     private SecurityUserResolver securityUserResolver;
@@ -50,7 +50,7 @@ class HrEmployeeArchiveServiceImplTest {
      */
     @BeforeEach
     void setUp() {
-        archiveService = new HrEmployeeArchiveServiceImpl(archiveMapper, employeeCoreMapper, systemConfigMapper,
+        archiveService = new HrEmployeeArchiveServiceImpl(archiveMapper, employeeCoreMapper, internalSystemClient,
                 securityUserResolver);
         lenient().when(securityUserResolver.getCurrentUsername()).thenReturn("tester");
     }
@@ -64,7 +64,7 @@ class HrEmployeeArchiveServiceImplTest {
         archiveBody.setEmployeeId(10L);
         when(employeeCoreMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildEmployeeCore(10L));
         when(archiveMapper.selectById(10L)).thenReturn(null, buildArchive(10L));
-        when(systemConfigMapper.selectConfigValue("hr.employee.cert_unique_enabled")).thenReturn("true");
+        when(internalSystemClient.getConfigValue("hr.employee.cert_unique_enabled")).thenReturn("true");
         when(archiveMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
         when(archiveMapper.insert(any(HrEmployeeArchive.class))).thenReturn(1);
 
@@ -86,7 +86,7 @@ class HrEmployeeArchiveServiceImplTest {
         archiveBody.setEmployeeId(11L);
         when(employeeCoreMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildEmployeeCore(11L));
         when(archiveMapper.selectById(11L)).thenReturn(null, buildArchive(11L));
-        when(systemConfigMapper.selectConfigValue("hr.employee.cert_unique_enabled")).thenReturn("false");
+        when(internalSystemClient.getConfigValue("hr.employee.cert_unique_enabled")).thenReturn("false");
         when(archiveMapper.insert(any(HrEmployeeArchive.class))).thenReturn(1);
 
         archiveService.createArchive(archiveBody);
@@ -103,7 +103,7 @@ class HrEmployeeArchiveServiceImplTest {
         archiveBody.setEmployeeId(12L);
         when(employeeCoreMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildEmployeeCore(12L));
         when(archiveMapper.selectById(12L)).thenReturn(null);
-        when(systemConfigMapper.selectConfigValue("hr.employee.cert_unique_enabled")).thenReturn("true");
+        when(internalSystemClient.getConfigValue("hr.employee.cert_unique_enabled")).thenReturn("true");
         when(archiveMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(1L);
 
         IllegalStateException exception = Assertions.assertThrows(IllegalStateException.class,
@@ -120,7 +120,7 @@ class HrEmployeeArchiveServiceImplTest {
         HrEmployeeArchiveBody archiveBody = buildArchiveBody();
         when(employeeCoreMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildEmployeeCore(13L));
         when(archiveMapper.selectById(13L)).thenReturn(null, null, buildArchive(13L));
-        when(systemConfigMapper.selectConfigValue("hr.employee.cert_unique_enabled")).thenReturn("false");
+        when(internalSystemClient.getConfigValue("hr.employee.cert_unique_enabled")).thenReturn("false");
         when(archiveMapper.insert(any(HrEmployeeArchive.class))).thenReturn(1);
 
         HrEmployeeArchive archive = archiveService.updateArchive(13L, archiveBody);
@@ -138,7 +138,7 @@ class HrEmployeeArchiveServiceImplTest {
         archiveBody.setEmploymentType("FULL_TIME");
         when(employeeCoreMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildEmployeeCore(14L));
         when(archiveMapper.selectById(14L)).thenReturn(buildArchive(14L), buildArchive(14L));
-        when(systemConfigMapper.selectConfigValue("hr.employee.cert_unique_enabled")).thenReturn("true");
+        when(internalSystemClient.getConfigValue("hr.employee.cert_unique_enabled")).thenReturn("true");
         when(archiveMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
         when(archiveMapper.updateById(any(HrEmployeeArchive.class))).thenReturn(1);
 

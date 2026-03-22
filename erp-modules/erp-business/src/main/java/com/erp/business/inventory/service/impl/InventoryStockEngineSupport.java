@@ -20,20 +20,19 @@ import com.erp.business.inventory.domain.InventoryStocktakeOrder;
 import com.erp.business.inventory.domain.InventoryStocktakeOrderLine;
 import com.erp.business.inventory.domain.InventoryTransferOrder;
 import com.erp.business.inventory.domain.InventoryTransferOrderLine;
-import com.erp.business.inventory.domain.MdmItem;
-import com.erp.business.inventory.domain.MdmWarehouse;
 import com.erp.business.inventory.mapper.InventoryBatchRecordMapper;
 import com.erp.business.inventory.mapper.InventorySerialRecordMapper;
 import com.erp.business.inventory.mapper.InventoryStockBalanceMapper;
 import com.erp.business.inventory.mapper.InventoryStockTxnMapper;
-import com.erp.business.inventory.mapper.MdmItemMapper;
-import com.erp.business.inventory.mapper.MdmWarehouseMapper;
 import com.erp.business.inventory.support.InventoryActionTypeSupport;
 import com.erp.business.inventory.support.InventoryValueSupport;
 import com.erp.business.security.service.SecurityUserResolver;
+import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.context.RequestTraceContextHolder;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.core.exception.ServiceException;
+import com.erp.platform.contract.model.PlatformItemView;
+import com.erp.platform.contract.model.PlatformWarehouseView;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -50,23 +49,20 @@ public class InventoryStockEngineSupport {
 
     private final InventoryStockBalanceMapper stockBalanceMapper;
     private final InventoryStockTxnMapper stockTxnMapper;
-    private final MdmWarehouseMapper warehouseMapper;
-    private final MdmItemMapper itemMapper;
+    private final InternalSystemClient internalSystemClient;
     private final InventoryBatchRecordMapper batchRecordMapper;
     private final InventorySerialRecordMapper serialRecordMapper;
     private final SecurityUserResolver securityUserResolver;
 
     public InventoryStockEngineSupport(InventoryStockBalanceMapper stockBalanceMapper,
             InventoryStockTxnMapper stockTxnMapper,
-            MdmWarehouseMapper warehouseMapper,
-            MdmItemMapper itemMapper,
+            InternalSystemClient internalSystemClient,
             InventoryBatchRecordMapper batchRecordMapper,
             InventorySerialRecordMapper serialRecordMapper,
             SecurityUserResolver securityUserResolver) {
         this.stockBalanceMapper = stockBalanceMapper;
         this.stockTxnMapper = stockTxnMapper;
-        this.warehouseMapper = warehouseMapper;
-        this.itemMapper = itemMapper;
+        this.internalSystemClient = internalSystemClient;
         this.batchRecordMapper = batchRecordMapper;
         this.serialRecordMapper = serialRecordMapper;
         this.securityUserResolver = securityUserResolver;
@@ -430,7 +426,7 @@ public class InventoryStockEngineSupport {
         if (itemId == null) {
             throw new IllegalArgumentException("库存明细物料不能为空");
         }
-        MdmItem item = itemMapper.selectById(itemId);
+        PlatformItemView item = internalSystemClient.getItem(itemId);
         if (item == null) {
             throw new ServiceException("物料不存在", (int) ResultCode.NOT_FOUND.getCode());
         }
@@ -668,7 +664,7 @@ public class InventoryStockEngineSupport {
         if (warehouseId == null) {
             return false;
         }
-        MdmWarehouse warehouse = warehouseMapper.selectById(warehouseId);
+        PlatformWarehouseView warehouse = internalSystemClient.getWarehouse(warehouseId);
         return warehouse != null && "Y".equalsIgnoreCase(warehouse.getAllowNegativeStock());
     }
 
@@ -696,3 +692,4 @@ public class InventoryStockEngineSupport {
         return StringUtils.hasText(username) ? username.trim() : "system";
     }
 }
+

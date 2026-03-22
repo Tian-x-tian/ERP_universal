@@ -49,3 +49,8 @@ erp:
     captcha:
       enabled: ${ERP_AUTH_CAPTCHA_ENABLED:false}
       fixed-code: ${ERP_AUTH_CAPTCHA_FIXED_CODE:}
+
+security:
+  jwt:
+    secret: ${ERP_JWT_SECRET:erp-auth-jwt-secret-2026}
+    expire: ${ERP_JWT_EXPIRE_MS:86400000}

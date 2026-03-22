@@ -6,10 +6,10 @@ import com.erp.business.hr.domain.HrEmployeeCore;
 import com.erp.business.hr.domain.vo.HrEmployeeArchiveBody;
 import com.erp.business.hr.mapper.HrEmployeeArchiveMapper;
 import com.erp.business.hr.mapper.HrEmployeeCoreMapper;
-import com.erp.business.hr.mapper.HrSystemConfigMapper;
 import com.erp.business.hr.service.IHrEmployeeArchiveService;
 import com.erp.business.hr.support.HrEmployeeSupport;
 import com.erp.business.security.service.SecurityUserResolver;
+import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.core.exception.ServiceException;
 import org.springframework.stereotype.Service;
@@ -30,16 +30,16 @@ public class HrEmployeeArchiveServiceImpl implements IHrEmployeeArchiveService {
 
     private final HrEmployeeArchiveMapper archiveMapper;
     private final HrEmployeeCoreMapper employeeCoreMapper;
-    private final HrSystemConfigMapper systemConfigMapper;
+    private final InternalSystemClient internalSystemClient;
     private final SecurityUserResolver securityUserResolver;
 
     public HrEmployeeArchiveServiceImpl(HrEmployeeArchiveMapper archiveMapper,
             HrEmployeeCoreMapper employeeCoreMapper,
-            HrSystemConfigMapper systemConfigMapper,
+            InternalSystemClient internalSystemClient,
             SecurityUserResolver securityUserResolver) {
         this.archiveMapper = archiveMapper;
         this.employeeCoreMapper = employeeCoreMapper;
-        this.systemConfigMapper = systemConfigMapper;
+        this.internalSystemClient = internalSystemClient;
         this.securityUserResolver = securityUserResolver;
     }
 
@@ -210,7 +210,7 @@ public class HrEmployeeArchiveServiceImpl implements IHrEmployeeArchiveService {
         if (!StringUtils.hasText(normalizedCertNo)) {
             return;
         }
-        if (!HrEmployeeSupport.isCertUniqueEnabled(systemConfigMapper.selectConfigValue(CERT_UNIQUE_CONFIG_KEY))) {
+        if (!HrEmployeeSupport.isCertUniqueEnabled(internalSystemClient.getConfigValue(CERT_UNIQUE_CONFIG_KEY))) {
             return;
         }
         Long duplicateCount = archiveMapper.selectCount(new LambdaQueryWrapper<HrEmployeeArchive>()

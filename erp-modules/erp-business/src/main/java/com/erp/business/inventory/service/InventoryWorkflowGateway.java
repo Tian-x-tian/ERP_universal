@@ -15,4 +15,14 @@ public interface InventoryWorkflowGateway {
      * @return true 表示发起成功
      */
     boolean startWorkflow(String processKey, String billType, Long billId, String billNo);
+
+    /**
+     * 中止库存审批流程。
+     *
+     * @param billType 单据类型
+     * @param billNo 单据编号
+     * @param reason 中止原因
+     * @return true 表示中止成功
+     */
+    boolean abortWorkflow(String billType, String billNo, String reason);
 }

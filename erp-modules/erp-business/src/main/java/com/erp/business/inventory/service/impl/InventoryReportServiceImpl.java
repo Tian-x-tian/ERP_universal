@@ -18,8 +18,11 @@ import com.erp.business.inventory.mapper.InventoryStocktakeOrderMapper;
 import com.erp.business.inventory.service.IInventoryReportService;
 import com.erp.business.security.service.SecurityUserResolver;
 import com.erp.business.system.domain.SysImexJob;
-import com.erp.business.system.mapper.SysImexJobMapper;
+import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.context.TenantContextHolder;
+import com.erp.platform.contract.model.PlatformImexJob;
+import com.erp.platform.contract.model.PlatformImexJobCreateRequest;
+import com.erp.platform.contract.model.PlatformImexJobUpdateRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -50,7 +53,7 @@ public class InventoryReportServiceImpl implements IInventoryReportService {
     private final InventoryBatchRecordMapper batchRecordMapper;
     private final InventoryStocktakeOrderMapper stocktakeOrderMapper;
     private final InventoryStocktakeOrderLineMapper stocktakeOrderLineMapper;
-    private final SysImexJobMapper imexJobMapper;
+    private final InternalSystemClient internalSystemClient;
     private final SecurityUserResolver securityUserResolver;
 
     public InventoryReportServiceImpl(InventoryStockBalanceMapper stockBalanceMapper,
@@ -58,14 +61,14 @@ public class InventoryReportServiceImpl implements IInventoryReportService {
             InventoryBatchRecordMapper batchRecordMapper,
             InventoryStocktakeOrderMapper stocktakeOrderMapper,
             InventoryStocktakeOrderLineMapper stocktakeOrderLineMapper,
-            SysImexJobMapper imexJobMapper,
+            InternalSystemClient internalSystemClient,
             SecurityUserResolver securityUserResolver) {
         this.stockBalanceMapper = stockBalanceMapper;
         this.stockTxnMapper = stockTxnMapper;
         this.batchRecordMapper = batchRecordMapper;
         this.stocktakeOrderMapper = stocktakeOrderMapper;
         this.stocktakeOrderLineMapper = stocktakeOrderLineMapper;
-        this.imexJobMapper = imexJobMapper;
+        this.internalSystemClient = internalSystemClient;
         this.securityUserResolver = securityUserResolver;
     }
 
@@ -249,21 +252,20 @@ public class InventoryReportServiceImpl implements IInventoryReportService {
     private SysImexJob createJob(String reportType) {
         Date now = new Date();
         String normalizedReportType = reportType == null ? "summary" : reportType.trim().toLowerCase();
-        SysImexJob job = new SysImexJob();
-        job.setTenantId(currentTenantId());
-        job.setJobNo("EX" + System.currentTimeMillis());
-        job.setJobType("EXPORT");
-        job.setModuleCode("INVENTORY_" + normalizedReportType.toUpperCase());
-        job.setFileName(normalizedReportType + "_" + System.currentTimeMillis() + ".csv");
-        job.setStatus("PENDING");
-        job.setProgress(0);
-        job.setTriggerType("REPORT");
-        job.setCreateBy(resolveOperator());
-        job.setUpdateBy(resolveOperator());
-        job.setCreateTime(now);
-        job.setUpdateTime(now);
-        imexJobMapper.insert(job);
-        return job;
+        PlatformImexJobCreateRequest request = new PlatformImexJobCreateRequest();
+        request.setTenantId(currentTenantId());
+        request.setJobNo("EX" + System.currentTimeMillis());
+        request.setJobType("EXPORT");
+        request.setModuleCode("INVENTORY_" + normalizedReportType.toUpperCase());
+        request.setFileName(normalizedReportType + "_" + System.currentTimeMillis() + ".csv");
+        request.setStatus("PENDING");
+        request.setProgress(0);
+        request.setTriggerType("REPORT");
+        request.setCreateBy(resolveOperator());
+        request.setUpdateBy(resolveOperator());
+        request.setCreateTime(now);
+        request.setUpdateTime(now);
+        return toLocalJob(internalSystemClient.createImexJob(request));
     }
 
     /**
@@ -281,7 +283,7 @@ public class InventoryReportServiceImpl implements IInventoryReportService {
             updateJob(jobId, "RUNNING", 10, null, null);
             Path dir = Paths.get(System.getProperty("user.dir"), "upload", "imex");
             Files.createDirectories(dir);
-            SysImexJob job = imexJobMapper.selectById(jobId);
+            SysImexJob job = toLocalJob(internalSystemClient.getImexJob(jobId));
             Path filePath = dir.resolve(job.getFileName());
             writeCsv(reportType, warehouseId, itemId, actionType, status, filePath);
             updateJob(jobId, "SUCCESS", 100, filePath.toAbsolutePath().toString(), "导出成功");
@@ -371,15 +373,14 @@ public class InventoryReportServiceImpl implements IInventoryReportService {
      * @param message 任务消息
      */
     private void updateJob(Long jobId, String status, Integer progress, String filePath, String message) {
-        SysImexJob updateEntity = new SysImexJob();
-        updateEntity.setJobId(jobId);
-        updateEntity.setStatus(status);
-        updateEntity.setProgress(progress);
-        updateEntity.setFilePath(filePath);
-        updateEntity.setMessage(message);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
-        imexJobMapper.updateById(updateEntity);
+        PlatformImexJobUpdateRequest request = new PlatformImexJobUpdateRequest();
+        request.setStatus(status);
+        request.setProgress(progress);
+        request.setFilePath(filePath);
+        request.setMessage(message);
+        request.setUpdateBy(resolveOperator());
+        request.setUpdateTime(new Date());
+        internalSystemClient.updateImexJob(jobId, request);
     }
 
     /**
@@ -479,4 +480,34 @@ public class InventoryReportServiceImpl implements IInventoryReportService {
         }
         return Math.min(pageSize, 5000L);
     }
+
+    /**
+     * 将平台任务投影映射为业务任务 DTO。
+     *
+     * @param source 平台任务投影
+     * @return 业务任务 DTO
+     */
+    private SysImexJob toLocalJob(PlatformImexJob source) {
+        if (source == null) {
+            return null;
+        }
+        SysImexJob target = new SysImexJob();
+        target.setJobId(source.getJobId());
+        target.setTenantId(source.getTenantId());
+        target.setJobNo(source.getJobNo());
+        target.setJobType(source.getJobType());
+        target.setModuleCode(source.getModuleCode());
+        target.setFileName(source.getFileName());
+        target.setFilePath(source.getFilePath());
+        target.setStatus(source.getStatus());
+        target.setProgress(source.getProgress());
+        target.setTriggerType(source.getTriggerType());
+        target.setMessage(source.getMessage());
+        target.setCreateBy(source.getCreateBy());
+        target.setCreateTime(source.getCreateTime());
+        target.setUpdateBy(source.getUpdateBy());
+        target.setUpdateTime(source.getUpdateTime());
+        return target;
+    }
 }
+

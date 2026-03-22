@@ -6,6 +6,7 @@ spring:
     name: erp-auth
   config:
     import:
+      - optional:classpath:/bootstrap/erp-auth.yml
       - optional:nacos:erp-auth.yml?refreshable=true
   cloud:
     nacos:

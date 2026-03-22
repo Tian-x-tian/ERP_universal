@@ -2,17 +2,16 @@ package com.erp.system.controller;
 
 import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
-import com.erp.system.domain.SysWorkflowInstance;
-import com.erp.system.domain.vo.WorkflowProcessOptionVO;
-import com.erp.system.domain.vo.WorkflowInstanceDetailVO;
-import com.erp.system.domain.vo.WorkflowTaskActionBody;
+import com.erp.workflow.contract.domain.vo.WorkflowProcessOptionVO;
+import com.erp.workflow.contract.domain.vo.WorkflowInstanceDetailVO;
+import com.erp.workflow.contract.domain.vo.WorkflowTaskActionBody;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.ISysWorkflowDefinitionService;
 import com.erp.system.service.ISysWorkflowEngineService;
 import com.erp.system.service.IWorkflowBindingResolver;
 import com.erp.system.support.MdmDomainTypeSupport;
 import com.erp.system.support.MdmWorkflowBusinessSupport;
-import com.erp.system.support.WorkflowBindingActionSupport;
+import com.erp.workflow.contract.support.WorkflowBindingActionSupport;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -75,7 +74,7 @@ public class MdmProcessController {
      * @return 流程实例详情
      */
     @GetMapping("/{domainType}/{bizId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:query')")
+    @PreAuthorize("@ss.hasPermi('workflow:instance:query')")
     public R<WorkflowInstanceDetailVO> processDetail(@PathVariable("domainType") String domainType,
                                                      @PathVariable("bizId") Long bizId) {
         String businessType = MdmWorkflowBusinessSupport.resolveBusinessType(domainType);
@@ -83,15 +82,7 @@ public class MdmProcessController {
         if (!StringUtils.hasText(businessType) || !StringUtils.hasText(businessNo)) {
             return R.failed(ResultCode.PARAM_ERROR, "MDM 域类型或业务主键不合法");
         }
-        List<SysWorkflowInstance> instanceList = workflowEngineService.selectInstanceList(null, null, businessNo);
-        SysWorkflowInstance latestInstance = instanceList.stream()
-                .filter(instance -> businessType.equalsIgnoreCase(instance.getBusinessType()))
-                .findFirst()
-                .orElse(null);
-        if (latestInstance == null || latestInstance.getInstanceId() == null) {
-            return R.success(null);
-        }
-        return R.success(workflowEngineService.selectInstanceDetail(latestInstance.getInstanceId()));
+        return R.success(workflowEngineService.selectLatestInstanceDetail(businessType, businessNo));
     }
 
     /**
@@ -102,7 +93,7 @@ public class MdmProcessController {
      * @return 审批结果
      */
     @PostMapping("/approve/{taskId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:handle')")
+    @PreAuthorize("@ss.hasAnyPermi('workflow:todo:approve','workflow:todo:handle')")
     public R<Boolean> approve(@PathVariable("taskId") Long taskId,
                               @RequestBody(required = false) WorkflowTaskActionBody actionBody) {
         CurrentUser currentUser = resolveCurrentUser();
@@ -126,7 +117,7 @@ public class MdmProcessController {
      * @return 处理结果
      */
     @PostMapping("/reject/{taskId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:handle')")
+    @PreAuthorize("@ss.hasAnyPermi('workflow:todo:reject','workflow:todo:handle')")
     public R<Boolean> reject(@PathVariable("taskId") Long taskId,
                              @RequestBody(required = false) WorkflowTaskActionBody actionBody) {
         CurrentUser currentUser = resolveCurrentUser();
@@ -149,7 +140,7 @@ public class MdmProcessController {
      * @return 发布结果
      */
     @PostMapping("/publish/{definitionId}")
-    @PreAuthorize("@ss.hasPermi('system:workflow:publish')")
+    @PreAuthorize("@ss.hasPermi('workflow:definition:publish')")
     public R<Boolean> publish(@PathVariable("definitionId") Long definitionId) {
         String operator = securityUserResolver.getCurrentUsername();
         if (!StringUtils.hasText(operator)) {
@@ -181,3 +172,4 @@ public class MdmProcessController {
         private String nickName;
     }
 }
+

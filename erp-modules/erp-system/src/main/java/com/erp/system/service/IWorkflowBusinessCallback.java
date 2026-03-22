@@ -1,6 +1,6 @@
 package com.erp.system.service;
 
-import com.erp.system.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
 
 /**
  * 工作流业务回调接口。
@@ -36,3 +36,4 @@ public interface IWorkflowBusinessCallback {
      */
     void onWorkflowWithdrawn(SysWorkflowInstance instance);
 }
+

@@ -361,167 +361,8 @@ CREATE TABLE `sys_notice` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统消息通知表';
 
 -- ----------------------------
--- 19. 流程待办任务表 (sys_todo_task)
--- ----------------------------
-DROP TABLE IF EXISTS `sys_todo_task`;
-CREATE TABLE `sys_todo_task` (
-  `todo_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '待办ID',
-  `instance_id` bigint(20) DEFAULT NULL COMMENT '流程实例ID',
-  `task_id` bigint(20) DEFAULT NULL COMMENT '流程任务ID',
-  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
-  `process_name` varchar(100) NOT NULL COMMENT '流程名称',
-  `node_name` varchar(100) DEFAULT NULL COMMENT '当前节点',
-  `business_no` varchar(64) DEFAULT NULL COMMENT '业务单号',
-  `priority` char(1) DEFAULT 'M' COMMENT '优先级（H高 M中 L低）',
-  `status` char(1) DEFAULT '0' COMMENT '状态（0待处理 1处理中 2已完成）',
-  `assignee_user_id` bigint(20) NOT NULL COMMENT '办理人用户ID',
-  `due_time` datetime DEFAULT NULL COMMENT '截止时间',
-  `claim_time` datetime DEFAULT NULL COMMENT '签收时间',
-  `finish_time` datetime DEFAULT NULL COMMENT '办结时间',
-  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
-  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
-  PRIMARY KEY (`todo_id`),
-  KEY `idx_todo_assignee` (`tenant_id`, `assignee_user_id`, `status`),
-  KEY `idx_todo_workflow` (`tenant_id`, `instance_id`, `task_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程待办任务表';
-
--- ----------------------------
--- 20. 流程定义表 (sys_wf_definition)
--- ----------------------------
-DROP TABLE IF EXISTS `sys_wf_definition`;
-CREATE TABLE `sys_wf_definition` (
-  `definition_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '流程定义ID',
-  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
-  `process_key` varchar(64) NOT NULL COMMENT '流程标识',
-  `process_name` varchar(128) NOT NULL COMMENT '流程名称',
-  `category` varchar(64) DEFAULT 'custom' COMMENT '流程分类',
-  `version` int(11) NOT NULL DEFAULT 1 COMMENT '版本号',
-  `status` char(1) DEFAULT '0' COMMENT '状态（0草稿 1已发布 2停用）',
-  `published_slot` tinyint(1) GENERATED ALWAYS AS (CASE WHEN `status` = '1' THEN 1 ELSE NULL END) STORED COMMENT '已发布唯一槽位',
-  `form_schema` longtext COMMENT '表单结构JSON',
-  `model_content` longtext COMMENT '流程设计JSON',
-  `publish_by` varchar(64) DEFAULT NULL COMMENT '发布人',
-  `publish_time` datetime DEFAULT NULL COMMENT '发布时间',
-  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
-  `create_by` varchar(64) DEFAULT NULL COMMENT '创建者',
-  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
-  `update_by` varchar(64) DEFAULT NULL COMMENT '更新者',
-  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
-  PRIMARY KEY (`definition_id`),
-  UNIQUE KEY `idx_wf_def_key_ver` (`tenant_id`, `process_key`, `version`),
-  UNIQUE KEY `uk_wf_def_publish_slot` (`tenant_id`, `process_key`, `published_slot`),
-  KEY `idx_wf_def_status` (`tenant_id`, `status`, `category`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程定义表';
-
--- ----------------------------
--- 21. 流程业务动作绑定表 (sys_wf_business_binding)
--- ----------------------------
-DROP TABLE IF EXISTS `sys_wf_business_binding`;
-CREATE TABLE `sys_wf_business_binding` (
-  `binding_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '绑定ID',
-  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
-  `domain_type` varchar(64) NOT NULL COMMENT '业务域类型',
-  `action_code` varchar(32) NOT NULL COMMENT '业务动作编码',
-  `process_key` varchar(64) NOT NULL COMMENT '流程标识',
-  `is_default` char(1) DEFAULT '0' COMMENT '是否默认（0否 1是）',
-  `status` char(1) DEFAULT '0' COMMENT '状态（0启用 1停用）',
-  `priority` int(11) DEFAULT 100 COMMENT '优先级，数值越小越优先',
-  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
-  `create_by` varchar(64) DEFAULT NULL COMMENT '创建者',
-  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
-  `update_by` varchar(64) DEFAULT NULL COMMENT '更新者',
-  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
-  PRIMARY KEY (`binding_id`),
-  UNIQUE KEY `uk_wf_business_binding` (`tenant_id`,`domain_type`,`action_code`,`process_key`),
-  KEY `idx_wf_business_action` (`tenant_id`,`domain_type`,`action_code`,`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程业务动作绑定表';
-
--- ----------------------------
--- 22. 流程实例表 (sys_wf_instance)
--- ----------------------------
-DROP TABLE IF EXISTS `sys_wf_instance`;
-CREATE TABLE `sys_wf_instance` (
-  `instance_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '流程实例ID',
-  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
-  `definition_id` bigint(20) NOT NULL COMMENT '流程定义ID',
-  `definition_version` int(11) DEFAULT NULL COMMENT '发起时流程定义版本号',
-  `process_key` varchar(64) NOT NULL COMMENT '流程标识',
-  `process_name` varchar(128) NOT NULL COMMENT '流程名称',
-  `category` varchar(64) DEFAULT 'custom' COMMENT '流程分类',
-  `business_no` varchar(64) NOT NULL COMMENT '业务单号',
-  `business_type` varchar(64) DEFAULT NULL COMMENT '业务类型',
-  `form_data` longtext COMMENT '表单数据JSON',
-  `form_schema_snapshot` longtext COMMENT '发起时表单结构快照JSON',
-  `model_content_snapshot` longtext COMMENT '发起时流程模型快照JSON',
-  `current_node` varchar(128) DEFAULT NULL COMMENT '当前节点',
-  `initiator_user_id` bigint(20) NOT NULL COMMENT '发起人用户ID',
-  `initiator_user_name` varchar(64) DEFAULT NULL COMMENT '发起人账号',
-  `initiator_nick_name` varchar(64) DEFAULT NULL COMMENT '发起人昵称',
-  `status` char(1) DEFAULT '0' COMMENT '状态（0进行中 1已完成 2已驳回 3已撤销）',
-  `start_time` datetime DEFAULT NULL COMMENT '发起时间',
-  `finish_time` datetime DEFAULT NULL COMMENT '结束时间',
-  `last_action` varchar(32) DEFAULT NULL COMMENT '最近动作',
-  `last_action_user_id` bigint(20) DEFAULT NULL COMMENT '最近动作人ID',
-  `last_action_user_name` varchar(64) DEFAULT NULL COMMENT '最近动作人账号',
-  `last_action_time` datetime DEFAULT NULL COMMENT '最近动作时间',
-  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
-  PRIMARY KEY (`instance_id`),
-  KEY `idx_wf_inst_status` (`tenant_id`, `status`, `start_time`),
-  KEY `idx_wf_inst_business` (`tenant_id`, `business_no`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程实例表';
-
--- ----------------------------
--- 23. 流程任务表 (sys_wf_task)
--- ----------------------------
-DROP TABLE IF EXISTS `sys_wf_task`;
-CREATE TABLE `sys_wf_task` (
-  `task_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '流程任务ID',
-  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
-  `instance_id` bigint(20) NOT NULL COMMENT '流程实例ID',
-  `definition_id` bigint(20) NOT NULL COMMENT '流程定义ID',
-  `node_key` varchar(64) DEFAULT NULL COMMENT '节点编码',
-  `node_name` varchar(128) DEFAULT NULL COMMENT '节点名称',
-  `candidate_user_ids` varchar(500) DEFAULT NULL COMMENT '候选办理人ID列表',
-  `assignee_user_id` bigint(20) DEFAULT NULL COMMENT '办理人用户ID',
-  `assignee_user_name` varchar(64) DEFAULT NULL COMMENT '办理人账号',
-  `assignee_nick_name` varchar(64) DEFAULT NULL COMMENT '办理人昵称',
-  `status` char(1) DEFAULT '0' COMMENT '状态（0待处理 1处理中 2已同意 3已驳回 4已转交 5已取消）',
-  `action_comment` varchar(500) DEFAULT NULL COMMENT '审批意见',
-  `todo_id` bigint(20) DEFAULT NULL COMMENT '关联待办ID',
-  `due_time` datetime DEFAULT NULL COMMENT '截止时间',
-  `claim_time` datetime DEFAULT NULL COMMENT '签收时间',
-  `finish_time` datetime DEFAULT NULL COMMENT '办结时间',
-  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
-  PRIMARY KEY (`task_id`),
-  KEY `idx_wf_task_assignee` (`tenant_id`, `assignee_user_id`, `status`),
-  KEY `idx_wf_task_instance` (`tenant_id`, `instance_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程任务表';
-
--- ----------------------------
--- 24. 流程任务动作记录表 (sys_wf_task_action)
--- ----------------------------
-DROP TABLE IF EXISTS `sys_wf_task_action`;
-CREATE TABLE `sys_wf_task_action` (
-  `action_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '动作记录ID',
-  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
-  `instance_id` bigint(20) NOT NULL COMMENT '流程实例ID',
-  `task_id` bigint(20) DEFAULT NULL COMMENT '流程任务ID',
-  `definition_id` bigint(20) DEFAULT NULL COMMENT '流程定义ID',
-  `node_name` varchar(128) DEFAULT NULL COMMENT '节点名称',
-  `action_type` varchar(32) NOT NULL COMMENT '动作类型',
-  `action_user_id` bigint(20) DEFAULT NULL COMMENT '动作人用户ID',
-  `action_user_name` varchar(64) DEFAULT NULL COMMENT '动作人账号',
-  `action_nick_name` varchar(64) DEFAULT NULL COMMENT '动作人昵称',
-  `from_assignee_user_id` bigint(20) DEFAULT NULL COMMENT '来源办理人ID',
-  `to_assignee_user_id` bigint(20) DEFAULT NULL COMMENT '目标办理人ID',
-  `action_comment` varchar(500) DEFAULT NULL COMMENT '动作意见',
-  `action_time` datetime DEFAULT NULL COMMENT '动作时间',
-  PRIMARY KEY (`action_id`),
-  KEY `idx_wf_action_instance` (`tenant_id`, `instance_id`, `action_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程任务动作记录表';
-
--- ----------------------------
 -- 24. 区域主数据表 (sys_region)
+
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_region`;
 CREATE TABLE `sys_region` (
@@ -928,7 +769,7 @@ VALUES
   (9, '参数管理', 2, 7, '/system/config', '/views/system/config/index', 1, 'C', '0', '0', 'system:config:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (10, '公司管理', 2, 8, '/system/company', '/views/system/company/index', 1, 'C', '0', '0', 'system:company:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (11, '岗位管理', 2, 9, '/system/post', '/views/system/post/index', 1, 'C', '0', '0', 'system:post:list', NULL, 'system', NOW(), '系统初始化菜单'),
-  (12, '通知管理', 2, 10, '/system/notice', '/views/system/notice/index', 1, 'C', '0', '0', 'system:notice:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (12, '通知管理', 2, 10, '/system/notice-manage', '/views/system/notice/index', 1, 'C', '0', '0', 'system:notice:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (13, '审计日志', 2, 11, '/system/audit-log', '/views/platform/audit-log/index', 1, 'C', '0', '0', 'system:audit:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (14, '操作日志', 2, 12, '/system/oper-log', '/views/system/oper-log/index', 1, 'C', '0', '0', 'system:oper:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (20, '登录日志', 2, 13, '/system/login-log', '/views/system/login-log/index', 1, 'C', '0', '0', 'system:loginLog:list', NULL, 'system', NOW(), '系统初始化菜单'),
@@ -944,15 +785,10 @@ VALUES
   (31, '变更追踪', 23, 8, '/system/mdm/trace', '/views/system/mdm/trace/index', 1, 'C', '0', '0', 'system:mdm:trace:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (15, '平台底座', 0, 3, '/platform', NULL, 1, 'M', '0', '0', NULL, NULL, 'system', NOW(), '系统初始化目录'),
   (16, '组织架构增强', 15, 1, '/platform/org', '/views/platform/org/index', 1, 'C', '0', '0', 'system:org:view', NULL, 'system', NOW(), '系统初始化菜单'),
-  (17, '数据权限', 15, 2, '/platform/data-scope', '/views/platform/data-scope/index', 1, 'C', '0', '0', 'system:dataScope:view', NULL, 'system', NOW(), '系统初始化菜单'),
-  (19, '编码规则', 15, 3, '/platform/code-rule', '/views/platform/code-rule/index', 1, 'C', '0', '0', 'system:codeRule:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (17, '数据权限', 15, 2, '/system/data-permission', '/views/platform/data-scope/index', 1, 'C', '0', '0', 'system:dataScope:view', NULL, 'system', NOW(), '系统初始化菜单'),
+  (19, '编码规则', 15, 3, '/system/code-rule', '/views/platform/code-rule/index', 1, 'C', '0', '0', 'system:codeRule:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (32, '工作台', 0, 5, '/workbench', NULL, 1, 'M', '0', '0', NULL, NULL, 'system', NOW(), '系统初始化目录'),
-  (33, '消息', 32, 1, '/workbench/message', NULL, 1, 'M', '0', '0', NULL, NULL, 'system', NOW(), '系统初始化目录'),
-  (34, '系统消息', 33, 1, '/workbench/message/system-notice', '/views/system/notice/index', 1, 'C', '0', '0', 'system:message:list', NULL, 'system', NOW(), '系统初始化菜单'),
-  (39, '流程待办', 33, 2, '/workbench/message/process-todo', '/views/platform/todo-center/index', 1, 'C', '0', '0', 'system:todo:list', NULL, 'system', NOW(), '系统初始化菜单'),
-  (35, '流程中心', 0, 6, '/workflow-center', NULL, 1, 'M', '0', '0', NULL, NULL, 'system', NOW(), '系统初始化目录'),
-  (36, '流程定义', 35, 1, '/workflow-center/definition', '/views/platform/workflow/index', 1, 'C', '0', '0', 'system:workflow:definition:list', NULL, 'system', NOW(), '系统初始化菜单'),
-  (37, '流程实例', 35, 2, '/workflow-center/instance', '/views/platform/workflow/index', 1, 'C', '0', '0', 'system:workflow:instance:list', NULL, 'system', NOW(), '系统初始化菜单');
+  (34, '系统消息', 32, 1, '/workbench/system-notice', '/views/system/notice/index', 1, 'C', '0', '0', 'system:message:list', NULL, 'system', NOW(), '系统初始化菜单'),
 
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
 SELECT button_perm.menu_name,
@@ -1006,10 +842,10 @@ FROM (
   UNION ALL SELECT '/system/post', '岗位新增', 2, 'system:post:add'
   UNION ALL SELECT '/system/post', '岗位修改', 3, 'system:post:edit'
   UNION ALL SELECT '/system/post', '岗位删除', 4, 'system:post:remove'
-  UNION ALL SELECT '/system/notice', '通知查询', 1, 'system:notice:query'
-  UNION ALL SELECT '/system/notice', '通知新增', 2, 'system:notice:add'
-  UNION ALL SELECT '/system/notice', '通知修改', 3, 'system:notice:edit'
-  UNION ALL SELECT '/system/notice', '通知删除', 4, 'system:notice:remove'
+  UNION ALL SELECT '/system/notice-manage', '通知查询', 1, 'system:notice:query'
+  UNION ALL SELECT '/system/notice-manage', '通知新增', 2, 'system:notice:add'
+  UNION ALL SELECT '/system/notice-manage', '通知修改', 3, 'system:notice:edit'
+  UNION ALL SELECT '/system/notice-manage', '通知删除', 4, 'system:notice:remove'
   UNION ALL SELECT '/system/audit-log', '审计详情', 1, 'system:audit:query'
   UNION ALL SELECT '/system/audit-log', '审计删除', 2, 'system:audit:remove'
   UNION ALL SELECT '/system/oper-log', '操作日志详情', 1, 'system:oper:query'
@@ -1065,36 +901,7 @@ FROM (
   UNION ALL SELECT '/system/mdm/dict', '字典项停用', 4, 'system:mdm:dict:disable'
   UNION ALL SELECT '/system/mdm/dict', '字典项删除', 5, 'system:mdm:dict:remove'
   UNION ALL SELECT '/system/mdm/trace', '追踪查询', 1, 'system:mdm:trace:query'
-  UNION ALL SELECT '/workbench/message/system-notice', '消息已读', 1, 'system:message:read'
-  UNION ALL SELECT '/workbench/message/process-todo', '待办签收', 1, 'system:todo:claim'
-  UNION ALL SELECT '/workbench/message/process-todo', '待办办结', 2, 'system:todo:finish'
-  UNION ALL SELECT '/workbench/message/process-todo', '待办处理', 3, 'system:todo:handle'
-  UNION ALL SELECT '/workbench/message/process-todo', '审批表单', 4, 'system:todo:form'
-  UNION ALL SELECT '/workbench/message/process-todo', '审批同意', 5, 'system:todo:approve'
-  UNION ALL SELECT '/workbench/message/process-todo', '审批驳回', 6, 'system:todo:reject'
-  UNION ALL SELECT '/workbench/message/process-todo', '任务转交', 7, 'system:todo:transfer'
-  UNION ALL SELECT '/workbench/message/process-todo', '节点退回', 8, 'system:todo:return'
-  UNION ALL SELECT '/workbench/message/process-todo', '任务加签', 9, 'system:todo:addSign'
-  UNION ALL SELECT '/workbench/message/process-todo', '任务减签', 10, 'system:todo:removeSign'
-  UNION ALL SELECT '/workbench/message/process-todo', '任务委派', 11, 'system:todo:delegate'
-  UNION ALL SELECT '/workbench/message/process-todo', '任务催办', 12, 'system:todo:remind'
-  UNION ALL SELECT '/platform/code-rule', '编码规则查询', 1, 'system:codeRule:query'
-  UNION ALL SELECT '/platform/code-rule', '编码规则新增', 2, 'system:codeRule:add'
-  UNION ALL SELECT '/platform/code-rule', '编码规则修改', 3, 'system:codeRule:edit'
-  UNION ALL SELECT '/platform/code-rule', '编码规则删除', 4, 'system:codeRule:remove'
-  UNION ALL SELECT '/platform/code-rule', '编码规则生成', 5, 'system:codeRule:generate'
-  UNION ALL SELECT '/workflow-center/definition', '流程定义查询', 1, 'system:workflow:definition:query'
-  UNION ALL SELECT '/workflow-center/definition', '流程定义新增', 2, 'system:workflow:definition:add'
-  UNION ALL SELECT '/workflow-center/definition', '流程定义修改', 3, 'system:workflow:definition:edit'
-  UNION ALL SELECT '/workflow-center/definition', '流程定义删除', 4, 'system:workflow:definition:remove'
-  UNION ALL SELECT '/workflow-center/definition', '流程定义发布', 5, 'system:workflow:definition:publish'
-  UNION ALL SELECT '/workflow-center/definition', '流程设计', 6, 'system:workflow:definition:design'
-  UNION ALL SELECT '/workflow-center/definition', '流程模板', 7, 'system:workflow:definition:template'
-  UNION ALL SELECT '/workflow-center/instance', '流程实例查询', 1, 'system:workflow:instance:query'
-  UNION ALL SELECT '/workflow-center/instance', '流程发起', 2, 'system:workflow:instance:start'
-  UNION ALL SELECT '/workflow-center/instance', '流程撤回', 3, 'system:workflow:instance:withdraw'
-  UNION ALL SELECT '/workflow-center/instance', '流程看板', 4, 'system:workflow:instance:report'
-  UNION ALL SELECT '/workflow-center/instance', 'SLA扫描', 5, 'system:workflow:instance:sla'
+  UNION ALL SELECT '/workbench/system-notice', '消息已读', 1, 'system:message:read'
 ) button_perm
 INNER JOIN `sys_menu` parent_menu ON parent_menu.path = button_perm.parent_path;
 
@@ -1157,46 +964,11 @@ VALUES
   (3, '000000', 'KG', '千克', 'ACTIVE', 'system', NOW()),
   (4, '000000', 'M', '米', 'ACTIVE', 'system', NOW());
 
-INSERT INTO `sys_wf_definition` (`definition_id`, `tenant_id`, `process_key`, `process_name`, `category`, `version`, `status`, `form_schema`, `model_content`, `publish_by`, `publish_time`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`)
-VALUES
-  (1, '000000', 'purchase_apply', '采购审批流程', 'purchase', 1, '1', '{"fields":[{"name":"amount","label":"金额"}]}', '{"nodes":[{"id":"NODE_1","name":"部门负责人审批"}]}', 'system', NOW(), '系统初始化流程定义', 'system', NOW(), 'system', NOW()),
-  (2, '000000', 'expense_apply', '报销审批流程', 'expense', 1, '0', '{"fields":[{"name":"feeType","label":"费用类型"},{"name":"total","label":"合计金额"}]}', '{"nodes":[{"id":"NODE_1","name":"部门负责人审批"},{"id":"NODE_2","name":"财务复核"}]}', NULL, NULL, '系统初始化流程定义', 'system', NOW(), 'system', NOW()),
-  (3, '000000', 'mdm_employee', '员工主数据审批流程', 'custom', 1, '1', '{"version":1,"fields":[{"fieldCode":"empCode","fieldLabel":"员工编码","componentType":"input","required":true,"placeholder":"系统自动带出","options":[]},{"fieldCode":"empName","fieldLabel":"员工姓名","componentType":"input","required":true,"placeholder":"请输入员工姓名","options":[]},{"fieldCode":"position","fieldLabel":"岗位","componentType":"input","required":false,"placeholder":"请输入岗位","options":[]},{"fieldCode":"status","fieldLabel":"状态","componentType":"input","required":true,"placeholder":"系统自动带出","options":[]}],"nodePermissions":{}}', '{"startNodeKey":"START_EMPLOYEE_1","nodes":[{"nodeKey":"START_EMPLOYEE_1","nodeName":"开始节点","nodeType":"start","x":40,"y":120},{"nodeKey":"APPROVAL_EMPLOYEE_2","nodeName":"员工资料审批","nodeType":"approval","assigneeType":"USER","assigneeUserId":1,"approveStrategy":"ALL","x":320,"y":120},{"nodeKey":"END_EMPLOYEE_3","nodeName":"结束节点","nodeType":"end","x":620,"y":120}],"edges":[{"from":"START_EMPLOYEE_1","to":"APPROVAL_EMPLOYEE_2"},{"from":"APPROVAL_EMPLOYEE_2","to":"END_EMPLOYEE_3"}]}', 'system', NOW(), '系统初始化员工主数据审批流程定义', 'system', NOW(), 'system', NOW()),
-  (4, '000000', 'mdm_employee_onboard', '员工入职审批流程', 'custom', 1, '1', '{"version":1,"fields":[{"fieldCode":"empCode","fieldLabel":"员工编码","componentType":"input","required":true,"placeholder":"系统自动带出","options":[]},{"fieldCode":"empName","fieldLabel":"员工姓名","componentType":"input","required":true,"placeholder":"请输入员工姓名","options":[]},{"fieldCode":"position","fieldLabel":"岗位","componentType":"input","required":false,"placeholder":"请输入岗位","options":[]},{"fieldCode":"action","fieldLabel":"审批动作","componentType":"input","required":true,"placeholder":"入职","options":[]}],"nodePermissions":{}}', '{"startNodeKey":"START_EMPLOYEE_1","nodes":[{"nodeKey":"START_EMPLOYEE_1","nodeName":"开始节点","nodeType":"start","x":40,"y":120},{"nodeKey":"APPROVAL_EMPLOYEE_2","nodeName":"员工入职审批","nodeType":"approval","assigneeType":"DIRECT_LEADER","approveStrategy":"ALL","x":320,"y":120},{"nodeKey":"END_EMPLOYEE_3","nodeName":"结束节点","nodeType":"end","x":620,"y":120}],"edges":[{"from":"START_EMPLOYEE_1","to":"APPROVAL_EMPLOYEE_2"},{"from":"APPROVAL_EMPLOYEE_2","to":"END_EMPLOYEE_3"}]}', 'system', NOW(), '系统初始化员工入职审批流程定义', 'system', NOW(), 'system', NOW()),
-  (5, '000000', 'mdm_employee_change', '员工变更审批流程', 'custom', 1, '1', '{"version":1,"fields":[{"fieldCode":"empCode","fieldLabel":"员工编码","componentType":"input","required":true,"placeholder":"系统自动带出","options":[]},{"fieldCode":"empName","fieldLabel":"员工姓名","componentType":"input","required":true,"placeholder":"请输入员工姓名","options":[]},{"fieldCode":"position","fieldLabel":"岗位","componentType":"input","required":false,"placeholder":"请输入岗位","options":[]},{"fieldCode":"action","fieldLabel":"审批动作","componentType":"input","required":true,"placeholder":"变更","options":[]}],"nodePermissions":{}}', '{"startNodeKey":"START_EMPLOYEE_1","nodes":[{"nodeKey":"START_EMPLOYEE_1","nodeName":"开始节点","nodeType":"start","x":40,"y":120},{"nodeKey":"APPROVAL_EMPLOYEE_2","nodeName":"员工变更审批","nodeType":"approval","assigneeType":"DIRECT_LEADER","approveStrategy":"ALL","x":320,"y":120},{"nodeKey":"END_EMPLOYEE_3","nodeName":"结束节点","nodeType":"end","x":620,"y":120}],"edges":[{"from":"START_EMPLOYEE_1","to":"APPROVAL_EMPLOYEE_2"},{"from":"APPROVAL_EMPLOYEE_2","to":"END_EMPLOYEE_3"}]}', 'system', NOW(), '系统初始化员工变更审批流程定义', 'system', NOW(), 'system', NOW()),
-  (6, '000000', 'mdm_employee_leave', '员工离职审批流程', 'custom', 1, '1', '{"version":1,"fields":[{"fieldCode":"empCode","fieldLabel":"员工编码","componentType":"input","required":true,"placeholder":"系统自动带出","options":[]},{"fieldCode":"empName","fieldLabel":"员工姓名","componentType":"input","required":true,"placeholder":"请输入员工姓名","options":[]},{"fieldCode":"position","fieldLabel":"岗位","componentType":"input","required":false,"placeholder":"请输入岗位","options":[]},{"fieldCode":"action","fieldLabel":"审批动作","componentType":"input","required":true,"placeholder":"离职","options":[]}],"nodePermissions":{}}', '{"startNodeKey":"START_EMPLOYEE_1","nodes":[{"nodeKey":"START_EMPLOYEE_1","nodeName":"开始节点","nodeType":"start","x":40,"y":120},{"nodeKey":"APPROVAL_EMPLOYEE_2","nodeName":"员工离职审批","nodeType":"approval","assigneeType":"DIRECT_LEADER","approveStrategy":"ALL","x":320,"y":120},{"nodeKey":"END_EMPLOYEE_3","nodeName":"结束节点","nodeType":"end","x":620,"y":120}],"edges":[{"from":"START_EMPLOYEE_1","to":"APPROVAL_EMPLOYEE_2"},{"from":"APPROVAL_EMPLOYEE_2","to":"END_EMPLOYEE_3"}]}', 'system', NOW(), '系统初始化员工离职审批流程定义', 'system', NOW(), 'system', NOW());
-
-INSERT INTO `sys_wf_business_binding` (`binding_id`, `tenant_id`, `domain_type`, `action_code`, `process_key`, `is_default`, `status`, `priority`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`)
-VALUES
-  (1, '000000', 'EMPLOYEE', 'ONBOARD', 'mdm_employee_onboard', '1', '0', 10, '员工入职审批流程默认绑定', 'system', NOW(), 'system', NOW()),
-  (2, '000000', 'EMPLOYEE', 'CHANGE', 'mdm_employee_change', '1', '0', 10, '员工变更审批流程默认绑定', 'system', NOW(), 'system', NOW()),
-  (3, '000000', 'EMPLOYEE', 'LEAVE', 'mdm_employee_leave', '1', '0', 10, '员工离职审批流程默认绑定', 'system', NOW(), 'system', NOW()),
-  (4, '000000', 'EMPLOYEE', 'ONBOARD', 'mdm_employee', '0', '0', 90, '员工入职审批 legacy 兼容绑定', 'system', NOW(), 'system', NOW());
-
-INSERT INTO `sys_wf_instance` (`instance_id`, `tenant_id`, `definition_id`, `definition_version`, `process_key`, `process_name`, `category`, `business_no`, `business_type`, `form_data`, `form_schema_snapshot`, `model_content_snapshot`, `current_node`, `initiator_user_id`, `initiator_user_name`, `initiator_nick_name`, `status`, `start_time`, `last_action`, `last_action_user_id`, `last_action_user_name`, `last_action_time`, `remark`)
-VALUES
-  (1, '000000', 1, 1, 'purchase_apply', '采购审批流程', 'purchase', 'PO-20260309-001', '采购申请', '{"amount":12000,"reason":"办公设备采购"}', '{"fields":[{"name":"amount","label":"金额"}]}', '{"nodes":[{"id":"NODE_1","name":"部门负责人审批"}]}', '部门负责人审批', 1, 'admin', '系统管理员', '0', NOW(), 'START', 1, 'admin', NOW(), '系统初始化流程实例');
-
 INSERT INTO `sys_notice` (`notice_id`, `tenant_id`, `title`, `notice_type`, `source`, `business_no`, `content`, `receiver_user_id`, `status`, `create_time`)
 VALUES
   (1, '000000', '流程引擎已发布新版本，请核查审批节点配置', '系统公告', '流程引擎', NULL, '流程引擎发布 v2.0.1，请检查关键审批流配置。', 1, '0', NOW()),
   (2, '000000', '导入任务 IM20260307-01 执行完成', '审批通知', '导入导出中心', 'IM20260307-01', '导入任务执行完成，请查看结果。', 1, '1', NOW()),
   (3, '000000', '报表中心出现数据延迟预警', '预警提醒', '报表中心', NULL, '近30分钟内报表数据刷新延迟超过阈值。', 1, '0', NOW());
-
-INSERT INTO `sys_todo_task` (`todo_id`, `instance_id`, `task_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
-VALUES
-  (1, NULL, NULL, '000000', '请假审批', '部门负责人审批', 'LV-20260307-001', 'H', '0', 1, DATE_ADD(NOW(), INTERVAL 1 DAY), NOW(), '请及时处理'),
-  (2, NULL, NULL, '000000', '采购申请', '财务复核', 'PO-20260307-018', 'M', '1', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), '处理中'),
-  (3, NULL, NULL, '000000', '合同归档', '档案确认', 'CT-20260306-021', 'L', '0', 1, DATE_ADD(NOW(), INTERVAL 3 DAY), NOW(), '待签收'),
-  (4, 1, 1, '000000', '采购审批流程', '部门负责人审批', 'PO-20260309-001', 'M', '0', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), '流程引擎初始化待办');
-
-INSERT INTO `sys_wf_task` (`task_id`, `tenant_id`, `instance_id`, `definition_id`, `node_key`, `node_name`, `candidate_user_ids`, `assignee_user_id`, `assignee_user_name`, `assignee_nick_name`, `status`, `todo_id`, `due_time`, `create_time`)
-VALUES
-  (1, '000000', 1, 1, 'NODE_1', '部门负责人审批', '1', 1, 'admin', '系统管理员', '0', 4, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW());
-
-INSERT INTO `sys_wf_task_action` (`action_id`, `tenant_id`, `instance_id`, `task_id`, `definition_id`, `node_name`, `action_type`, `action_user_id`, `action_user_name`, `action_nick_name`, `to_assignee_user_id`, `action_comment`, `action_time`)
-VALUES
-  (1, '000000', 1, 1, 1, '部门负责人审批', 'START', 1, 'admin', '系统管理员', 1, '流程发起', NOW());
 
 SET @sql = (
     SELECT IF(COUNT(*) = 0,
@@ -2022,17 +1794,3 @@ SET FOREIGN_KEY_CHECKS = 1;
 UPDATE `sys_menu`
 SET `menu_name` = '员工档案', `remark` = '兼容旧员工主数据菜单名称'
 WHERE `path` = '/system/mdm/employee';
-
-UPDATE `sys_wf_definition`
-SET `process_name` = '员工档案审批流程',
-    `remark` = CASE
-      WHEN `remark` = '系统初始化员工主数据审批流程定义' THEN '系统初始化员工档案审批流程定义'
-      WHEN `remark` = '升级脚本补齐员工主数据审批流程定义' THEN '升级脚本补齐员工档案审批流程定义'
-      ELSE `remark`
-    END
-WHERE `process_key` = 'mdm_employee';
-
-UPDATE `sys_wf_instance`
-SET `process_name` = '员工档案审批流程'
-WHERE `process_key` = 'mdm_employee'
-  AND `process_name` = '员工主数据审批流程';

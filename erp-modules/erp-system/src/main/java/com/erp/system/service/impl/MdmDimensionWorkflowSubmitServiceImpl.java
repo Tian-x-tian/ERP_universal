@@ -11,14 +11,13 @@ import com.erp.system.domain.MdmEmployee;
 import com.erp.system.domain.MdmOrg;
 import com.erp.system.domain.MdmProject;
 import com.erp.system.domain.SysUser;
-import com.erp.system.domain.SysWorkflowInstance;
-import com.erp.system.domain.vo.WorkflowStartBody;
+import com.erp.workflow.contract.domain.SysWorkflowInstance;
+import com.erp.workflow.contract.domain.vo.WorkflowStartBody;
 import com.erp.system.mapper.MdmCostCenterMapper;
 import com.erp.system.mapper.MdmCustomerMapper;
 import com.erp.system.mapper.MdmEmployeeMapper;
 import com.erp.system.mapper.MdmOrgMapper;
 import com.erp.system.mapper.MdmProjectMapper;
-import com.erp.system.mapper.SysWorkflowInstanceMapper;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmCostCenterService;
 import com.erp.system.service.IMdmDimensionWorkflowSubmitService;
@@ -64,7 +63,6 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
     private final ISysWorkflowEngineService workflowEngineService;
     private final SecurityUserResolver securityUserResolver;
     private final ISysUserService userService;
-    private final SysWorkflowInstanceMapper workflowInstanceMapper;
     private final MdmOrgMapper orgMapper;
     private final MdmCostCenterMapper costCenterMapper;
     private final MdmProjectMapper projectMapper;
@@ -78,7 +76,6 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
             ISysWorkflowEngineService workflowEngineService,
             SecurityUserResolver securityUserResolver,
             ISysUserService userService,
-            SysWorkflowInstanceMapper workflowInstanceMapper,
             MdmOrgMapper orgMapper,
             MdmCostCenterMapper costCenterMapper,
             MdmProjectMapper projectMapper,
@@ -90,7 +87,6 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         this.workflowEngineService = workflowEngineService;
         this.securityUserResolver = securityUserResolver;
         this.userService = userService;
-        this.workflowInstanceMapper = workflowInstanceMapper;
         this.orgMapper = orgMapper;
         this.costCenterMapper = costCenterMapper;
         this.projectMapper = projectMapper;
@@ -105,10 +101,12 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         MdmOrg org = loadOrg(orgId);
         ensureDraft(org.getStatus(), "仅草稿组织允许提交生效审批");
         ensureNoRunningWorkflow(BUSINESS_TYPE_ORG, buildOrgBusinessNo(orgId), "该组织已有审批流程在处理中");
-        if (!startWorkflow(buildOrgStartBody(processKey, remark, orgId, MdmWorkflowActionSupport.ACTIVATE, org.getVersionNo(), null, org))) {
+        WorkflowStartBody startBody = buildOrgStartBody(processKey, remark, orgId, MdmWorkflowActionSupport.ACTIVATE, org.getVersionNo(), null, org);
+        if (!startWorkflow(startBody)) {
             throw new IllegalStateException("组织审批流程发起失败");
         }
         if (!updateOrgStatus(orgId, org.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "组织状态更新失败，自动中止流程");
             throw new IllegalStateException("组织状态已变化，请刷新后重试");
         }
         return true;
@@ -121,10 +119,12 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         ensureActiveForChange(currentOrg.getStatus(), "组织审批中，暂不允许提交新的变更", "仅已生效组织允许提交变更审批");
         ensureNoRunningWorkflow(BUSINESS_TYPE_ORG, buildOrgBusinessNo(orgId), "该组织已有审批流程在处理中");
         MdmOrg afterOrg = normalizeTargetOrg(currentOrg, targetOrg);
-        if (!startWorkflow(buildOrgStartBody(processKey, remark, orgId, MdmWorkflowActionSupport.UPDATE, currentOrg.getVersionNo(), currentOrg, afterOrg))) {
+        WorkflowStartBody startBody = buildOrgStartBody(processKey, remark, orgId, MdmWorkflowActionSupport.UPDATE, currentOrg.getVersionNo(), currentOrg, afterOrg);
+        if (!startWorkflow(startBody)) {
             throw new IllegalStateException("组织变更审批流程发起失败");
         }
         if (!updateOrgStatus(orgId, currentOrg.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "组织状态更新失败，自动中止流程");
             throw new IllegalStateException("组织状态已变化，请刷新后重试");
         }
         return true;
@@ -139,10 +139,12 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         MdmOrg afterOrg = new MdmOrg();
         BeanUtils.copyProperties(currentOrg, afterOrg);
         afterOrg.setStatus(MdmStatusSupport.DISABLED);
-        if (!startWorkflow(buildOrgStartBody(processKey, remark, orgId, MdmWorkflowActionSupport.DISABLE, currentOrg.getVersionNo(), currentOrg, afterOrg))) {
+        WorkflowStartBody startBody = buildOrgStartBody(processKey, remark, orgId, MdmWorkflowActionSupport.DISABLE, currentOrg.getVersionNo(), currentOrg, afterOrg);
+        if (!startWorkflow(startBody)) {
             throw new IllegalStateException("组织停用审批流程发起失败");
         }
         if (!updateOrgStatus(orgId, currentOrg.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "组织状态更新失败，自动中止流程");
             throw new IllegalStateException("组织状态已变化，请刷新后重试");
         }
         return true;
@@ -154,10 +156,12 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         MdmCostCenter costCenter = loadCostCenter(ccId);
         ensureDraft(costCenter.getStatus(), "仅草稿成本中心允许提交生效审批");
         ensureNoRunningWorkflow(BUSINESS_TYPE_COST_CENTER, buildCostCenterBusinessNo(ccId), "该成本中心已有审批流程在处理中");
-        if (!startWorkflow(buildCostCenterStartBody(processKey, remark, ccId, MdmWorkflowActionSupport.ACTIVATE, costCenter.getVersionNo(), null, costCenter))) {
+        WorkflowStartBody startBody = buildCostCenterStartBody(processKey, remark, ccId, MdmWorkflowActionSupport.ACTIVATE, costCenter.getVersionNo(), null, costCenter);
+        if (!startWorkflow(startBody)) {
             throw new IllegalStateException("成本中心审批流程发起失败");
         }
         if (!updateCostCenterStatus(ccId, costCenter.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "成本中心状态更新失败，自动中止流程");
             throw new IllegalStateException("成本中心状态已变化，请刷新后重试");
         }
         return true;
@@ -170,10 +174,12 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         ensureActiveForChange(currentCostCenter.getStatus(), "成本中心审批中，暂不允许提交新的变更", "仅已生效成本中心允许提交变更审批");
         ensureNoRunningWorkflow(BUSINESS_TYPE_COST_CENTER, buildCostCenterBusinessNo(ccId), "该成本中心已有审批流程在处理中");
         MdmCostCenter afterCostCenter = normalizeTargetCostCenter(currentCostCenter, targetCostCenter);
-        if (!startWorkflow(buildCostCenterStartBody(processKey, remark, ccId, MdmWorkflowActionSupport.UPDATE, currentCostCenter.getVersionNo(), currentCostCenter, afterCostCenter))) {
+        WorkflowStartBody startBody = buildCostCenterStartBody(processKey, remark, ccId, MdmWorkflowActionSupport.UPDATE, currentCostCenter.getVersionNo(), currentCostCenter, afterCostCenter);
+        if (!startWorkflow(startBody)) {
             throw new IllegalStateException("成本中心变更审批流程发起失败");
         }
         if (!updateCostCenterStatus(ccId, currentCostCenter.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "成本中心状态更新失败，自动中止流程");
             throw new IllegalStateException("成本中心状态已变化，请刷新后重试");
         }
         return true;
@@ -188,10 +194,12 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         MdmCostCenter afterCostCenter = new MdmCostCenter();
         BeanUtils.copyProperties(currentCostCenter, afterCostCenter);
         afterCostCenter.setStatus(MdmStatusSupport.DISABLED);
-        if (!startWorkflow(buildCostCenterStartBody(processKey, remark, ccId, MdmWorkflowActionSupport.DISABLE, currentCostCenter.getVersionNo(), currentCostCenter, afterCostCenter))) {
+        WorkflowStartBody startBody = buildCostCenterStartBody(processKey, remark, ccId, MdmWorkflowActionSupport.DISABLE, currentCostCenter.getVersionNo(), currentCostCenter, afterCostCenter);
+        if (!startWorkflow(startBody)) {
             throw new IllegalStateException("成本中心停用审批流程发起失败");
         }
         if (!updateCostCenterStatus(ccId, currentCostCenter.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "成本中心状态更新失败，自动中止流程");
             throw new IllegalStateException("成本中心状态已变化，请刷新后重试");
         }
         return true;
@@ -203,10 +211,12 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         MdmProject project = loadProject(projectId);
         ensureDraft(project.getStatus(), "仅草稿项目允许提交生效审批");
         ensureNoRunningWorkflow(BUSINESS_TYPE_PROJECT, buildProjectBusinessNo(projectId), "该项目已有审批流程在处理中");
-        if (!startWorkflow(buildProjectStartBody(processKey, remark, projectId, MdmWorkflowActionSupport.ACTIVATE, project.getVersionNo(), null, project))) {
+        WorkflowStartBody startBody = buildProjectStartBody(processKey, remark, projectId, MdmWorkflowActionSupport.ACTIVATE, project.getVersionNo(), null, project);
+        if (!startWorkflow(startBody)) {
             throw new IllegalStateException("项目审批流程发起失败");
         }
         if (!updateProjectStatus(projectId, project.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "项目状态更新失败，自动中止流程");
             throw new IllegalStateException("项目状态已变化，请刷新后重试");
         }
         return true;
@@ -219,10 +229,12 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         ensureActiveForChange(currentProject.getStatus(), "项目审批中，暂不允许提交新的变更", "仅已生效项目允许提交变更审批");
         ensureNoRunningWorkflow(BUSINESS_TYPE_PROJECT, buildProjectBusinessNo(projectId), "该项目已有审批流程在处理中");
         MdmProject afterProject = normalizeTargetProject(currentProject, targetProject);
-        if (!startWorkflow(buildProjectStartBody(processKey, remark, projectId, MdmWorkflowActionSupport.UPDATE, currentProject.getVersionNo(), currentProject, afterProject))) {
+        WorkflowStartBody startBody = buildProjectStartBody(processKey, remark, projectId, MdmWorkflowActionSupport.UPDATE, currentProject.getVersionNo(), currentProject, afterProject);
+        if (!startWorkflow(startBody)) {
             throw new IllegalStateException("项目变更审批流程发起失败");
         }
         if (!updateProjectStatus(projectId, currentProject.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "项目状态更新失败，自动中止流程");
             throw new IllegalStateException("项目状态已变化，请刷新后重试");
         }
         return true;
@@ -237,10 +249,12 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         MdmProject afterProject = new MdmProject();
         BeanUtils.copyProperties(currentProject, afterProject);
         afterProject.setStatus(MdmStatusSupport.DISABLED);
-        if (!startWorkflow(buildProjectStartBody(processKey, remark, projectId, MdmWorkflowActionSupport.DISABLE, currentProject.getVersionNo(), currentProject, afterProject))) {
+        WorkflowStartBody startBody = buildProjectStartBody(processKey, remark, projectId, MdmWorkflowActionSupport.DISABLE, currentProject.getVersionNo(), currentProject, afterProject);
+        if (!startWorkflow(startBody)) {
             throw new IllegalStateException("项目停用审批流程发起失败");
         }
         if (!updateProjectStatus(projectId, currentProject.getVersionNo(), MdmStatusSupport.SUBMITTED)) {
+            abortWorkflow(startBody, "项目状态更新失败，自动中止流程");
             throw new IllegalStateException("项目状态已变化，请刷新后重试");
         }
         return true;
@@ -305,11 +319,7 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
     }
 
     private void ensureNoRunningWorkflow(String businessType, String businessNo, String message) {
-        Long count = workflowInstanceMapper.selectCount(new LambdaQueryWrapper<SysWorkflowInstance>()
-                .eq(SysWorkflowInstance::getBusinessType, businessType)
-                .eq(SysWorkflowInstance::getBusinessNo, businessNo)
-                .eq(SysWorkflowInstance::getStatus, WORKFLOW_STATUS_RUNNING));
-        if (count != null && count > 0) {
+        if (workflowEngineService.hasRunningInstance(businessType, businessNo)) {
             throw new IllegalStateException(message);
         }
     }
@@ -323,6 +333,19 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         SysUser user = userService.selectUserByUserName(userName);
         String nickName = user == null ? userName : user.getNickName();
         return workflowEngineService.startProcess(startBody, userId, userName, nickName);
+    }
+
+    /**
+     * 在本地状态回写失败时中止已发起的流程实例。
+     *
+     * @param startBody 流程启动参数
+     * @param remark 中止原因
+     */
+    private void abortWorkflow(WorkflowStartBody startBody, String remark) {
+        if (startBody == null) {
+            return;
+        }
+        workflowEngineService.abortProcess(startBody.getBusinessType(), startBody.getBusinessNo(), remark);
     }
 
     private boolean updateOrgStatus(Long orgId, Integer currentVersion, String targetStatus) {
@@ -408,8 +431,14 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         formData.put(metaKey, meta);
         WorkflowStartBody startBody = new WorkflowStartBody();
         startBody.setProcessKey(processKey.trim());
+        startBody.setRequestedProcessKey(processKey.trim());
+        startBody.setOwnerService("system");
         startBody.setBusinessNo(businessNo);
         startBody.setBusinessType(businessType);
+        startBody.setDomainType(businessType);
+        startBody.setActionCode(meta == null ? null : String.valueOf(meta.get("action")));
+        startBody.setIdempotencyKey(businessNo);
+        startBody.setOperator(resolveOperator());
         startBody.setRemark(MdmValueSupport.trimToNull(remark));
         startBody.setFormData(writeJson(formData));
         return startBody;
@@ -632,3 +661,5 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         return StringUtils.hasText(userName) ? userName.trim() : "system";
     }
 }
+
+
