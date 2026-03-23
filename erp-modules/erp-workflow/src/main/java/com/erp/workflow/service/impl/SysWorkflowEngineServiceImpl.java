@@ -6,12 +6,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.common.client.internal.InternalBusinessClient;
 import com.erp.common.client.internal.InternalPlatformClient;
-import com.erp.workflow.domain.platform.SysNotice;
-import com.erp.workflow.domain.platform.SysDept;
+import com.erp.platform.contract.model.PlatformDeptView;
+import com.erp.platform.contract.model.PlatformUserView;
+import com.erp.workflow.domain.SysNotice;
 import com.erp.workflow.contract.domain.SysTodoTask;
-import com.erp.workflow.domain.platform.SysUser;
-import com.erp.workflow.domain.platform.SysUserPost;
-import com.erp.workflow.domain.platform.SysUserRole;
 import com.erp.workflow.contract.domain.SysWorkflowDefinition;
 import com.erp.workflow.contract.domain.SysWorkflowInstance;
 import com.erp.workflow.contract.domain.SysWorkflowTask;
@@ -29,14 +27,11 @@ import com.erp.workflow.contract.domain.vo.WorkflowSlaScanResultVO;
 import com.erp.workflow.mapper.SysWorkflowInstanceMapper;
 import com.erp.workflow.mapper.SysWorkflowTaskActionMapper;
 import com.erp.workflow.mapper.SysWorkflowTaskMapper;
-import com.erp.workflow.service.ISysDeptService;
 import com.erp.workflow.service.ISysNoticeService;
 import com.erp.workflow.service.ISysTodoTaskService;
-import com.erp.workflow.service.ISysUserPostService;
-import com.erp.workflow.service.ISysUserRoleService;
-import com.erp.workflow.service.ISysUserService;
 import com.erp.workflow.service.ISysWorkflowDefinitionService;
 import com.erp.workflow.service.ISysWorkflowEngineService;
+import com.erp.workflow.service.platform.IWorkflowPlatformReadService;
 import com.erp.workflow.support.TenantWriteGuard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -104,10 +99,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
     private final ISysWorkflowDefinitionService workflowDefinitionService;
     private final ISysTodoTaskService todoTaskService;
     private final ISysNoticeService noticeService;
-    private final ISysUserService userService;
-    private final ISysDeptService deptService;
-    private final ISysUserRoleService userRoleService;
-    private final ISysUserPostService userPostService;
+    private final IWorkflowPlatformReadService platformReadService;
     private final InternalPlatformClient internalPlatformClient;
     private final InternalBusinessClient internalBusinessClient;
     private final ObjectMapper objectMapper;
@@ -119,10 +111,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             ISysWorkflowDefinitionService workflowDefinitionService,
             ISysTodoTaskService todoTaskService,
             ISysNoticeService noticeService,
-            ISysUserService userService,
-            ISysDeptService deptService,
-            ISysUserRoleService userRoleService,
-            ISysUserPostService userPostService,
+            IWorkflowPlatformReadService platformReadService,
             InternalPlatformClient internalPlatformClient,
             InternalBusinessClient internalBusinessClient) {
         this.workflowInstanceMapper = workflowInstanceMapper;
@@ -131,10 +120,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         this.workflowDefinitionService = workflowDefinitionService;
         this.todoTaskService = todoTaskService;
         this.noticeService = noticeService;
-        this.userService = userService;
-        this.deptService = deptService;
-        this.userRoleService = userRoleService;
-        this.userPostService = userPostService;
+        this.platformReadService = platformReadService;
         this.internalPlatformClient = internalPlatformClient;
         this.internalBusinessClient = internalBusinessClient;
         this.objectMapper = new ObjectMapper();
@@ -1950,7 +1936,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
             return new AssigneeInfo(initiatorUserId, normalizeText(initiatorName), normalizeText(initiatorNick));
         }
         Long assigneeUserId = startBody.getAssigneeUserId();
-        SysUser assigneeUser = userService.getById(assigneeUserId);
+        PlatformUserView assigneeUser = platformReadService.getUser(assigneeUserId);
         if (assigneeUser != null) {
             return new AssigneeInfo(assigneeUserId, assigneeUser.getUserName(), assigneeUser.getNickName());
         }
@@ -1967,7 +1953,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
      * @return 目标办理人信息
      */
     private AssigneeInfo resolveTransferAssignee(WorkflowTaskTransferBody transferBody) {
-        SysUser targetUser = userService.getById(transferBody.getTargetUserId());
+        PlatformUserView targetUser = platformReadService.getUser(transferBody.getTargetUserId());
         if (targetUser != null) {
             return new AssigneeInfo(targetUser.getUserId(), targetUser.getUserName(), targetUser.getNickName());
         }
@@ -2096,13 +2082,8 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         if (userIdSet == null || userIdSet.isEmpty()) {
             return Collections.emptyList();
         }
-        List<SysUser> userList = userService.list(new LambdaQueryWrapper<SysUser>()
-                .in(SysUser::getUserId, userIdSet)
-                .ne(SysUser::getStatus, "1")
-                .ne(SysUser::getDelFlag, "2")
-                .orderByAsc(SysUser::getUserId));
         List<AssigneeInfo> assigneeList = new ArrayList<>();
-        for (SysUser user : userList) {
+        for (PlatformUserView user : platformReadService.getUserMap(userIdSet).values()) {
             assigneeList.add(new AssigneeInfo(user.getUserId(),
                     normalizeText(user.getUserName()),
                     normalizeText(user.getNickName())));
@@ -2117,18 +2098,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
      * @return 用户ID集合
      */
     private List<Long> resolveUserIdsByRoleIds(List<Long> roleIds) {
-        if (roleIds == null || roleIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-        LinkedHashSet<Long> userIdSet = new LinkedHashSet<>();
-        List<SysUserRole> relationList = userRoleService.list(new LambdaQueryWrapper<SysUserRole>()
-                .in(SysUserRole::getRoleId, roleIds));
-        for (SysUserRole relation : relationList) {
-            if (relation != null && relation.getUserId() != null) {
-                userIdSet.add(relation.getUserId());
-            }
-        }
-        return new ArrayList<>(userIdSet);
+        return platformReadService.resolveUserIdsByRoleIds(roleIds);
     }
 
     /**
@@ -2138,18 +2108,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
      * @return 用户ID集合
      */
     private List<Long> resolveUserIdsByPostIds(List<Long> postIds) {
-        if (postIds == null || postIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-        LinkedHashSet<Long> userIdSet = new LinkedHashSet<>();
-        List<SysUserPost> relationList = userPostService.list(new LambdaQueryWrapper<SysUserPost>()
-                .in(SysUserPost::getPostId, postIds));
-        for (SysUserPost relation : relationList) {
-            if (relation != null && relation.getUserId() != null) {
-                userIdSet.add(relation.getUserId());
-            }
-        }
-        return new ArrayList<>(userIdSet);
+        return platformReadService.resolveUserIdsByPostIds(postIds);
     }
 
     /**
@@ -2162,13 +2121,8 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         if (deptId == null) {
             return Collections.emptyList();
         }
-        List<SysUser> userList = userService.list(new LambdaQueryWrapper<SysUser>()
-                .eq(SysUser::getDeptId, deptId)
-                .ne(SysUser::getStatus, "1")
-                .ne(SysUser::getDelFlag, "2")
-                .orderByAsc(SysUser::getUserId));
         List<Long> userIds = new ArrayList<>();
-        for (SysUser user : userList) {
+        for (PlatformUserView user : platformReadService.listUsersByDeptId(deptId)) {
             if (user.getUserId() != null) {
                 userIds.add(user.getUserId());
             }
@@ -2201,7 +2155,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         LinkedHashSet<Long> visitedDeptIds = new LinkedHashSet<>();
         Long currentDeptId = deptId;
         while (currentDeptId != null && visitedDeptIds.add(currentDeptId)) {
-            SysDept dept = deptService.getById(currentDeptId);
+            PlatformDeptView dept = platformReadService.getDepartment(currentDeptId);
             if (dept == null) {
                 return null;
             }
@@ -2220,23 +2174,15 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
      * @param dept 部门对象
      * @return 审批人信息
      */
-    private AssigneeInfo resolveLeaderByDept(SysDept dept) {
+    private AssigneeInfo resolveLeaderByDept(PlatformDeptView dept) {
         if (dept == null || !StringUtils.hasText(dept.getLeader())) {
             return null;
         }
         String leaderText = dept.getLeader().trim();
-        List<SysUser> userList = userService.list(new LambdaQueryWrapper<SysUser>()
-                .and(wrapper -> wrapper.eq(SysUser::getUserName, leaderText)
-                        .or()
-                        .eq(SysUser::getNickName, leaderText))
-                .ne(SysUser::getStatus, "1")
-                .ne(SysUser::getDelFlag, "2")
-                .orderByAsc(SysUser::getUserId)
-                .last("LIMIT 1"));
-        if (userList.isEmpty()) {
+        PlatformUserView user = platformReadService.findUserByUserNameOrNickName(leaderText);
+        if (user == null) {
             return null;
         }
-        SysUser user = userList.get(0);
         return new AssigneeInfo(user.getUserId(), normalizeText(user.getUserName()), normalizeText(user.getNickName()));
     }
 
@@ -2250,7 +2196,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         if (instance == null || instance.getInitiatorUserId() == null) {
             return null;
         }
-        SysUser initiator = userService.getById(instance.getInitiatorUserId());
+        PlatformUserView initiator = platformReadService.getUser(instance.getInitiatorUserId());
         return initiator == null ? null : initiator.getDeptId();
     }
 
@@ -2319,7 +2265,7 @@ public class SysWorkflowEngineServiceImpl implements ISysWorkflowEngineService {
         if (userId == null) {
             return null;
         }
-        SysUser user = userService.getById(userId);
+        PlatformUserView user = platformReadService.getUser(userId);
         if (user != null) {
             return new AssigneeInfo(userId, normalizeText(user.getUserName()), normalizeText(user.getNickName()));
         }

@@ -2,7 +2,7 @@ package com.erp.workflow.service.impl;
 
 import com.erp.common.client.internal.InternalPlatformClient;
 import com.erp.platform.contract.model.PlatformNoticeCreateRequest;
-import com.erp.workflow.domain.platform.SysNotice;
+import com.erp.workflow.domain.SysNotice;
 import com.erp.workflow.service.ISysNoticeService;
 import org.springframework.stereotype.Service;
 

@@ -1,6 +1,7 @@
 package com.erp.common.client.internal;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
@@ -18,6 +19,7 @@ public class InternalSystemClientConfig {
      * @return RestTemplate
      */
     @Bean
+    @LoadBalanced
     public RestTemplate internalSystemRestTemplate() {
         return new RestTemplate();
     }

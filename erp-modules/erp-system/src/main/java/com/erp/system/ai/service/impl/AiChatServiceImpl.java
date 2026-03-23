@@ -12,6 +12,7 @@ import com.erp.system.ai.model.AiModelCompletion;
 import com.erp.system.ai.model.AiPageContext;
 import com.erp.system.ai.model.AiPendingAction;
 import com.erp.system.ai.model.AiPromptContext;
+import com.erp.system.ai.model.AiToolDefinition;
 import com.erp.system.ai.service.AiActionService;
 import com.erp.system.ai.service.AiChatService;
 import com.erp.system.ai.service.AiContextService;
@@ -114,25 +115,37 @@ public class AiChatServiceImpl implements AiChatService {
             listener.onError("请输入对话内容后再试");
             return;
         }
+        String contextFallbackReply = buildContextFallbackReply(promptContext, conversationHistory);
+        if (StringUtils.hasText(contextFallbackReply)) {
+            emitText(contextFallbackReply, listener);
+            listener.onDone(contextFallbackReply);
+            return;
+        }
 
         List<AiActionDescriptor> availableActions = aiActionService.listAvailableActions();
         List<AiChatMessage> modelMessages = new ArrayList<>();
         modelMessages.add(new AiChatMessage("system", buildSystemPrompt(promptContext, availableActions)));
         modelMessages.addAll(conversationHistory);
+        List<AiToolDefinition> availableTools = aiActionService.buildAvailableTools();
 
         try {
-            AiModelCompletion completion = aiModelClient.completeChat(modelMessages, aiActionService.buildAvailableTools());
+            AiModelCompletion completion = requestCompletionWithFallback(modelMessages, availableTools);
             if (completion != null && completion.getToolCalls() != null && !completion.getToolCalls().isEmpty()) {
                 handleToolCall(promptContext, completion, listener);
                 return;
             }
             String content = completion == null ? null : completion.getContent();
-            if (!StringUtils.hasText(content)) {
-                listener.onError("AI 未返回有效内容，请稍后重试");
+            if (StringUtils.hasText(content)) {
+                emitText(content, listener);
+                listener.onDone(content);
                 return;
             }
-            emitText(content, listener);
-            listener.onDone(content);
+            String streamedFallbackContent = requestStreamingFallback(modelMessages, listener);
+            if (StringUtils.hasText(streamedFallbackContent)) {
+                listener.onDone(streamedFallbackContent);
+                return;
+            }
+            listener.onError("AI 未返回有效内容，请稍后重试");
         } catch (Exception ex) {
             listener.onError(resolveFriendlyErrorMessage(ex, "AI 服务调用失败，请稍后重试"));
         }
@@ -205,6 +218,327 @@ public class AiChatServiceImpl implements AiChatService {
             return null;
         }
         return StringUtils.hasText(handleResult.getAssistantMessage()) ? handleResult.getAssistantMessage() : null;
+    }
+
+    /**
+     * 优先按“带工具”模式请求模型；若上游不稳定或返回空结果，则自动降级为纯对话补全。
+     *
+     * @param modelMessages 对话消息
+     * @param availableTools 可用工具列表
+     * @return 模型补全结果
+     * @throws Exception 模型调用异常
+     */
+    private AiModelCompletion requestCompletionWithFallback(List<AiChatMessage> modelMessages,
+            List<AiToolDefinition> availableTools) throws Exception {
+        Exception firstFailure = null;
+        if (availableTools != null && !availableTools.isEmpty()) {
+            try {
+                AiModelCompletion completion = aiModelClient.completeChat(modelMessages, availableTools);
+                if (hasUsableCompletion(completion)) {
+                    return completion;
+                }
+            } catch (Exception ex) {
+                firstFailure = ex;
+            }
+        }
+
+        try {
+            AiModelCompletion completion = aiModelClient.completeChat(modelMessages, Collections.emptyList());
+            if (hasUsableCompletion(completion) || firstFailure == null) {
+                return completion;
+            }
+        } catch (Exception ex) {
+            if (firstFailure != null) {
+                ex.addSuppressed(firstFailure);
+            }
+            throw ex;
+        }
+
+        if (firstFailure != null) {
+            throw firstFailure;
+        }
+        return new AiModelCompletion();
+    }
+
+    /**
+     * 当普通补全未拿到有效内容时，再降级走一次纯流式回复。
+     *
+     * @param modelMessages 对话消息
+     * @param listener 流式监听器
+     * @return 流式完整回复
+     * @throws Exception 模型调用异常
+     */
+    private String requestStreamingFallback(List<AiChatMessage> modelMessages, AiStreamListener listener) throws Exception {
+        return aiModelClient.streamChat(modelMessages, delta -> {
+            if (listener != null && StringUtils.hasText(delta)) {
+                listener.onDelta(delta);
+            }
+        });
+    }
+
+    /**
+     * 判断模型补全结果是否包含可直接消费的文本或工具调用。
+     *
+     * @param completion 模型补全结果
+     * @return true 表示结果可用
+     */
+    private boolean hasUsableCompletion(AiModelCompletion completion) {
+        if (completion == null) {
+            return false;
+        }
+        if (StringUtils.hasText(completion.getContent())) {
+            return true;
+        }
+        return completion.getToolCalls() != null && !completion.getToolCalls().isEmpty();
+    }
+
+    /**
+     * 针对常见 ERP 工作台问题生成确定性兜底回复，避免模型偶发空响应时影响核心使用体验。
+     *
+     * @param promptContext 提示词上下文
+     * @param conversationHistory 对话历史
+     * @return 兜底回复；若当前问题不适用则返回 null
+     */
+    private String buildContextFallbackReply(AiPromptContext promptContext, List<AiChatMessage> conversationHistory) {
+        String latestUserMessage = getLatestUserMessage(conversationHistory);
+        if (!StringUtils.hasText(latestUserMessage)) {
+            return null;
+        }
+        if (matchesUnreadNoticeIntent(latestUserMessage)) {
+            return buildUnreadNoticeReply(promptContext);
+        }
+        if (matchesTodayPriorityIntent(latestUserMessage)) {
+            return buildTodayPriorityReply(promptContext);
+        }
+        if (matchesTodoSummaryIntent(latestUserMessage)) {
+            return buildTodoSummaryReply(promptContext);
+        }
+        return null;
+    }
+
+    /**
+     * 获取最近一条用户消息文本。
+     *
+     * @param conversationHistory 对话历史
+     * @return 用户消息文本
+     */
+    private String getLatestUserMessage(List<AiChatMessage> conversationHistory) {
+        if (conversationHistory == null || conversationHistory.isEmpty()) {
+            return null;
+        }
+        for (int index = conversationHistory.size() - 1; index >= 0; index--) {
+            AiChatMessage message = conversationHistory.get(index);
+            if (message != null
+                    && "user".equalsIgnoreCase(message.getRole())
+                    && StringUtils.hasText(message.getContent())) {
+                return message.getContent().trim();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 判断是否为未读消息查询意图。
+     *
+     * @param message 用户消息
+     * @return true 表示命中
+     */
+    private boolean matchesUnreadNoticeIntent(String message) {
+        String normalizedMessage = normalizeIntentText(message);
+        return containsAny(normalizedMessage, "未读消息", "未读通知", "列出未读", "查看未读", "看看未读");
+    }
+
+    /**
+     * 判断是否为今日优先级问题。
+     *
+     * @param message 用户消息
+     * @return true 表示命中
+     */
+    private boolean matchesTodayPriorityIntent(String message) {
+        String normalizedMessage = normalizeIntentText(message);
+        return containsAny(normalizedMessage, "今天优先", "今日优先", "今天先做什么", "我今天优先做什么", "今天做什么");
+    }
+
+    /**
+     * 判断是否为待办汇总问题。
+     *
+     * @param message 用户消息
+     * @return true 表示命中
+     */
+    private boolean matchesTodoSummaryIntent(String message) {
+        String normalizedMessage = normalizeIntentText(message);
+        if (!containsAny(normalizedMessage, "待办")) {
+            return false;
+        }
+        if (containsAny(normalizedMessage, "办结", "签收", "审批", "通过", "驳回", "处理", "发布")) {
+            return false;
+        }
+        return containsAny(normalizedMessage, "总结", "汇总", "概览", "有哪些", "列出", "查看", "看看", "我的待办");
+    }
+
+    /**
+     * 生成待办汇总回复。
+     *
+     * @param promptContext 提示词上下文
+     * @return 汇总回复
+     */
+    private String buildTodoSummaryReply(AiPromptContext promptContext) {
+        if (promptContext == null || !promptContext.isTodoContextAvailable()) {
+            return "当前暂时无法读取你的待办数据，请稍后重试。";
+        }
+        StringBuilder replyBuilder = new StringBuilder();
+        replyBuilder.append("你当前共有 ").append(promptContext.getTodoCount()).append(" 条待办。");
+        List<AiPromptContext.TodoSummary> todoList = promptContext.getTodoList();
+        if (todoList == null || todoList.isEmpty()) {
+            replyBuilder.append("\n\n当前没有待处理待办。");
+            return replyBuilder.toString();
+        }
+        replyBuilder.append("\n\n优先关注前 ").append(Math.min(3, todoList.size())).append(" 条：");
+        for (int index = 0; index < todoList.size() && index < 3; index++) {
+            AiPromptContext.TodoSummary todoSummary = todoList.get(index);
+            replyBuilder.append("\n")
+                    .append(index + 1)
+                    .append(". ")
+                    .append(nullToDash(todoSummary.getProcessName()))
+                    .append(" / ")
+                    .append(nullToDash(todoSummary.getNodeName()))
+                    .append(" / 单号 ")
+                    .append(nullToDash(todoSummary.getBusinessNo()))
+                    .append(" / 优先级 ")
+                    .append(resolveTodoPriorityLabel(todoSummary.getPriority()))
+                    .append(" / 状态 ")
+                    .append(resolveTodoStatusLabel(todoSummary.getStatus()));
+            if (todoSummary.getDueTime() != null) {
+                replyBuilder.append(" / 截止 ").append(formatDate(todoSummary.getDueTime()));
+            }
+        }
+        return replyBuilder.toString();
+    }
+
+    /**
+     * 生成未读消息汇总回复。
+     *
+     * @param promptContext 提示词上下文
+     * @return 汇总回复
+     */
+    private String buildUnreadNoticeReply(AiPromptContext promptContext) {
+        if (promptContext == null || !promptContext.isNoticeContextAvailable()) {
+            return "当前暂时无法读取你的系统消息，请稍后重试。";
+        }
+        StringBuilder replyBuilder = new StringBuilder();
+        replyBuilder.append("你当前共有 ").append(promptContext.getUnreadNoticeCount()).append(" 条未读消息。");
+        List<AiPromptContext.NoticeSummary> noticeList = promptContext.getNoticeList();
+        if (noticeList == null || noticeList.isEmpty()) {
+            replyBuilder.append("\n\n当前没有可展示的消息明细。");
+            return replyBuilder.toString();
+        }
+        int displayedCount = 0;
+        for (AiPromptContext.NoticeSummary noticeSummary : noticeList) {
+            if (noticeSummary == null || !"0".equals(noticeSummary.getStatus())) {
+                continue;
+            }
+            if (displayedCount == 0) {
+                replyBuilder.append("\n\n未读消息明细：");
+            }
+            displayedCount++;
+            replyBuilder.append("\n")
+                    .append(displayedCount)
+                    .append(". ")
+                    .append(nullToDash(noticeSummary.getTitle()))
+                    .append(" / 类型 ")
+                    .append(nullToDash(noticeSummary.getNoticeType()))
+                    .append(" / 来源 ")
+                    .append(nullToDash(noticeSummary.getSource()))
+                    .append(" / 单号 ")
+                    .append(nullToDash(noticeSummary.getBusinessNo()));
+            if (noticeSummary.getCreateTime() != null) {
+                replyBuilder.append(" / 时间 ").append(formatDate(noticeSummary.getCreateTime()));
+            }
+            if (displayedCount >= 5) {
+                break;
+            }
+        }
+        if (displayedCount == 0) {
+            replyBuilder.append("\n\n当前没有可展示的未读消息明细。");
+        }
+        return replyBuilder.toString();
+    }
+
+    /**
+     * 生成今日优先级建议回复。
+     *
+     * @param promptContext 提示词上下文
+     * @return 建议回复
+     */
+    private String buildTodayPriorityReply(AiPromptContext promptContext) {
+        if (promptContext == null || !promptContext.isTodoContextAvailable()) {
+            return "当前暂时无法读取你的待办数据，建议先打开工作台确认今日待办和未读消息。";
+        }
+        StringBuilder replyBuilder = new StringBuilder();
+        List<AiPromptContext.TodoSummary> todoList = promptContext.getTodoList();
+        if (todoList == null || todoList.isEmpty()) {
+            replyBuilder.append("你当前没有待办任务。");
+        } else {
+            replyBuilder.append("今天建议你优先处理这几件事：");
+            for (int index = 0; index < todoList.size() && index < 3; index++) {
+                AiPromptContext.TodoSummary todoSummary = todoList.get(index);
+                replyBuilder.append("\n")
+                        .append(index + 1)
+                        .append(". ")
+                        .append(nullToDash(todoSummary.getProcessName()))
+                        .append(" / ")
+                        .append(nullToDash(todoSummary.getNodeName()))
+                        .append(" / 单号 ")
+                        .append(nullToDash(todoSummary.getBusinessNo()))
+                        .append(" / 优先级 ")
+                        .append(resolveTodoPriorityLabel(todoSummary.getPriority()));
+                if (todoSummary.getDueTime() != null) {
+                    replyBuilder.append(" / 截止 ").append(formatDate(todoSummary.getDueTime()));
+                }
+            }
+        }
+        if (promptContext.isNoticeContextAvailable() && promptContext.getUnreadNoticeCount() > 0) {
+            replyBuilder.append("\n\n另外你还有 ")
+                    .append(promptContext.getUnreadNoticeCount())
+                    .append(" 条未读消息，建议处理完前置待办后顺手检查是否有新的催办或审批提醒。");
+        }
+        return replyBuilder.toString();
+    }
+
+    /**
+     * 规范化意图匹配文本。
+     *
+     * @param message 原始消息
+     * @return 规范化文本
+     */
+    private String normalizeIntentText(String message) {
+        if (!StringUtils.hasText(message)) {
+            return "";
+        }
+        return message.replace(" ", "")
+                .replace("\n", "")
+                .replace("\r", "")
+                .trim()
+                .toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * 判断文本中是否包含任一候选关键字。
+     *
+     * @param source 文本
+     * @param candidates 候选关键字
+     * @return true 表示命中
+     */
+    private boolean containsAny(String source, String... candidates) {
+        if (!StringUtils.hasText(source) || candidates == null || candidates.length == 0) {
+            return false;
+        }
+        for (String candidate : candidates) {
+            if (StringUtils.hasText(candidate) && source.contains(candidate.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -548,6 +882,23 @@ public class AiChatServiceImpl implements AiChatService {
         if (ex == null || !StringUtils.hasText(ex.getMessage())) {
             return defaultMessage;
         }
-        return ex.getMessage().trim();
+        String message = ex.getMessage().trim();
+        String normalizedMessage = message.toLowerCase(Locale.ROOT);
+        if (normalizedMessage.contains("connection prematurely closed")
+                || normalizedMessage.contains("prematurely closed before response")
+                || normalizedMessage.contains("connection reset")
+                || normalizedMessage.contains("unexpected end of file")) {
+            return "本地模型服务连接被中断，请稍后重试";
+        }
+        if (normalizedMessage.contains("timeout")) {
+            return "本地模型服务响应超时，请稍后重试";
+        }
+        if (normalizedMessage.contains("internal server error") || normalizedMessage.contains("status code: 500")) {
+            return "本地模型服务暂时异常，请稍后重试";
+        }
+        if (normalizedMessage.startsWith("{") || normalizedMessage.startsWith("<!doctype html")) {
+            return defaultMessage;
+        }
+        return message;
     }
 }

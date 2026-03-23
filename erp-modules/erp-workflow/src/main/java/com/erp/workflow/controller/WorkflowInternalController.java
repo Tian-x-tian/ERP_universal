@@ -1,6 +1,7 @@
 package com.erp.workflow.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.erp.platform.contract.model.PlatformUserView;
 import com.erp.workflow.contract.domain.SysTodoTask;
 import com.erp.workflow.contract.domain.SysWorkflowDefinition;
 import com.erp.workflow.contract.domain.SysWorkflowInstance;
@@ -10,14 +11,13 @@ import com.erp.workflow.contract.domain.vo.WorkflowInstanceDetailVO;
 import com.erp.workflow.contract.domain.vo.WorkflowProcessOptionVO;
 import com.erp.workflow.contract.domain.vo.WorkflowStartBody;
 import com.erp.workflow.contract.domain.vo.WorkflowTaskActionBody;
-import com.erp.workflow.domain.platform.SysUser;
 import com.erp.workflow.mapper.SysWorkflowTaskMapper;
 import com.erp.workflow.security.service.SecurityUserResolver;
 import com.erp.workflow.service.ISysTodoTaskService;
-import com.erp.workflow.service.ISysUserService;
 import com.erp.workflow.service.ISysWorkflowDefinitionService;
 import com.erp.workflow.service.ISysWorkflowEngineService;
 import com.erp.workflow.service.IWorkflowBindingResolver;
+import com.erp.workflow.service.platform.IWorkflowPlatformReadService;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,7 +48,7 @@ public class WorkflowInternalController {
     private final ISysWorkflowDefinitionService workflowDefinitionService;
     private final IWorkflowBindingResolver workflowBindingResolver;
     private final ISysTodoTaskService todoTaskService;
-    private final ISysUserService userService;
+    private final IWorkflowPlatformReadService platformReadService;
     private final SysWorkflowTaskMapper workflowTaskMapper;
     private final SecurityUserResolver securityUserResolver;
 
@@ -56,14 +56,14 @@ public class WorkflowInternalController {
             ISysWorkflowDefinitionService workflowDefinitionService,
             IWorkflowBindingResolver workflowBindingResolver,
             ISysTodoTaskService todoTaskService,
-            ISysUserService userService,
+            IWorkflowPlatformReadService platformReadService,
             SysWorkflowTaskMapper workflowTaskMapper,
             SecurityUserResolver securityUserResolver) {
         this.workflowEngineService = workflowEngineService;
         this.workflowDefinitionService = workflowDefinitionService;
         this.workflowBindingResolver = workflowBindingResolver;
         this.todoTaskService = todoTaskService;
-        this.userService = userService;
+        this.platformReadService = platformReadService;
         this.workflowTaskMapper = workflowTaskMapper;
         this.securityUserResolver = securityUserResolver;
     }
@@ -324,7 +324,7 @@ public class WorkflowInternalController {
         if (!StringUtils.hasText(userName)) {
             return new CurrentUser(userId, null, null);
         }
-        SysUser user = userService.selectUserByUserName(userName);
+        PlatformUserView user = platformReadService.getActiveUserByUsername(securityUserResolver.getCurrentTenantId(), userName);
         String nickName = user == null ? userName : user.getNickName();
         Long resolvedUserId = userId != null ? userId : user == null ? null : user.getUserId();
         return new CurrentUser(resolvedUserId, userName.trim(), nickName);

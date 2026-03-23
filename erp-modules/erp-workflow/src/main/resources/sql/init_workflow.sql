@@ -6,8 +6,7 @@
 -- ----------------------------
 -- 1. 流程待办任务表 (sys_todo_task)
 -- ----------------------------
-DROP TABLE IF EXISTS `sys_todo_task`;
-CREATE TABLE `sys_todo_task` (
+CREATE TABLE IF NOT EXISTS `sys_todo_task` (
   `todo_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '待办ID',
   `instance_id` bigint(20) DEFAULT NULL COMMENT '流程实例ID',
   `task_id` bigint(20) DEFAULT NULL COMMENT '流程任务ID',
@@ -31,8 +30,7 @@ CREATE TABLE `sys_todo_task` (
 -- ----------------------------
 -- 2. 流程定义表 (sys_wf_definition)
 -- ----------------------------
-DROP TABLE IF EXISTS `sys_wf_definition`;
-CREATE TABLE `sys_wf_definition` (
+CREATE TABLE IF NOT EXISTS `sys_wf_definition` (
   `definition_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '流程定义ID',
   `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
   `process_key` varchar(64) NOT NULL COMMENT '流程标识',
@@ -59,8 +57,7 @@ CREATE TABLE `sys_wf_definition` (
 -- ----------------------------
 -- 3. 流程业务动作绑定表 (sys_wf_business_binding)
 -- ----------------------------
-DROP TABLE IF EXISTS `sys_wf_business_binding`;
-CREATE TABLE `sys_wf_business_binding` (
+CREATE TABLE IF NOT EXISTS `sys_wf_business_binding` (
   `binding_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '绑定ID',
   `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
   `domain_type` varchar(64) NOT NULL COMMENT '业务域类型',
@@ -82,8 +79,7 @@ CREATE TABLE `sys_wf_business_binding` (
 -- ----------------------------
 -- 4. 流程实例表 (sys_wf_instance)
 -- ----------------------------
-DROP TABLE IF EXISTS `sys_wf_instance`;
-CREATE TABLE `sys_wf_instance` (
+CREATE TABLE IF NOT EXISTS `sys_wf_instance` (
   `instance_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '流程实例ID',
   `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
   `definition_id` bigint(20) NOT NULL COMMENT '流程定义ID',
@@ -122,8 +118,7 @@ CREATE TABLE `sys_wf_instance` (
 -- ----------------------------
 -- 5. 流程任务表 (sys_wf_task)
 -- ----------------------------
-DROP TABLE IF EXISTS `sys_wf_task`;
-CREATE TABLE `sys_wf_task` (
+CREATE TABLE IF NOT EXISTS `sys_wf_task` (
   `task_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '流程任务ID',
   `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
   `instance_id` bigint(20) NOT NULL COMMENT '流程实例ID',
@@ -149,8 +144,7 @@ CREATE TABLE `sys_wf_task` (
 -- ----------------------------
 -- 6. 流程任务动作记录表 (sys_wf_task_action)
 -- ----------------------------
-DROP TABLE IF EXISTS `sys_wf_task_action`;
-CREATE TABLE `sys_wf_task_action` (
+CREATE TABLE IF NOT EXISTS `sys_wf_task_action` (
   `action_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '动作记录ID',
   `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
   `instance_id` bigint(20) NOT NULL COMMENT '流程实例ID',
@@ -254,30 +248,112 @@ VALUES
   (3, '000000', 'mdm_employee', '员工档案审批流程', 'custom', 1, '1', '{"version":1,"fields":[{"fieldCode":"empCode","fieldLabel":"员工编码","componentType":"input","required":true,"placeholder":"系统自动带出","options":[]},{"fieldCode":"empName","fieldLabel":"员工姓名","componentType":"input","required":true,"placeholder":"请输入员工姓名","options":[]},{"fieldCode":"position","fieldLabel":"岗位","componentType":"input","required":false,"placeholder":"请输入岗位","options":[]},{"fieldCode":"status","fieldLabel":"状态","componentType":"input","required":true,"placeholder":"系统自动带出","options":[]}],"nodePermissions":{}}', '{"startNodeKey":"START_EMPLOYEE_1","nodes":[{"nodeKey":"START_EMPLOYEE_1","nodeName":"开始节点","nodeType":"start","x":40,"y":120},{"nodeKey":"APPROVAL_EMPLOYEE_2","nodeName":"员工资料审批","nodeType":"approval","assigneeType":"USER","assigneeUserId":1,"approveStrategy":"ALL","x":320,"y":120},{"nodeKey":"END_EMPLOYEE_3","nodeName":"结束节点","nodeType":"end","x":620,"y":120}],"edges":[{"from":"START_EMPLOYEE_1","to":"APPROVAL_EMPLOYEE_2"},{"from":"APPROVAL_EMPLOYEE_2","to":"END_EMPLOYEE_3"}]}', 'system', NOW(), 'workflow 初始化员工档案审批流程定义', 'system', NOW(), 'system', NOW()),
   (4, '000000', 'mdm_employee_onboard', '员工入职审批流程', 'custom', 1, '1', '{"version":1,"fields":[{"fieldCode":"empCode","fieldLabel":"员工编码","componentType":"input","required":true,"placeholder":"系统自动带出","options":[]},{"fieldCode":"empName","fieldLabel":"员工姓名","componentType":"input","required":true,"placeholder":"请输入员工姓名","options":[]},{"fieldCode":"position","fieldLabel":"岗位","componentType":"input","required":false,"placeholder":"请输入岗位","options":[]},{"fieldCode":"action","fieldLabel":"审批动作","componentType":"input","required":true,"placeholder":"入职","options":[]}],"nodePermissions":{}}', '{"startNodeKey":"START_EMPLOYEE_1","nodes":[{"nodeKey":"START_EMPLOYEE_1","nodeName":"开始节点","nodeType":"start","x":40,"y":120},{"nodeKey":"APPROVAL_EMPLOYEE_2","nodeName":"员工入职审批","nodeType":"approval","assigneeType":"DIRECT_LEADER","approveStrategy":"ALL","x":320,"y":120},{"nodeKey":"END_EMPLOYEE_3","nodeName":"结束节点","nodeType":"end","x":620,"y":120}],"edges":[{"from":"START_EMPLOYEE_1","to":"APPROVAL_EMPLOYEE_2"},{"from":"APPROVAL_EMPLOYEE_2","to":"END_EMPLOYEE_3"}]}', 'system', NOW(), 'workflow 初始化员工入职审批流程定义', 'system', NOW(), 'system', NOW()),
   (5, '000000', 'mdm_employee_change', '员工变更审批流程', 'custom', 1, '1', '{"version":1,"fields":[{"fieldCode":"empCode","fieldLabel":"员工编码","componentType":"input","required":true,"placeholder":"系统自动带出","options":[]},{"fieldCode":"empName","fieldLabel":"员工姓名","componentType":"input","required":true,"placeholder":"请输入员工姓名","options":[]},{"fieldCode":"position","fieldLabel":"岗位","componentType":"input","required":false,"placeholder":"请输入岗位","options":[]},{"fieldCode":"action","fieldLabel":"审批动作","componentType":"input","required":true,"placeholder":"变更","options":[]}],"nodePermissions":{}}', '{"startNodeKey":"START_EMPLOYEE_1","nodes":[{"nodeKey":"START_EMPLOYEE_1","nodeName":"开始节点","nodeType":"start","x":40,"y":120},{"nodeKey":"APPROVAL_EMPLOYEE_2","nodeName":"员工变更审批","nodeType":"approval","assigneeType":"DIRECT_LEADER","approveStrategy":"ALL","x":320,"y":120},{"nodeKey":"END_EMPLOYEE_3","nodeName":"结束节点","nodeType":"end","x":620,"y":120}],"edges":[{"from":"START_EMPLOYEE_1","to":"APPROVAL_EMPLOYEE_2"},{"from":"APPROVAL_EMPLOYEE_2","to":"END_EMPLOYEE_3"}]}', 'system', NOW(), 'workflow 初始化员工变更审批流程定义', 'system', NOW(), 'system', NOW()),
-  (6, '000000', 'mdm_employee_leave', '员工离职审批流程', 'custom', 1, '1', '{"version":1,"fields":[{"fieldCode":"empCode","fieldLabel":"员工编码","componentType":"input","required":true,"placeholder":"系统自动带出","options":[]},{"fieldCode":"empName","fieldLabel":"员工姓名","componentType":"input","required":true,"placeholder":"请输入员工姓名","options":[]},{"fieldCode":"position","fieldLabel":"岗位","componentType":"input","required":false,"placeholder":"请输入岗位","options":[]},{"fieldCode":"action","fieldLabel":"审批动作","componentType":"input","required":true,"placeholder":"离职","options":[]}],"nodePermissions":{}}', '{"startNodeKey":"START_EMPLOYEE_1","nodes":[{"nodeKey":"START_EMPLOYEE_1","nodeName":"开始节点","nodeType":"start","x":40,"y":120},{"nodeKey":"APPROVAL_EMPLOYEE_2","nodeName":"员工离职审批","nodeType":"approval","assigneeType":"DIRECT_LEADER","approveStrategy":"ALL","x":320,"y":120},{"nodeKey":"END_EMPLOYEE_3","nodeName":"结束节点","nodeType":"end","x":620,"y":120}],"edges":[{"from":"START_EMPLOYEE_1","to":"APPROVAL_EMPLOYEE_2"},{"from":"APPROVAL_EMPLOYEE_2","to":"END_EMPLOYEE_3"}]}', 'system', NOW(), 'workflow 初始化员工离职审批流程定义', 'system', NOW(), 'system', NOW());
+  (6, '000000', 'mdm_employee_leave', '员工离职审批流程', 'custom', 1, '1', '{"version":1,"fields":[{"fieldCode":"empCode","fieldLabel":"员工编码","componentType":"input","required":true,"placeholder":"系统自动带出","options":[]},{"fieldCode":"empName","fieldLabel":"员工姓名","componentType":"input","required":true,"placeholder":"请输入员工姓名","options":[]},{"fieldCode":"position","fieldLabel":"岗位","componentType":"input","required":false,"placeholder":"请输入岗位","options":[]},{"fieldCode":"action","fieldLabel":"审批动作","componentType":"input","required":true,"placeholder":"离职","options":[]}],"nodePermissions":{}}', '{"startNodeKey":"START_EMPLOYEE_1","nodes":[{"nodeKey":"START_EMPLOYEE_1","nodeName":"开始节点","nodeType":"start","x":40,"y":120},{"nodeKey":"APPROVAL_EMPLOYEE_2","nodeName":"员工离职审批","nodeType":"approval","assigneeType":"DIRECT_LEADER","approveStrategy":"ALL","x":320,"y":120},{"nodeKey":"END_EMPLOYEE_3","nodeName":"结束节点","nodeType":"end","x":620,"y":120}],"edges":[{"from":"START_EMPLOYEE_1","to":"APPROVAL_EMPLOYEE_2"},{"from":"APPROVAL_EMPLOYEE_2","to":"END_EMPLOYEE_3"}]}', 'system', NOW(), 'workflow 初始化员工离职审批流程定义', 'system', NOW(), 'system', NOW())
+ON DUPLICATE KEY UPDATE
+  `process_name` = VALUES(`process_name`),
+  `category` = VALUES(`category`),
+  `status` = VALUES(`status`),
+  `form_schema` = VALUES(`form_schema`),
+  `model_content` = VALUES(`model_content`),
+  `publish_by` = VALUES(`publish_by`),
+  `publish_time` = VALUES(`publish_time`),
+  `remark` = VALUES(`remark`),
+  `update_by` = VALUES(`update_by`),
+  `update_time` = VALUES(`update_time`);
 
 INSERT INTO `sys_wf_business_binding` (`binding_id`, `tenant_id`, `domain_type`, `action_code`, `process_key`, `is_default`, `status`, `priority`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`)
 VALUES
   (1, '000000', 'EMPLOYEE', 'ONBOARD', 'mdm_employee_onboard', '1', '0', 10, '员工入职审批流程默认绑定', 'system', NOW(), 'system', NOW()),
   (2, '000000', 'EMPLOYEE', 'CHANGE', 'mdm_employee_change', '1', '0', 10, '员工变更审批流程默认绑定', 'system', NOW(), 'system', NOW()),
   (3, '000000', 'EMPLOYEE', 'LEAVE', 'mdm_employee_leave', '1', '0', 10, '员工离职审批流程默认绑定', 'system', NOW(), 'system', NOW()),
-  (4, '000000', 'EMPLOYEE', 'ONBOARD', 'mdm_employee', '0', '0', 90, '员工入职审批 legacy 兼容绑定', 'system', NOW(), 'system', NOW());
+  (4, '000000', 'EMPLOYEE', 'ONBOARD', 'mdm_employee', '0', '0', 90, '员工入职审批 legacy 兼容绑定', 'system', NOW(), 'system', NOW())
+ON DUPLICATE KEY UPDATE
+  `process_key` = VALUES(`process_key`),
+  `is_default` = VALUES(`is_default`),
+  `status` = VALUES(`status`),
+  `priority` = VALUES(`priority`),
+  `remark` = VALUES(`remark`),
+  `update_by` = VALUES(`update_by`),
+  `update_time` = VALUES(`update_time`);
 
 INSERT INTO `sys_wf_instance` (`instance_id`, `tenant_id`, `definition_id`, `definition_version`, `process_key`, `process_name`, `category`, `owner_service`, `business_no`, `business_type`, `domain_type`, `action_code`, `idempotency_key`, `form_data`, `form_schema_snapshot`, `model_content_snapshot`, `current_node`, `initiator_user_id`, `initiator_user_name`, `initiator_nick_name`, `status`, `start_time`, `last_action`, `last_action_user_id`, `last_action_user_name`, `last_action_time`, `remark`)
 VALUES
-  (1, '000000', 1, 1, 'purchase_apply', '采购审批流程', 'purchase', 'system', 'PO-20260309-001', 'PURCHASE_APPLY', 'PURCHASE_APPLY', 'SUBMIT', 'PO-20260309-001', '{"amount":12000,"reason":"办公设备采购"}', '{"fields":[{"name":"amount","label":"金额"}]}', '{"nodes":[{"id":"NODE_1","name":"部门负责人审批"}]}', '部门负责人审批', 1, 'admin', '系统管理员', '0', NOW(), 'START', 1, 'admin', NOW(), 'workflow 初始化流程实例');
+  (1, '000000', 1, 1, 'purchase_apply', '采购审批流程', 'purchase', 'system', 'PO-20260309-001', 'PURCHASE_APPLY', 'PURCHASE_APPLY', 'SUBMIT', 'PO-20260309-001', '{"amount":12000,"reason":"办公设备采购"}', '{"fields":[{"name":"amount","label":"金额"}]}', '{"nodes":[{"id":"NODE_1","name":"部门负责人审批"}]}', '部门负责人审批', 1, 'admin', '系统管理员', '0', NOW(), 'START', 1, 'admin', NOW(), 'workflow 初始化流程实例')
+ON DUPLICATE KEY UPDATE
+  `definition_id` = VALUES(`definition_id`),
+  `definition_version` = VALUES(`definition_version`),
+  `process_key` = VALUES(`process_key`),
+  `process_name` = VALUES(`process_name`),
+  `category` = VALUES(`category`),
+  `owner_service` = VALUES(`owner_service`),
+  `business_no` = VALUES(`business_no`),
+  `business_type` = VALUES(`business_type`),
+  `domain_type` = VALUES(`domain_type`),
+  `action_code` = VALUES(`action_code`),
+  `idempotency_key` = VALUES(`idempotency_key`),
+  `form_data` = VALUES(`form_data`),
+  `form_schema_snapshot` = VALUES(`form_schema_snapshot`),
+  `model_content_snapshot` = VALUES(`model_content_snapshot`),
+  `current_node` = VALUES(`current_node`),
+  `initiator_user_id` = VALUES(`initiator_user_id`),
+  `initiator_user_name` = VALUES(`initiator_user_name`),
+  `initiator_nick_name` = VALUES(`initiator_nick_name`),
+  `status` = VALUES(`status`),
+  `start_time` = VALUES(`start_time`),
+  `last_action` = VALUES(`last_action`),
+  `last_action_user_id` = VALUES(`last_action_user_id`),
+  `last_action_user_name` = VALUES(`last_action_user_name`),
+  `last_action_time` = VALUES(`last_action_time`),
+  `remark` = VALUES(`remark`);
 
 INSERT INTO `sys_todo_task` (`todo_id`, `instance_id`, `task_id`, `tenant_id`, `process_name`, `node_name`, `business_no`, `priority`, `status`, `assignee_user_id`, `due_time`, `create_time`, `remark`)
 VALUES
   (1, NULL, NULL, '000000', '请假审批', '部门负责人审批', 'LV-20260307-001', 'H', '0', 1, DATE_ADD(NOW(), INTERVAL 1 DAY), NOW(), '请及时处理'),
   (2, NULL, NULL, '000000', '采购申请', '财务复核', 'PO-20260307-018', 'M', '1', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), '处理中'),
   (3, NULL, NULL, '000000', '合同归档', '档案确认', 'CT-20260306-021', 'L', '0', 1, DATE_ADD(NOW(), INTERVAL 3 DAY), NOW(), '待签收'),
-  (4, 1, 1, '000000', '采购审批流程', '部门负责人审批', 'PO-20260309-001', 'M', '0', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), 'workflow 初始化待办');
+  (4, 1, 1, '000000', '采购审批流程', '部门负责人审批', 'PO-20260309-001', 'M', '0', 1, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW(), 'workflow 初始化待办')
+ON DUPLICATE KEY UPDATE
+  `instance_id` = VALUES(`instance_id`),
+  `task_id` = VALUES(`task_id`),
+  `process_name` = VALUES(`process_name`),
+  `node_name` = VALUES(`node_name`),
+  `business_no` = VALUES(`business_no`),
+  `priority` = VALUES(`priority`),
+  `status` = VALUES(`status`),
+  `assignee_user_id` = VALUES(`assignee_user_id`),
+  `due_time` = VALUES(`due_time`),
+  `create_time` = VALUES(`create_time`),
+  `remark` = VALUES(`remark`);
 
 INSERT INTO `sys_wf_task` (`task_id`, `tenant_id`, `instance_id`, `definition_id`, `node_key`, `node_name`, `candidate_user_ids`, `assignee_user_id`, `assignee_user_name`, `assignee_nick_name`, `status`, `todo_id`, `due_time`, `create_time`)
 VALUES
-  (1, '000000', 1, 1, 'NODE_1', '部门负责人审批', '1', 1, 'admin', '系统管理员', '0', 4, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW());
+  (1, '000000', 1, 1, 'NODE_1', '部门负责人审批', '1', 1, 'admin', '系统管理员', '0', 4, DATE_ADD(NOW(), INTERVAL 2 DAY), NOW())
+ON DUPLICATE KEY UPDATE
+  `instance_id` = VALUES(`instance_id`),
+  `definition_id` = VALUES(`definition_id`),
+  `node_key` = VALUES(`node_key`),
+  `node_name` = VALUES(`node_name`),
+  `candidate_user_ids` = VALUES(`candidate_user_ids`),
+  `assignee_user_id` = VALUES(`assignee_user_id`),
+  `assignee_user_name` = VALUES(`assignee_user_name`),
+  `assignee_nick_name` = VALUES(`assignee_nick_name`),
+  `status` = VALUES(`status`),
+  `todo_id` = VALUES(`todo_id`),
+  `due_time` = VALUES(`due_time`),
+  `create_time` = VALUES(`create_time`);
 
 INSERT INTO `sys_wf_task_action` (`action_id`, `tenant_id`, `instance_id`, `task_id`, `definition_id`, `node_name`, `action_type`, `action_user_id`, `action_user_name`, `action_nick_name`, `to_assignee_user_id`, `action_comment`, `action_time`)
 VALUES
-  (1, '000000', 1, 1, 1, '部门负责人审批', 'START', 1, 'admin', '系统管理员', 1, '流程发起', NOW());
+  (1, '000000', 1, 1, 1, '部门负责人审批', 'START', 1, 'admin', '系统管理员', 1, '流程发起', NOW())
+ON DUPLICATE KEY UPDATE
+  `instance_id` = VALUES(`instance_id`),
+  `task_id` = VALUES(`task_id`),
+  `definition_id` = VALUES(`definition_id`),
+  `node_name` = VALUES(`node_name`),
+  `action_type` = VALUES(`action_type`),
+  `action_user_id` = VALUES(`action_user_id`),
+  `action_user_name` = VALUES(`action_user_name`),
+  `action_nick_name` = VALUES(`action_nick_name`),
+  `to_assignee_user_id` = VALUES(`to_assignee_user_id`),
+  `action_comment` = VALUES(`action_comment`),
+  `action_time` = VALUES(`action_time`);

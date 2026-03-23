@@ -12,10 +12,13 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.ObjectError;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -152,6 +155,22 @@ public class GlobalExceptionHandlerSupport {
     }
 
     /**
+     * 处理 SQL 语法或表结构异常，优先给出可执行的结构修复提示。
+     *
+     * @param ex 异常对象
+     * @return 统一错误响应
+     */
+    @ExceptionHandler(BadSqlGrammarException.class)
+    public ResponseEntity<R<Void>> handleBadSqlGrammarException(BadSqlGrammarException ex) {
+        if (containsSchemaMismatch(ex)) {
+            LOG.error("Database schema mismatch in API layer.", ex);
+            return buildErrorResponse(ResultCode.ERROR, "数据库结构异常，请执行对应模块初始化/升级脚本");
+        }
+        LOG.error("Bad SQL grammar in API layer.", ex);
+        return buildErrorResponse(ResultCode.ERROR, ResultCode.ERROR.getMessage());
+    }
+
+    /**
      * 处理业务服务异常，并透传约定业务码。
      *
      * @param ex 异常对象
@@ -187,6 +206,38 @@ public class GlobalExceptionHandlerSupport {
     public ResponseEntity<R<Void>> handleIllegalArgumentException(IllegalArgumentException ex) {
         String message = Optional.ofNullable(ex.getMessage()).orElse(ResultCode.PARAM_ERROR.getMessage());
         return buildErrorResponse(ResultCode.PARAM_ERROR, message);
+    }
+
+    /**
+     * 处理内部 HTTP 调用返回的错误状态，尽量透传为对应的业务语义。
+     *
+     * @param ex 异常对象
+     * @return 统一错误响应
+     */
+    @ExceptionHandler(HttpStatusCodeException.class)
+    public ResponseEntity<R<Void>> handleHttpStatusCodeException(HttpStatusCodeException ex) {
+        HttpStatus upstreamStatus = HttpStatus.resolve(ex.getStatusCode().value());
+        if (upstreamStatus == null) {
+            upstreamStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+        ResultCode resultCode = resolveResultCodeByHttpStatus(upstreamStatus);
+        String message = Optional.ofNullable(ex.getStatusText())
+                .filter(text -> !text.isBlank())
+                .orElse("内部服务调用失败");
+        R<Void> body = R.failed(resultCode, message);
+        return ResponseEntity.status(upstreamStatus).body(body);
+    }
+
+    /**
+     * 处理内部 HTTP 调用网络不可达异常。
+     *
+     * @param ex 异常对象
+     * @return 统一错误响应
+     */
+    @ExceptionHandler(ResourceAccessException.class)
+    public ResponseEntity<R<Void>> handleResourceAccessException(ResourceAccessException ex) {
+        LOG.error("Internal service is unreachable.", ex);
+        return buildErrorResponse(ResultCode.ERROR, "内部服务不可达");
     }
 
     /**
@@ -251,5 +302,52 @@ public class GlobalExceptionHandlerSupport {
             current = current.getCause();
         }
         return false;
+    }
+
+    /**
+     * 判断异常链中是否包含数据库表或字段缺失导致的结构不匹配异常。
+     *
+     * @param ex 异常对象
+     * @return true 表示数据库结构不匹配
+     */
+    protected boolean containsSchemaMismatch(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && (message.contains("doesn't exist")
+                    || message.contains("Unknown column")
+                    || message.contains("Table")
+                    || message.contains("Column")
+                    || message.contains("BadSqlGrammarException"))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    /**
+     * 按 HTTP 状态码映射内部业务码。
+     *
+     * @param status HTTP 状态码
+     * @return 业务码
+     */
+    protected ResultCode resolveResultCodeByHttpStatus(HttpStatus status) {
+        if (HttpStatus.BAD_REQUEST.equals(status)) {
+            return ResultCode.PARAM_ERROR;
+        }
+        if (HttpStatus.UNAUTHORIZED.equals(status)) {
+            return ResultCode.UNAUTHORIZED;
+        }
+        if (HttpStatus.FORBIDDEN.equals(status)) {
+            return ResultCode.FORBIDDEN;
+        }
+        if (HttpStatus.NOT_FOUND.equals(status)) {
+            return ResultCode.NOT_FOUND;
+        }
+        if (HttpStatus.CONFLICT.equals(status)) {
+            return ResultCode.CONFLICT;
+        }
+        return ResultCode.ERROR;
     }
 }

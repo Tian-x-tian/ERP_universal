@@ -1,6 +1,6 @@
 package com.erp.workflow.service;
 
-import com.erp.workflow.domain.platform.SysNotice;
+import com.erp.workflow.domain.SysNotice;
 
 /**
  * 工作流通知桥接服务接口。

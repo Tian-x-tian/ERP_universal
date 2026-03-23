@@ -15,6 +15,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -33,6 +34,7 @@ import java.util.function.Consumer;
  */
 @Service
 public class AiOpenAiCompatibleClient implements AiModelClient {
+    private static final int MAX_RETRY_ATTEMPTS = 2;
     private final ErpAiProperties erpAiProperties;
     private final ObjectMapper objectMapper;
 
@@ -57,7 +59,7 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
                     .timeout(Duration.ofMillis(Math.max(1000L, erpAiProperties.getReadTimeoutMs())))
                     .GET()
                     .build();
-            HttpResponse<InputStream> response = buildHttpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response = sendWithRetry(request);
             try (InputStream inputStream = response.body()) {
                 return response.statusCode() >= 200 && response.statusCode() < 300;
             }
@@ -86,7 +88,7 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
                 .POST(HttpRequest.BodyPublishers.ofString(buildChatRequestBody(messages, false, tools)))
                 .build();
 
-        HttpResponse<InputStream> response = buildHttpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
+        HttpResponse<InputStream> response = sendWithRetry(request);
         try (InputStream inputStream = response.body()) {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new IOException(resolveErrorMessage(readAsString(inputStream), response.statusCode()));
@@ -120,7 +122,7 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
                 .POST(HttpRequest.BodyPublishers.ofString(buildChatRequestBody(messages, true, Collections.emptyList())))
                 .build();
 
-        HttpResponse<InputStream> response = buildHttpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
+        HttpResponse<InputStream> response = sendWithRetry(request);
         try (InputStream inputStream = response.body()) {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new IOException(resolveErrorMessage(readAsString(inputStream), response.statusCode()));
@@ -473,6 +475,56 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
     private HttpClient buildHttpClient() {
         return HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(Math.max(1000L, erpAiProperties.getConnectTimeoutMs())))
+                .version(HttpClient.Version.HTTP_1_1)
                 .build();
+    }
+
+    /**
+     * 发送模型请求，并在上游偶发断链或 5xx 时自动重试一次。
+     *
+     * @param request HTTP 请求
+     * @return HTTP 响应
+     * @throws IOException          IO 异常
+     * @throws InterruptedException 中断异常
+     */
+    private HttpResponse<InputStream> sendWithRetry(HttpRequest request) throws IOException, InterruptedException {
+        IOException lastIOException = null;
+        HttpResponse<InputStream> lastResponse = null;
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<InputStream> response = buildHttpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
+                if (response.statusCode() >= 500 && attempt < MAX_RETRY_ATTEMPTS) {
+                    closeQuietly(response.body());
+                    lastResponse = response;
+                    continue;
+                }
+                return response;
+            } catch (IOException ex) {
+                lastIOException = ex;
+                if (attempt >= MAX_RETRY_ATTEMPTS) {
+                    throw ex;
+                }
+            }
+        }
+        if (lastResponse != null) {
+            return lastResponse;
+        }
+        throw lastIOException == null ? new IOException("AI 服务请求失败") : lastIOException;
+    }
+
+    /**
+     * 安静关闭输入流，避免重试时遗留连接。
+     *
+     * @param inputStream 输入流
+     */
+    private void closeQuietly(InputStream inputStream) {
+        if (inputStream == null) {
+            return;
+        }
+        try (InputStream ignored = inputStream; OutputStream nullOutputStream = OutputStream.nullOutputStream()) {
+            ignored.transferTo(nullOutputStream);
+        } catch (Exception ignored) {
+            // ignore
+        }
     }
 }

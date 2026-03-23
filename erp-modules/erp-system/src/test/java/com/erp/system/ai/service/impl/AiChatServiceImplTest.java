@@ -9,6 +9,7 @@ import com.erp.system.ai.model.AiPageContext;
 import com.erp.system.ai.model.AiPendingAction;
 import com.erp.system.ai.model.AiPromptContext;
 import com.erp.system.ai.model.AiToolCall;
+import com.erp.system.ai.model.AiToolDefinition;
 import com.erp.system.ai.service.AiActionService;
 import com.erp.system.ai.service.AiContextService;
 import com.erp.system.ai.service.AiModelClient;
@@ -26,6 +27,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -138,6 +140,123 @@ class AiChatServiceImplTest {
         verifyNoInteractions(aiModelClient);
     }
 
+    /**
+     * 验证“列出未读消息”会直接使用 ERP 上下文生成回复。
+     */
+    @Test
+    void shouldReplyUnreadNoticeSummaryWithoutCallingModel() {
+        ErpAiProperties properties = new ErpAiProperties();
+        properties.setModel("gpt-5.1");
+        AiChatServiceImpl aiChatService = new AiChatServiceImpl(aiContextService, aiModelClient, aiActionService, properties);
+        when(aiContextService.buildPromptContext(any())).thenReturn(buildPromptContextWithTodoAndNotice());
+
+        AiChatRequest request = buildMinimalRequest();
+        request.setMessages(Collections.singletonList(new AiChatMessage("user", "列出未读消息")));
+
+        aiChatService.streamChat(request, aiStreamListener);
+
+        verify(aiStreamListener).onDone(org.mockito.ArgumentMatchers.contains("未读消息"));
+        verifyNoInteractions(aiModelClient);
+    }
+
+    /**
+     * 验证“我今天优先做什么”会直接使用 ERP 上下文生成建议。
+     */
+    @Test
+    void shouldReplyTodayPriorityWithoutCallingModel() {
+        ErpAiProperties properties = new ErpAiProperties();
+        properties.setModel("gpt-5.1");
+        AiChatServiceImpl aiChatService = new AiChatServiceImpl(aiContextService, aiModelClient, aiActionService, properties);
+        when(aiContextService.buildPromptContext(any())).thenReturn(buildPromptContextWithTodoAndNotice());
+
+        AiChatRequest request = buildMinimalRequest();
+        request.setMessages(Collections.singletonList(new AiChatMessage("user", "我今天优先做什么")));
+
+        aiChatService.streamChat(request, aiStreamListener);
+
+        verify(aiStreamListener).onDone(org.mockito.ArgumentMatchers.contains("今天建议你优先处理"));
+        verifyNoInteractions(aiModelClient);
+    }
+
+    /**
+     * 验证当带工具补全失败时，会自动降级为纯对话补全。
+     *
+     * @throws Exception 异常
+     */
+    @Test
+    void shouldFallbackToPlainCompletionWhenToolCompletionFails() throws Exception {
+        ErpAiProperties properties = new ErpAiProperties();
+        properties.setModel("gpt-5.1");
+        AiChatServiceImpl aiChatService = new AiChatServiceImpl(aiContextService, aiModelClient, aiActionService, properties);
+        when(aiContextService.buildPromptContext(any())).thenReturn(buildPromptContext());
+        when(aiActionService.listAvailableActions()).thenReturn(Collections.emptyList());
+        AiToolDefinition toolDefinition = buildTool("notice_read_all");
+        when(aiActionService.buildAvailableTools()).thenReturn(Collections.singletonList(toolDefinition));
+
+        AiModelCompletion fallbackCompletion = new AiModelCompletion();
+        fallbackCompletion.setContent("这是降级后的回复");
+        when(aiModelClient.completeChat(anyList(), anyList()))
+                .thenThrow(new java.io.IOException("Connection prematurely closed BEFORE response"))
+                .thenReturn(fallbackCompletion);
+
+        aiChatService.streamChat(buildMinimalRequest(), aiStreamListener);
+
+        verify(aiStreamListener).onDelta("这是降级后的回复");
+        verify(aiStreamListener).onDone("这是降级后的回复");
+        verify(aiModelClient).completeChat(anyList(), eq(Collections.singletonList(toolDefinition)));
+        verify(aiModelClient).completeChat(anyList(), eq(Collections.emptyList()));
+        verify(aiStreamListener, never()).onError(any());
+    }
+
+    /**
+     * 验证当普通补全没有有效文本时，会继续降级为纯流式回复。
+     *
+     * @throws Exception 异常
+     */
+    @Test
+    void shouldFallbackToStreamWhenCompletionHasNoContent() throws Exception {
+        ErpAiProperties properties = new ErpAiProperties();
+        properties.setModel("gpt-5.1");
+        AiChatServiceImpl aiChatService = new AiChatServiceImpl(aiContextService, aiModelClient, aiActionService, properties);
+        when(aiContextService.buildPromptContext(any())).thenReturn(buildPromptContext());
+        when(aiActionService.listAvailableActions()).thenReturn(Collections.emptyList());
+        when(aiActionService.buildAvailableTools()).thenReturn(Collections.emptyList());
+        when(aiModelClient.completeChat(anyList(), eq(Collections.emptyList()))).thenReturn(new AiModelCompletion());
+        when(aiModelClient.streamChat(anyList(), any())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            java.util.function.Consumer<String> deltaConsumer = invocation.getArgument(1);
+            deltaConsumer.accept("流式降级回复");
+            return "流式降级回复";
+        });
+
+        aiChatService.streamChat(buildMinimalRequest(), aiStreamListener);
+
+        verify(aiStreamListener).onDelta("流式降级回复");
+        verify(aiStreamListener).onDone("流式降级回复");
+        verify(aiStreamListener, never()).onError(any());
+    }
+
+    /**
+     * 验证传输层英文异常会转换为面向用户的中文提示。
+     *
+     * @throws Exception 异常
+     */
+    @Test
+    void shouldMapTransportErrorToFriendlyChineseMessage() throws Exception {
+        ErpAiProperties properties = new ErpAiProperties();
+        properties.setModel("gpt-5.1");
+        AiChatServiceImpl aiChatService = new AiChatServiceImpl(aiContextService, aiModelClient, aiActionService, properties);
+        when(aiContextService.buildPromptContext(any())).thenReturn(buildPromptContext());
+        when(aiActionService.listAvailableActions()).thenReturn(Collections.emptyList());
+        when(aiActionService.buildAvailableTools()).thenReturn(Collections.emptyList());
+        when(aiModelClient.completeChat(anyList(), eq(Collections.emptyList())))
+                .thenThrow(new java.io.IOException("Connection prematurely closed BEFORE response"));
+
+        aiChatService.streamChat(buildMinimalRequest(), aiStreamListener);
+
+        verify(aiStreamListener).onError("本地模型服务连接被中断，请稍后重试");
+    }
+
     private AiChatRequest buildRequest() {
         AiChatRequest request = buildMinimalRequest();
         request.setMessages(Arrays.asList(
@@ -169,5 +288,35 @@ class AiChatServiceImplTest {
         currentUser.setTenantId("000000");
         promptContext.setCurrentUser(currentUser);
         return promptContext;
+    }
+
+    private AiPromptContext buildPromptContextWithTodoAndNotice() {
+        AiPromptContext promptContext = buildPromptContext();
+        promptContext.setTodoContextAvailable(true);
+        promptContext.setTodoCount(2);
+        AiPromptContext.TodoSummary todoSummary = new AiPromptContext.TodoSummary();
+        todoSummary.setProcessName("采购申请");
+        todoSummary.setNodeName("部门审批");
+        todoSummary.setBusinessNo("PO20260322001");
+        todoSummary.setPriority("HIGH");
+        todoSummary.setStatus("0");
+        promptContext.setTodoList(Collections.singletonList(todoSummary));
+
+        promptContext.setNoticeContextAvailable(true);
+        promptContext.setUnreadNoticeCount(1);
+        AiPromptContext.NoticeSummary noticeSummary = new AiPromptContext.NoticeSummary();
+        noticeSummary.setTitle("流程催办");
+        noticeSummary.setNoticeType("workflow");
+        noticeSummary.setSource("system");
+        noticeSummary.setBusinessNo("PO20260322001");
+        noticeSummary.setStatus("0");
+        promptContext.setNoticeList(Collections.singletonList(noticeSummary));
+        return promptContext;
+    }
+
+    private AiToolDefinition buildTool(String name) {
+        AiToolDefinition toolDefinition = new AiToolDefinition();
+        toolDefinition.setName(name);
+        return toolDefinition;
     }
 }

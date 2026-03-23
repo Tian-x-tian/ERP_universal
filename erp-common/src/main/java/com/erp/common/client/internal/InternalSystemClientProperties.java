@@ -7,10 +7,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "erp.internal")
 public class InternalSystemClientProperties {
+    private static final String DEFAULT_SYSTEM_BASE_URL = "http://erp-system";
+    private static final String DEFAULT_WORKFLOW_BASE_URL = "http://erp-workflow";
+    private static final String DEFAULT_BUSINESS_BASE_URL = "http://erp-business";
+
     private String authSignatureSecret = "erp-internal-auth-signature-2026";
-    private String systemBaseUrl = "http://127.0.0.1:9092";
-    private String workflowBaseUrl = "http://127.0.0.1:9094";
-    private String businessBaseUrl = "http://127.0.0.1:9093";
+    private String systemBaseUrl = DEFAULT_SYSTEM_BASE_URL;
+    private String workflowBaseUrl = DEFAULT_WORKFLOW_BASE_URL;
+    private String businessBaseUrl = DEFAULT_BUSINESS_BASE_URL;
     private Long serviceUserId = 0L;
     private String serviceUserName = "erp-service";
     private String serviceTenantId = "000000";
@@ -47,6 +51,18 @@ public class InternalSystemClientProperties {
 
     public void setBusinessBaseUrl(String businessBaseUrl) {
         this.businessBaseUrl = businessBaseUrl;
+    }
+
+    public String resolveSystemBaseUrl() {
+        return hasText(systemBaseUrl) ? systemBaseUrl.trim() : DEFAULT_SYSTEM_BASE_URL;
+    }
+
+    public String resolveWorkflowBaseUrl() {
+        return hasText(workflowBaseUrl) ? workflowBaseUrl.trim() : DEFAULT_WORKFLOW_BASE_URL;
+    }
+
+    public String resolveBusinessBaseUrl() {
+        return hasText(businessBaseUrl) ? businessBaseUrl.trim() : DEFAULT_BUSINESS_BASE_URL;
     }
 
     public Long getServiceUserId() {
@@ -87,5 +103,9 @@ public class InternalSystemClientProperties {
 
     public void setServiceExpiresAt(Long serviceExpiresAt) {
         this.serviceExpiresAt = serviceExpiresAt;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

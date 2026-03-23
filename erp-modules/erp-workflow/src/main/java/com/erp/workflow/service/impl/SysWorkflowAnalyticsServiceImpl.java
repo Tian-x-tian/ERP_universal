@@ -1,8 +1,8 @@
 package com.erp.workflow.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.erp.workflow.domain.platform.SysDept;
-import com.erp.workflow.domain.platform.SysUser;
+import com.erp.platform.contract.model.PlatformDeptView;
+import com.erp.platform.contract.model.PlatformUserView;
 import com.erp.workflow.contract.domain.SysWorkflowInstance;
 import com.erp.workflow.contract.domain.SysWorkflowTask;
 import com.erp.workflow.contract.domain.vo.WorkflowDashboardQueryVO;
@@ -13,9 +13,8 @@ import com.erp.workflow.contract.domain.vo.WorkflowNodeMetricVO;
 import com.erp.workflow.contract.domain.vo.WorkflowProcessMetricVO;
 import com.erp.workflow.mapper.SysWorkflowInstanceMapper;
 import com.erp.workflow.mapper.SysWorkflowTaskMapper;
-import com.erp.workflow.service.ISysDeptService;
-import com.erp.workflow.service.ISysUserService;
 import com.erp.workflow.service.ISysWorkflowAnalyticsService;
+import com.erp.workflow.service.platform.IWorkflowPlatformReadService;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -47,17 +46,14 @@ public class SysWorkflowAnalyticsServiceImpl implements ISysWorkflowAnalyticsSer
 
     private final SysWorkflowInstanceMapper workflowInstanceMapper;
     private final SysWorkflowTaskMapper workflowTaskMapper;
-    private final ISysUserService userService;
-    private final ISysDeptService deptService;
+    private final IWorkflowPlatformReadService platformReadService;
 
     public SysWorkflowAnalyticsServiceImpl(SysWorkflowInstanceMapper workflowInstanceMapper,
                                            SysWorkflowTaskMapper workflowTaskMapper,
-                                           ISysUserService userService,
-                                           ISysDeptService deptService) {
+                                           IWorkflowPlatformReadService platformReadService) {
         this.workflowInstanceMapper = workflowInstanceMapper;
         this.workflowTaskMapper = workflowTaskMapper;
-        this.userService = userService;
-        this.deptService = deptService;
+        this.platformReadService = platformReadService;
     }
 
     /**
@@ -86,7 +82,7 @@ public class SysWorkflowAnalyticsServiceImpl implements ISysWorkflowAnalyticsSer
             }
         }
         List<SysWorkflowInstance> instanceList = workflowInstanceMapper.selectList(instanceWrapper);
-        Map<Long, SysUser> userMap = loadUserMap(instanceList);
+        Map<Long, PlatformUserView> userMap = loadUserMap(instanceList);
         if (queryVO != null && queryVO.getDeptId() != null) {
             instanceList = filterInstanceListByDept(instanceList, userMap, queryVO.getDeptId());
         }
@@ -95,7 +91,7 @@ public class SysWorkflowAnalyticsServiceImpl implements ISysWorkflowAnalyticsSer
         Map<Long, List<SysWorkflowTask>> taskMapByInstance = taskList.stream()
                 .filter(task -> task.getInstanceId() != null)
                 .collect(Collectors.groupingBy(SysWorkflowTask::getInstanceId));
-        Map<Long, SysDept> deptMap = loadDeptMap(userMap.values());
+        Map<Long, PlatformDeptView> deptMap = loadDeptMap(userMap.values());
 
         WorkflowDashboardVO dashboard = new WorkflowDashboardVO();
         dashboard.setNodeMetrics(buildNodeMetrics(taskList));
@@ -114,7 +110,7 @@ public class SysWorkflowAnalyticsServiceImpl implements ISysWorkflowAnalyticsSer
      * @return 过滤后的实例列表
      */
     private List<SysWorkflowInstance> filterInstanceListByDept(List<SysWorkflowInstance> instanceList,
-                                                               Map<Long, SysUser> userMap,
+                                                               Map<Long, PlatformUserView> userMap,
                                                                Long deptId) {
         if (deptId == null || instanceList == null || instanceList.isEmpty()) {
             return instanceList;
@@ -124,7 +120,7 @@ public class SysWorkflowAnalyticsServiceImpl implements ISysWorkflowAnalyticsSer
                     if (instance == null || instance.getInitiatorUserId() == null) {
                         return false;
                     }
-                    SysUser user = userMap.get(instance.getInitiatorUserId());
+                    PlatformUserView user = userMap.get(instance.getInitiatorUserId());
                     return user != null && Objects.equals(user.getDeptId(), deptId);
                 })
                 .collect(Collectors.toList());
@@ -284,16 +280,16 @@ public class SysWorkflowAnalyticsServiceImpl implements ISysWorkflowAnalyticsSer
      */
     private List<WorkflowDeptMetricVO> buildDeptMetrics(List<SysWorkflowInstance> instanceList,
                                                         Map<Long, List<SysWorkflowTask>> taskMapByInstance,
-                                                        Map<Long, SysUser> userMap,
-                                                        Map<Long, SysDept> deptMap) {
+                                                        Map<Long, PlatformUserView> userMap,
+                                                        Map<Long, PlatformDeptView> deptMap) {
         Map<Long, DeptAccumulator> accumulatorMap = new HashMap<>();
         for (SysWorkflowInstance instance : instanceList) {
             Long initiatorUserId = instance.getInitiatorUserId();
-            SysUser user = initiatorUserId == null ? null : userMap.get(initiatorUserId);
+            PlatformUserView user = initiatorUserId == null ? null : userMap.get(initiatorUserId);
             Long deptId = user == null ? 0L : (user.getDeptId() == null ? 0L : user.getDeptId());
             DeptAccumulator accumulator = accumulatorMap.computeIfAbsent(deptId, key -> new DeptAccumulator());
             accumulator.deptId = deptId;
-            SysDept dept = deptMap.get(deptId);
+            PlatformDeptView dept = deptMap.get(deptId);
             accumulator.deptName = dept == null ? "未分配部门" : dept.getDeptName();
             accumulator.instanceCount += 1;
             accumulator.totalInstanceHours += calculateInstanceHours(instance);
@@ -326,7 +322,7 @@ public class SysWorkflowAnalyticsServiceImpl implements ISysWorkflowAnalyticsSer
      * @param instanceList 实例列表
      * @return 用户映射
      */
-    private Map<Long, SysUser> loadUserMap(List<SysWorkflowInstance> instanceList) {
+    private Map<Long, PlatformUserView> loadUserMap(List<SysWorkflowInstance> instanceList) {
         Set<Long> userIdSet = instanceList.stream()
                 .map(SysWorkflowInstance::getInitiatorUserId)
                 .filter(Objects::nonNull)
@@ -334,8 +330,7 @@ public class SysWorkflowAnalyticsServiceImpl implements ISysWorkflowAnalyticsSer
         if (userIdSet.isEmpty()) {
             return Collections.emptyMap();
         }
-        return userService.listByIds(userIdSet).stream()
-                .collect(Collectors.toMap(SysUser::getUserId, user -> user, (left, right) -> left));
+        return platformReadService.getUserMap(userIdSet);
     }
 
     /**
@@ -344,16 +339,15 @@ public class SysWorkflowAnalyticsServiceImpl implements ISysWorkflowAnalyticsSer
      * @param userCollection 用户集合
      * @return 部门映射
      */
-    private Map<Long, SysDept> loadDeptMap(Collection<SysUser> userCollection) {
+    private Map<Long, PlatformDeptView> loadDeptMap(Collection<PlatformUserView> userCollection) {
         Set<Long> deptIdSet = userCollection.stream()
-                .map(SysUser::getDeptId)
+                .map(PlatformUserView::getDeptId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         if (deptIdSet.isEmpty()) {
             return Collections.emptyMap();
         }
-        return deptService.listByIds(deptIdSet).stream()
-                .collect(Collectors.toMap(SysDept::getDeptId, dept -> dept, (left, right) -> left));
+        return platformReadService.getDepartmentMap(deptIdSet);
     }
 
     /**

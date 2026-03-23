@@ -8,7 +8,10 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
  * ERP 系统模块独立启动入口。
  */
 @EnableDiscoveryClient
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {
+        "com.erp.common",
+        "com.erp.system"
+})
 public class SystemModuleApplication {
 
     /**

@@ -10,6 +10,7 @@ public class PlatformUserView implements Serializable {
 
     private Long userId;
     private String tenantId;
+    private Long deptId;
     private String userName;
     private String nickName;
     private String status;
@@ -29,6 +30,14 @@ public class PlatformUserView implements Serializable {
 
     public void setTenantId(String tenantId) {
         this.tenantId = tenantId;
+    }
+
+    public Long getDeptId() {
+        return deptId;
+    }
+
+    public void setDeptId(Long deptId) {
+        this.deptId = deptId;
     }
 
     public String getUserName() {

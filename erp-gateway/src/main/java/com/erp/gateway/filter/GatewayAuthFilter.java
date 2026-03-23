@@ -31,7 +31,7 @@ import java.util.List;
  */
 @Component
 public class GatewayAuthFilter implements GlobalFilter, Ordered {
-    private static final List<String> PROTECTED_PATTERNS = List.of("/system/**", "/business/**");
+    private static final List<String> PROTECTED_PATTERNS = List.of("/system/**", "/workflow/**", "/business/**");
     private static final List<String> PUBLIC_PATTERNS = List.of(
             "/login",
             "/logout",

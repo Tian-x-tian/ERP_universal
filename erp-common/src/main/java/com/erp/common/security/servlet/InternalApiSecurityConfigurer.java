@@ -4,6 +4,7 @@ import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.web.ApiHttpStatusResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -56,6 +57,7 @@ public final class InternalApiSecurityConfigurer {
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
+                    auth.dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll();
                     auth.requestMatchers(DEFAULT_PUBLIC_PATTERNS.toArray(new String[0])).permitAll();
                     if (!publicMatchers.isEmpty()) {
                         auth.requestMatchers(publicMatchers.toArray(new String[0])).permitAll();

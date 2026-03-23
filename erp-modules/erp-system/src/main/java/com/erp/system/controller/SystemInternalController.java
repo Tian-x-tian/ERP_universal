@@ -2,30 +2,44 @@ package com.erp.system.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.erp.platform.contract.model.PlatformAuthorityBundle;
+import com.erp.platform.contract.model.PlatformDeptView;
 import com.erp.platform.contract.model.PlatformImexJob;
 import com.erp.platform.contract.model.PlatformImexJobCreateRequest;
 import com.erp.platform.contract.model.PlatformImexJobUpdateRequest;
 import com.erp.platform.contract.model.PlatformItemView;
 import com.erp.platform.contract.model.PlatformNoticeCreateRequest;
+import com.erp.platform.contract.model.PlatformPostView;
+import com.erp.platform.contract.model.PlatformRoleView;
 import com.erp.platform.contract.model.PlatformTenantView;
+import com.erp.platform.contract.model.PlatformUserPostLink;
+import com.erp.platform.contract.model.PlatformUserRoleLink;
 import com.erp.platform.contract.model.PlatformUserView;
 import com.erp.platform.contract.model.PlatformWarehouseView;
 import com.erp.system.domain.MdmItem;
 import com.erp.system.domain.MdmWarehouse;
+import com.erp.system.domain.SysDept;
 import com.erp.system.domain.SysImexJob;
 import com.erp.system.domain.SysNotice;
+import com.erp.system.domain.SysPost;
+import com.erp.system.domain.SysRole;
 import com.erp.system.domain.SysTenant;
 import com.erp.system.domain.SysUser;
+import com.erp.system.domain.SysUserPost;
+import com.erp.system.domain.SysUserRole;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmItemService;
 import com.erp.system.service.IMdmWarehouseService;
 import com.erp.system.service.ISysConfigService;
+import com.erp.system.service.ISysDeptService;
 import com.erp.system.service.ISysImexJobService;
 import com.erp.system.service.ISysMenuService;
 import com.erp.system.service.ISysNoticeService;
+import com.erp.system.service.ISysPostService;
 import com.erp.system.service.ISysRoleService;
 import com.erp.system.service.ISysTenantService;
 import com.erp.system.service.ISysUserService;
+import com.erp.system.service.ISysUserPostService;
+import com.erp.system.service.ISysUserRoleService;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,7 +52,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 平台内部契约控制层。
@@ -58,6 +75,10 @@ public class SystemInternalController {
     private final IMdmItemService itemService;
     private final IMdmWarehouseService warehouseService;
     private final ISysUserService userService;
+    private final ISysDeptService deptService;
+    private final ISysPostService postService;
+    private final ISysUserRoleService userRoleService;
+    private final ISysUserPostService userPostService;
     private final ISysNoticeService noticeService;
 
     public SystemInternalController(SecurityUserResolver securityUserResolver,
@@ -69,6 +90,10 @@ public class SystemInternalController {
             IMdmItemService itemService,
             IMdmWarehouseService warehouseService,
             ISysUserService userService,
+            ISysDeptService deptService,
+            ISysPostService postService,
+            ISysUserRoleService userRoleService,
+            ISysUserPostService userPostService,
             ISysNoticeService noticeService) {
         this.securityUserResolver = securityUserResolver;
         this.roleService = roleService;
@@ -79,6 +104,10 @@ public class SystemInternalController {
         this.itemService = itemService;
         this.warehouseService = warehouseService;
         this.userService = userService;
+        this.deptService = deptService;
+        this.postService = postService;
+        this.userRoleService = userRoleService;
+        this.userPostService = userPostService;
         this.noticeService = noticeService;
     }
 
@@ -230,6 +259,176 @@ public class SystemInternalController {
     }
 
     /**
+     * 查询活动用户列表，支持按用户ID集合筛选。
+     *
+     * @param ids 用户ID集合
+     * @return 用户列表
+     */
+    @GetMapping("/platform/users")
+    public List<PlatformUserView> users(@RequestParam(value = "ids", required = false) String ids) {
+        LambdaQueryWrapper<SysUser> queryWrapper = new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getStatus, STATUS_ENABLED)
+                .eq(SysUser::getDelFlag, DEL_FLAG_EXISTS)
+                .orderByAsc(SysUser::getUserId);
+        Set<Long> userIdSet = parseIds(ids);
+        if (!userIdSet.isEmpty()) {
+            queryWrapper.in(SysUser::getUserId, userIdSet);
+        }
+        return userService.list(queryWrapper).stream()
+                .map(this::toPlatformUser)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 按部门查询活动用户列表。
+     *
+     * @param deptId 部门ID
+     * @return 用户列表
+     */
+    @GetMapping("/platform/users/by-dept")
+    public List<PlatformUserView> usersByDept(@RequestParam("deptId") Long deptId) {
+        if (deptId == null) {
+            return Collections.emptyList();
+        }
+        return userService.list(new LambdaQueryWrapper<SysUser>()
+                        .eq(SysUser::getDeptId, deptId)
+                        .eq(SysUser::getStatus, STATUS_ENABLED)
+                        .eq(SysUser::getDelFlag, DEL_FLAG_EXISTS)
+                        .orderByAsc(SysUser::getUserId))
+                .stream()
+                .map(this::toPlatformUser)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 查询单个活动用户。
+     *
+     * @param userId 用户ID
+     * @return 用户投影
+     */
+    @GetMapping("/platform/users/{userId}")
+    public PlatformUserView user(@PathVariable("userId") Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        SysUser user = userService.getOne(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getUserId, userId)
+                .eq(SysUser::getStatus, STATUS_ENABLED)
+                .eq(SysUser::getDelFlag, DEL_FLAG_EXISTS)
+                .last("LIMIT 1"));
+        return toPlatformUser(user);
+    }
+
+    /**
+     * 查询活动部门列表，支持按部门ID集合筛选。
+     *
+     * @param ids 部门ID集合
+     * @return 部门列表
+     */
+    @GetMapping("/platform/departments")
+    public List<PlatformDeptView> departments(@RequestParam(value = "ids", required = false) String ids) {
+        LambdaQueryWrapper<SysDept> queryWrapper = new LambdaQueryWrapper<SysDept>()
+                .eq(SysDept::getStatus, STATUS_ENABLED)
+                .eq(SysDept::getDelFlag, DEL_FLAG_EXISTS)
+                .orderByAsc(SysDept::getDeptId);
+        Set<Long> deptIdSet = parseIds(ids);
+        if (!deptIdSet.isEmpty()) {
+            queryWrapper.in(SysDept::getDeptId, deptIdSet);
+        }
+        return deptService.list(queryWrapper).stream()
+                .map(this::toPlatformDept)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 查询单个活动部门。
+     *
+     * @param deptId 部门ID
+     * @return 部门投影
+     */
+    @GetMapping("/platform/departments/{deptId}")
+    public PlatformDeptView department(@PathVariable("deptId") Long deptId) {
+        if (deptId == null) {
+            return null;
+        }
+        SysDept dept = deptService.getOne(new LambdaQueryWrapper<SysDept>()
+                .eq(SysDept::getDeptId, deptId)
+                .eq(SysDept::getStatus, STATUS_ENABLED)
+                .eq(SysDept::getDelFlag, DEL_FLAG_EXISTS)
+                .last("LIMIT 1"));
+        return toPlatformDept(dept);
+    }
+
+    /**
+     * 查询活动角色列表。
+     *
+     * @return 角色列表
+     */
+    @GetMapping("/platform/roles")
+    public List<PlatformRoleView> roles() {
+        return roleService.list(new LambdaQueryWrapper<SysRole>()
+                        .eq(SysRole::getStatus, STATUS_ENABLED)
+                        .eq(SysRole::getDelFlag, DEL_FLAG_EXISTS)
+                        .orderByAsc(SysRole::getRoleSort)
+                        .orderByAsc(SysRole::getRoleId))
+                .stream()
+                .map(this::toPlatformRole)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 查询活动岗位列表。
+     *
+     * @return 岗位列表
+     */
+    @GetMapping("/platform/posts")
+    public List<PlatformPostView> posts() {
+        return postService.list(new LambdaQueryWrapper<SysPost>()
+                        .eq(SysPost::getStatus, STATUS_ENABLED)
+                        .orderByAsc(SysPost::getPostSort)
+                        .orderByAsc(SysPost::getPostId))
+                .stream()
+                .map(this::toPlatformPost)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 查询用户角色关联列表。
+     *
+     * @param roleIds 角色ID集合
+     * @return 关联列表
+     */
+    @GetMapping("/platform/user-role-links")
+    public List<PlatformUserRoleLink> userRoleLinks(@RequestParam(value = "roleIds", required = false) String roleIds) {
+        LambdaQueryWrapper<SysUserRole> queryWrapper = new LambdaQueryWrapper<>();
+        Set<Long> roleIdSet = parseIds(roleIds);
+        if (!roleIdSet.isEmpty()) {
+            queryWrapper.in(SysUserRole::getRoleId, roleIdSet);
+        }
+        return userRoleService.list(queryWrapper).stream()
+                .map(this::toPlatformUserRoleLink)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 查询用户岗位关联列表。
+     *
+     * @param postIds 岗位ID集合
+     * @return 关联列表
+     */
+    @GetMapping("/platform/user-post-links")
+    public List<PlatformUserPostLink> userPostLinks(@RequestParam(value = "postIds", required = false) String postIds) {
+        LambdaQueryWrapper<SysUserPost> queryWrapper = new LambdaQueryWrapper<>();
+        Set<Long> postIdSet = parseIds(postIds);
+        if (!postIdSet.isEmpty()) {
+            queryWrapper.in(SysUserPost::getPostId, postIdSet);
+        }
+        return userPostService.list(queryWrapper).stream()
+                .map(this::toPlatformUserPostLink)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * 创建平台站内通知。
      *
      * @param request 通知参数
@@ -346,6 +545,27 @@ public class SystemInternalController {
     }
 
     /**
+     * 转换平台部门投影。
+     *
+     * @param dept 部门对象
+     * @return 部门投影
+     */
+    private PlatformDeptView toPlatformDept(SysDept dept) {
+        if (dept == null) {
+            return null;
+        }
+        PlatformDeptView view = new PlatformDeptView();
+        view.setDeptId(dept.getDeptId());
+        view.setTenantId(dept.getTenantId());
+        view.setParentId(dept.getParentId());
+        view.setDeptName(dept.getDeptName());
+        view.setLeader(dept.getLeader());
+        view.setStatus(dept.getStatus());
+        view.setDelFlag(dept.getDelFlag());
+        return view;
+    }
+
+    /**
      * 转换平台用户投影。
      *
      * @param user 用户对象
@@ -358,10 +578,84 @@ public class SystemInternalController {
         PlatformUserView view = new PlatformUserView();
         view.setUserId(user.getUserId());
         view.setTenantId(user.getTenantId());
+        view.setDeptId(user.getDeptId());
         view.setUserName(user.getUserName());
         view.setNickName(user.getNickName());
         view.setStatus(user.getStatus());
         view.setDelFlag(user.getDelFlag());
+        return view;
+    }
+
+    /**
+     * 转换平台角色投影。
+     *
+     * @param role 角色对象
+     * @return 角色投影
+     */
+    private PlatformRoleView toPlatformRole(SysRole role) {
+        if (role == null) {
+            return null;
+        }
+        PlatformRoleView view = new PlatformRoleView();
+        view.setRoleId(role.getRoleId());
+        view.setTenantId(role.getTenantId());
+        view.setRoleName(role.getRoleName());
+        view.setRoleKey(role.getRoleKey());
+        view.setStatus(role.getStatus());
+        view.setDelFlag(role.getDelFlag());
+        return view;
+    }
+
+    /**
+     * 转换平台岗位投影。
+     *
+     * @param post 岗位对象
+     * @return 岗位投影
+     */
+    private PlatformPostView toPlatformPost(SysPost post) {
+        if (post == null) {
+            return null;
+        }
+        PlatformPostView view = new PlatformPostView();
+        view.setPostId(post.getPostId());
+        view.setTenantId(post.getTenantId());
+        view.setPostCode(post.getPostCode());
+        view.setPostName(post.getPostName());
+        view.setStatus(post.getStatus());
+        return view;
+    }
+
+    /**
+     * 转换平台用户角色关联投影。
+     *
+     * @param relation 关联对象
+     * @return 关联投影
+     */
+    private PlatformUserRoleLink toPlatformUserRoleLink(SysUserRole relation) {
+        if (relation == null) {
+            return null;
+        }
+        PlatformUserRoleLink view = new PlatformUserRoleLink();
+        view.setTenantId(relation.getTenantId());
+        view.setUserId(relation.getUserId());
+        view.setRoleId(relation.getRoleId());
+        return view;
+    }
+
+    /**
+     * 转换平台用户岗位关联投影。
+     *
+     * @param relation 关联对象
+     * @return 关联投影
+     */
+    private PlatformUserPostLink toPlatformUserPostLink(SysUserPost relation) {
+        if (relation == null) {
+            return null;
+        }
+        PlatformUserPostLink view = new PlatformUserPostLink();
+        view.setTenantId(relation.getTenantId());
+        view.setUserId(relation.getUserId());
+        view.setPostId(relation.getPostId());
         return view;
     }
 
@@ -373,6 +667,30 @@ public class SystemInternalController {
      */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    /**
+     * 将逗号分隔字符串解析为 ID 集合。
+     *
+     * @param ids 原始文本
+     * @return ID 集合
+     */
+    private Set<Long> parseIds(String ids) {
+        if (!StringUtils.hasText(ids)) {
+            return Collections.emptySet();
+        }
+        Set<Long> result = new LinkedHashSet<>();
+        for (String token : ids.split(",")) {
+            if (!StringUtils.hasText(token)) {
+                continue;
+            }
+            try {
+                result.add(Long.valueOf(token.trim()));
+            } catch (NumberFormatException ignored) {
+                // 忽略非法参数，保持内部接口幂等和容错。
+            }
+        }
+        return result;
     }
 }
 

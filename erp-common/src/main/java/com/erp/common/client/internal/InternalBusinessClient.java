@@ -6,7 +6,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -64,11 +63,7 @@ public class InternalBusinessClient {
      * @return URI
      */
     private URI buildUri(String path) {
-        String baseUrl = properties.getBusinessBaseUrl();
-        if (!StringUtils.hasText(baseUrl)) {
-            baseUrl = "http://127.0.0.1:9093";
-        }
-        return UriComponentsBuilder.fromHttpUrl(baseUrl)
+        return UriComponentsBuilder.fromHttpUrl(properties.resolveBusinessBaseUrl())
                 .path(path)
                 .build(true)
                 .toUri();

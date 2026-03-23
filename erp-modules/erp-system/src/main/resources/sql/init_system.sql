@@ -788,7 +788,7 @@ VALUES
   (17, '数据权限', 15, 2, '/system/data-permission', '/views/platform/data-scope/index', 1, 'C', '0', '0', 'system:dataScope:view', NULL, 'system', NOW(), '系统初始化菜单'),
   (19, '编码规则', 15, 3, '/system/code-rule', '/views/platform/code-rule/index', 1, 'C', '0', '0', 'system:codeRule:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (32, '工作台', 0, 5, '/workbench', NULL, 1, 'M', '0', '0', NULL, NULL, 'system', NOW(), '系统初始化目录'),
-  (34, '系统消息', 32, 1, '/workbench/system-notice', '/views/system/notice/index', 1, 'C', '0', '0', 'system:message:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (34, '系统消息', 32, 1, '/workbench/system-notice', '/views/system/notice/index', 1, 'C', '0', '0', 'system:message:list', NULL, 'system', NOW(), '系统初始化菜单');
 
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
 SELECT button_perm.menu_name,

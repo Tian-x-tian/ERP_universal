@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * OpenAI 兼容客户端测试。
@@ -125,6 +126,45 @@ class AiOpenAiCompatibleClientTest {
         Assertions.assertEquals(1, completion.getToolCalls().size());
         Assertions.assertEquals("todo_finish", completion.getToolCalls().get(0).getName());
         Assertions.assertEquals("{\"todoId\":1}", completion.getToolCalls().get(0).getArgumentsJson());
+    }
+
+    /**
+     * 验证客户端在上游偶发 5xx 时会自动重试一次。
+     *
+     * @throws Exception 异常
+     */
+    @Test
+    void shouldRetryWhenUpstreamReturnsTransientServerError() throws Exception {
+        AtomicInteger requestCounter = new AtomicInteger();
+        httpServer = startServer("/v1/chat/completions", exchange -> {
+            if (requestCounter.getAndIncrement() == 0) {
+                byte[] body = """
+                        {"error":{"message":"temporary failure"}}
+                        """.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=UTF-8");
+                exchange.sendResponseHeaders(500, body.length);
+                try (OutputStream outputStream = exchange.getResponseBody()) {
+                    outputStream.write(body);
+                }
+                return;
+            }
+            byte[] body = """
+                    {"choices":[{"message":{"content":"重试成功"}}]}
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json; charset=UTF-8");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream outputStream = exchange.getResponseBody()) {
+                outputStream.write(body);
+            }
+        });
+        AiOpenAiCompatibleClient client = new AiOpenAiCompatibleClient(buildProperties(), new ObjectMapper());
+
+        AiModelCompletion completion = client.completeChat(
+                Collections.singletonList(new AiChatMessage("user", "你好")),
+                Collections.emptyList());
+
+        Assertions.assertEquals("重试成功", completion.getContent());
+        Assertions.assertEquals(2, requestCounter.get());
     }
 
     /**

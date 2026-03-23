@@ -3,15 +3,15 @@ package com.erp.workflow.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
+import com.erp.platform.contract.model.PlatformUserView;
 import com.erp.workflow.contract.domain.SysTodoTask;
-import com.erp.workflow.domain.platform.SysUser;
 import com.erp.workflow.contract.domain.SysWorkflowTask;
 import com.erp.workflow.contract.domain.vo.WorkflowTaskActionBody;
 import com.erp.workflow.mapper.SysWorkflowTaskMapper;
 import com.erp.workflow.security.service.SecurityUserResolver;
 import com.erp.workflow.service.ISysTodoTaskService;
-import com.erp.workflow.service.ISysUserService;
 import com.erp.workflow.service.ISysWorkflowEngineService;
+import com.erp.workflow.service.platform.IWorkflowPlatformReadService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
@@ -39,18 +39,18 @@ public class SysTodoTaskController {
 
     private final ISysTodoTaskService todoTaskService;
     private final ISysWorkflowEngineService workflowEngineService;
-    private final ISysUserService userService;
+    private final IWorkflowPlatformReadService platformReadService;
     private final SysWorkflowTaskMapper workflowTaskMapper;
     private final SecurityUserResolver securityUserResolver;
 
     public SysTodoTaskController(ISysTodoTaskService todoTaskService,
                                  ISysWorkflowEngineService workflowEngineService,
-                                 ISysUserService userService,
+                                 IWorkflowPlatformReadService platformReadService,
                                  SysWorkflowTaskMapper workflowTaskMapper,
                                  SecurityUserResolver securityUserResolver) {
         this.todoTaskService = todoTaskService;
         this.workflowEngineService = workflowEngineService;
-        this.userService = userService;
+        this.platformReadService = platformReadService;
         this.workflowTaskMapper = workflowTaskMapper;
         this.securityUserResolver = securityUserResolver;
     }
@@ -201,14 +201,18 @@ public class SysTodoTaskController {
      */
     private CurrentUser resolveCurrentUser() {
         String userName = securityUserResolver.getCurrentUsername();
+        Long currentUserId = securityUserResolver.getCurrentUserId();
         if (!StringUtils.hasText(userName)) {
-            return new CurrentUser(null, null, null);
+            return new CurrentUser(currentUserId, null, null);
         }
-        SysUser user = userService.selectUserByUserName(userName);
+        PlatformUserView user = platformReadService.getActiveUserByUsername(securityUserResolver.getCurrentTenantId(), userName);
         if (user == null) {
-            return new CurrentUser(null, userName, null);
+            return new CurrentUser(currentUserId, userName.trim(), userName.trim());
         }
-        return new CurrentUser(user.getUserId(), user.getUserName(), user.getNickName());
+        Long resolvedUserId = currentUserId != null ? currentUserId : user.getUserId();
+        String resolvedUserName = StringUtils.hasText(user.getUserName()) ? user.getUserName() : userName.trim();
+        String resolvedNickName = StringUtils.hasText(user.getNickName()) ? user.getNickName() : resolvedUserName;
+        return new CurrentUser(resolvedUserId, resolvedUserName, resolvedNickName);
     }
 
     /**

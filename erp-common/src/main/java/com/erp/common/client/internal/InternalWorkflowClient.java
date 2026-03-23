@@ -242,11 +242,7 @@ public class InternalWorkflowClient {
      * @return URI
      */
     private URI buildUri(String path) {
-        String baseUrl = properties.getWorkflowBaseUrl();
-        if (!StringUtils.hasText(baseUrl)) {
-            baseUrl = "http://127.0.0.1:9094";
-        }
-        return UriComponentsBuilder.fromHttpUrl(baseUrl)
+        return UriComponentsBuilder.fromHttpUrl(properties.resolveWorkflowBaseUrl())
                 .path(path)
                 .build(true)
                 .toUri();

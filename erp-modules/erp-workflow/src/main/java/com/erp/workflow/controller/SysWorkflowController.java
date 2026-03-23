@@ -3,10 +3,10 @@ package com.erp.workflow.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
-import com.erp.workflow.domain.platform.SysDept;
-import com.erp.workflow.domain.platform.SysPost;
-import com.erp.workflow.domain.platform.SysRole;
-import com.erp.workflow.domain.platform.SysUser;
+import com.erp.platform.contract.model.PlatformDeptView;
+import com.erp.platform.contract.model.PlatformPostView;
+import com.erp.platform.contract.model.PlatformRoleView;
+import com.erp.platform.contract.model.PlatformUserView;
 import com.erp.workflow.contract.domain.SysWorkflowDefinition;
 import com.erp.workflow.contract.domain.SysWorkflowInstance;
 import com.erp.workflow.contract.domain.SysWorkflowTask;
@@ -25,14 +25,11 @@ import com.erp.workflow.contract.domain.vo.WorkflowTaskTransferBody;
 import com.erp.workflow.contract.domain.vo.WorkflowTemplateActivateBody;
 import com.erp.workflow.contract.domain.vo.WorkflowTemplateVO;
 import com.erp.workflow.security.service.SecurityUserResolver;
-import com.erp.workflow.service.ISysDeptService;
-import com.erp.workflow.service.ISysPostService;
-import com.erp.workflow.service.ISysRoleService;
-import com.erp.workflow.service.ISysUserService;
 import com.erp.workflow.service.ISysWorkflowAnalyticsService;
 import com.erp.workflow.service.ISysWorkflowDefinitionService;
 import com.erp.workflow.service.ISysWorkflowEngineService;
 import com.erp.workflow.service.ISysWorkflowTemplateService;
+import com.erp.workflow.service.platform.IWorkflowPlatformReadService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
@@ -63,10 +60,7 @@ public class SysWorkflowController {
     private final ISysWorkflowAnalyticsService workflowAnalyticsService;
     private final ISysWorkflowTemplateService workflowTemplateService;
     private final SecurityUserResolver securityUserResolver;
-    private final ISysUserService userService;
-    private final ISysDeptService deptService;
-    private final ISysRoleService roleService;
-    private final ISysPostService postService;
+    private final IWorkflowPlatformReadService platformReadService;
 
     public SysWorkflowController(
             ISysWorkflowDefinitionService workflowDefinitionService,
@@ -74,19 +68,13 @@ public class SysWorkflowController {
             ISysWorkflowAnalyticsService workflowAnalyticsService,
             ISysWorkflowTemplateService workflowTemplateService,
             SecurityUserResolver securityUserResolver,
-            ISysUserService userService,
-            ISysDeptService deptService,
-            ISysRoleService roleService,
-            ISysPostService postService) {
+            IWorkflowPlatformReadService platformReadService) {
         this.workflowDefinitionService = workflowDefinitionService;
         this.workflowEngineService = workflowEngineService;
         this.workflowAnalyticsService = workflowAnalyticsService;
         this.workflowTemplateService = workflowTemplateService;
         this.securityUserResolver = securityUserResolver;
-        this.userService = userService;
-        this.deptService = deptService;
-        this.roleService = roleService;
-        this.postService = postService;
+        this.platformReadService = platformReadService;
     }
 
     /**
@@ -351,10 +339,10 @@ public class SysWorkflowController {
             return R.failed(ResultCode.UNAUTHORIZED);
         }
         WorkflowParticipantOptionsVO optionsVO = new WorkflowParticipantOptionsVO();
-        List<SysDept> deptList = loadDeptOptions();
-        List<SysUser> userList = loadUserOptions();
-        List<SysRole> roleList = roleService.list();
-        List<SysPost> postList = postService.list();
+        List<PlatformDeptView> deptList = loadDeptOptions();
+        List<PlatformUserView> userList = loadUserOptions();
+        List<PlatformRoleView> roleList = platformReadService.listRoles();
+        List<PlatformPostView> postList = platformReadService.listPosts();
         optionsVO.setDepts(buildDeptOptions(deptList));
         optionsVO.setUsers(buildUserOptions(userList));
         optionsVO.setRoles(buildRoleOptions(roleList));
@@ -587,14 +575,18 @@ public class SysWorkflowController {
      */
     private CurrentUser resolveCurrentUser() {
         String userName = resolveCurrentUsername();
+        Long currentUserId = securityUserResolver.getCurrentUserId();
         if (!StringUtils.hasText(userName)) {
-            return new CurrentUser(null, null, null);
+            return new CurrentUser(currentUserId, null, null);
         }
-        SysUser user = userService.selectUserByUserName(userName);
+        PlatformUserView user = platformReadService.getActiveUserByUsername(securityUserResolver.getCurrentTenantId(), userName);
         if (user == null) {
-            return new CurrentUser(null, userName, null);
+            return new CurrentUser(currentUserId, userName.trim(), userName.trim());
         }
-        return new CurrentUser(user.getUserId(), user.getUserName(), user.getNickName());
+        Long resolvedUserId = currentUserId != null ? currentUserId : user.getUserId();
+        String resolvedUserName = StringUtils.hasText(user.getUserName()) ? user.getUserName() : userName.trim();
+        String resolvedNickName = StringUtils.hasText(user.getNickName()) ? user.getNickName() : resolvedUserName;
+        return new CurrentUser(resolvedUserId, resolvedUserName, resolvedNickName);
     }
 
     /**
@@ -602,8 +594,8 @@ public class SysWorkflowController {
      *
      * @return 部门列表
      */
-    private List<SysDept> loadDeptOptions() {
-        return deptService.list();
+    private List<PlatformDeptView> loadDeptOptions() {
+        return platformReadService.listDepartments();
     }
 
     /**
@@ -611,8 +603,8 @@ public class SysWorkflowController {
      *
      * @return 用户列表
      */
-    private List<SysUser> loadUserOptions() {
-        return userService.list();
+    private List<PlatformUserView> loadUserOptions() {
+        return platformReadService.listUsers();
     }
 
     /**
@@ -621,13 +613,13 @@ public class SysWorkflowController {
      * @param deptList 部门列表
      * @return 选项列表
      */
-    private List<WorkflowParticipantOptionVO> buildDeptOptions(List<SysDept> deptList) {
+    private List<WorkflowParticipantOptionVO> buildDeptOptions(List<PlatformDeptView> deptList) {
         List<WorkflowParticipantOptionVO> optionList = new ArrayList<>();
         if (deptList == null) {
             return optionList;
         }
-        for (SysDept dept : deptList) {
-            if (dept == null || dept.getDeptId() == null || "1".equals(dept.getStatus())) {
+        for (PlatformDeptView dept : deptList) {
+            if (dept == null || dept.getDeptId() == null) {
                 continue;
             }
             WorkflowParticipantOptionVO optionVO = new WorkflowParticipantOptionVO();
@@ -645,13 +637,13 @@ public class SysWorkflowController {
      * @param userList 用户列表
      * @return 选项列表
      */
-    private List<WorkflowParticipantOptionVO> buildUserOptions(List<SysUser> userList) {
+    private List<WorkflowParticipantOptionVO> buildUserOptions(List<PlatformUserView> userList) {
         List<WorkflowParticipantOptionVO> optionList = new ArrayList<>();
         if (userList == null) {
             return optionList;
         }
-        for (SysUser user : userList) {
-            if (user == null || user.getUserId() == null || "1".equals(user.getStatus()) || "2".equals(user.getDelFlag())) {
+        for (PlatformUserView user : userList) {
+            if (user == null || user.getUserId() == null) {
                 continue;
             }
             WorkflowParticipantOptionVO optionVO = new WorkflowParticipantOptionVO();
@@ -671,13 +663,13 @@ public class SysWorkflowController {
      * @param roleList 角色列表
      * @return 选项列表
      */
-    private List<WorkflowParticipantOptionVO> buildRoleOptions(List<SysRole> roleList) {
+    private List<WorkflowParticipantOptionVO> buildRoleOptions(List<PlatformRoleView> roleList) {
         List<WorkflowParticipantOptionVO> optionList = new ArrayList<>();
         if (roleList == null) {
             return optionList;
         }
-        for (SysRole role : roleList) {
-            if (role == null || role.getRoleId() == null || "1".equals(role.getStatus())) {
+        for (PlatformRoleView role : roleList) {
+            if (role == null || role.getRoleId() == null) {
                 continue;
             }
             WorkflowParticipantOptionVO optionVO = new WorkflowParticipantOptionVO();
@@ -694,13 +686,13 @@ public class SysWorkflowController {
      * @param postList 岗位列表
      * @return 选项列表
      */
-    private List<WorkflowParticipantOptionVO> buildPostOptions(List<SysPost> postList) {
+    private List<WorkflowParticipantOptionVO> buildPostOptions(List<PlatformPostView> postList) {
         List<WorkflowParticipantOptionVO> optionList = new ArrayList<>();
         if (postList == null) {
             return optionList;
         }
-        for (SysPost post : postList) {
-            if (post == null || post.getPostId() == null || "1".equals(post.getStatus())) {
+        for (PlatformPostView post : postList) {
+            if (post == null || post.getPostId() == null) {
                 continue;
             }
             WorkflowParticipantOptionVO optionVO = new WorkflowParticipantOptionVO();
