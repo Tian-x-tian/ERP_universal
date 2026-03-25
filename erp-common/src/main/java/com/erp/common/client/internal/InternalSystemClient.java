@@ -109,8 +109,8 @@ public class InternalSystemClient {
     /**
      * 更新平台导入导出任务。
      *
-     * @param jobId    任务ID
-     * @param request  更新参数
+     * @param jobId   任务ID
+     * @param request 更新参数
      * @return 更新后的任务
      */
     public PlatformImexJob updateImexJob(Long jobId, PlatformImexJobUpdateRequest request) {
@@ -162,6 +162,11 @@ public class InternalSystemClient {
         return exchange(uri, HttpMethod.GET, null, PlatformUserView.class);
     }
 
+    public PlatformUserView getUserById(Long userId) {
+        return exchange(buildUri("/system/internal/platform/users/" + userId), HttpMethod.GET, null,
+                PlatformUserView.class);
+    }
+
     /**
      * 查询首个活动用户。
      *
@@ -187,6 +192,48 @@ public class InternalSystemClient {
                 HttpMethod.POST,
                 request,
                 Long.class);
+    }
+
+    public com.erp.platform.contract.model.PlatformNoticeView getNotice(Long noticeId) {
+        return exchange(buildUri("/system/internal/platform/notices/" + noticeId), HttpMethod.GET, null,
+                com.erp.platform.contract.model.PlatformNoticeView.class);
+    }
+
+    public Boolean markNoticeRead(Long noticeId, Long userId) {
+        return exchange(
+                UriComponentsBuilder.fromUri(buildUri("/system/internal/platform/notices/" + noticeId + "/read"))
+                        .queryParam("userId", userId).build(true).toUri(),
+                HttpMethod.POST, null, Boolean.class);
+    }
+
+    public Integer markAllNoticeRead(Long userId) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/platform/notices/read-all"))
+                .queryParam("userId", userId).build(true).toUri(), HttpMethod.POST, null, Integer.class);
+    }
+
+    public Boolean hasPermission(String permission) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/platform/permissions/check"))
+                .queryParam("permission", permission).build(true).toUri(), HttpMethod.GET, null, Boolean.class);
+    }
+
+    public Long countUnreadNotices(Long userId) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/platform/notices/unread-count"))
+                .queryParam("userId", userId).build(true).toUri(), HttpMethod.GET, null, Long.class);
+    }
+
+    public List<com.erp.platform.contract.model.PlatformNoticeView> getLatestNotices(Long userId, int limit) {
+        ResponseEntity<List<com.erp.platform.contract.model.PlatformNoticeView>> response = restTemplate.exchange(
+                UriComponentsBuilder.fromUri(buildUri("/system/internal/platform/notices/latest"))
+                        .queryParam("userId", userId)
+                        .queryParam("limit", limit)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.GET,
+                new HttpEntity<>(headerFactory.buildHeaders()),
+                new ParameterizedTypeReference<List<com.erp.platform.contract.model.PlatformNoticeView>>() {
+                });
+        List<com.erp.platform.contract.model.PlatformNoticeView> body = response.getBody();
+        return body == null ? Collections.emptyList() : body;
     }
 
     /**
@@ -218,4 +265,3 @@ public class InternalSystemClient {
                 .toUri();
     }
 }
-

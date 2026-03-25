@@ -62,7 +62,7 @@ public class InternalWorkflowClient {
      * 查询指定业务的最新流程实例详情。
      *
      * @param businessType 业务类型
-     * @param businessNo 业务单号
+     * @param businessNo   业务单号
      * @return 流程实例详情
      */
     public WorkflowInstanceDetailVO getLatestInstanceDetail(String businessType, String businessNo) {
@@ -78,7 +78,7 @@ public class InternalWorkflowClient {
      * 判断是否存在运行中的流程实例。
      *
      * @param businessType 业务类型
-     * @param businessNo 业务单号
+     * @param businessNo   业务单号
      * @return true 表示存在运行中实例
      */
     public boolean hasRunningInstance(String businessType, String businessNo) {
@@ -108,7 +108,7 @@ public class InternalWorkflowClient {
     /**
      * 审批通过任务。
      *
-     * @param taskId 任务ID
+     * @param taskId     任务ID
      * @param actionBody 审批参数
      * @return true 表示成功
      */
@@ -123,7 +123,7 @@ public class InternalWorkflowClient {
     /**
      * 驳回任务。
      *
-     * @param taskId 任务ID
+     * @param taskId     任务ID
      * @param actionBody 审批参数
      * @return true 表示成功
      */
@@ -139,8 +139,8 @@ public class InternalWorkflowClient {
      * 中止指定业务的运行中流程实例。
      *
      * @param businessType 业务类型
-     * @param businessNo 业务单号
-     * @param actionBody 中止参数
+     * @param businessNo   业务单号
+     * @param actionBody   中止参数
      * @return true 表示成功
      */
     public boolean abortProcess(String businessType, String businessNo, WorkflowTaskActionBody actionBody) {
@@ -219,14 +219,54 @@ public class InternalWorkflowClient {
         return Boolean.TRUE.equals(response);
     }
 
+    public com.erp.workflow.contract.domain.SysTodoTask getTodoTask(Long todoId) {
+        return exchange(buildUri("/workflow/internal/tasks/todo/" + todoId), HttpMethod.GET, null,
+                com.erp.workflow.contract.domain.SysTodoTask.class);
+    }
+
+    public com.erp.workflow.contract.domain.SysTodoTask getTodoTaskByTaskId(Long taskId) {
+        return exchange(buildUri("/workflow/internal/tasks/todo/by-task/" + taskId), HttpMethod.GET, null,
+                com.erp.workflow.contract.domain.SysTodoTask.class);
+    }
+
+    public com.erp.workflow.contract.domain.SysWorkflowTask getWorkflowTask(Long taskId) {
+        return exchange(buildUri("/workflow/internal/tasks/workflow/" + taskId), HttpMethod.GET, null,
+                com.erp.workflow.contract.domain.SysWorkflowTask.class);
+    }
+
+    public com.erp.workflow.contract.domain.SysWorkflowTask getWorkflowTaskByTodoId(Long todoId) {
+        return exchange(buildUri("/workflow/internal/tasks/workflow/by-todo/" + todoId), HttpMethod.GET, null,
+                com.erp.workflow.contract.domain.SysWorkflowTask.class);
+    }
+
+    public Long countPendingTodos(Long userId) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/workflow/internal/tasks/todo/pending-count"))
+                .queryParam("userId", userId).build(true).toUri(), HttpMethod.GET, null, Long.class);
+    }
+
+    public List<com.erp.workflow.contract.domain.SysTodoTask> getPendingTodos(Long userId, int limit) {
+        ResponseEntity<List<com.erp.workflow.contract.domain.SysTodoTask>> response = restTemplate.exchange(
+                UriComponentsBuilder.fromUri(buildUri("/workflow/internal/tasks/todo/pending"))
+                        .queryParam("userId", userId)
+                        .queryParam("limit", limit)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.GET,
+                new HttpEntity<>(headerFactory.buildHeaders()),
+                new ParameterizedTypeReference<List<com.erp.workflow.contract.domain.SysTodoTask>>() {
+                });
+        List<com.erp.workflow.contract.domain.SysTodoTask> body = response.getBody();
+        return body == null ? Collections.emptyList() : body;
+    }
+
     /**
      * 发起内部 HTTP 调用。
      *
-     * @param uri 目标地址
-     * @param method 请求方法
-     * @param body 请求体
+     * @param uri          目标地址
+     * @param method       请求方法
+     * @param body         请求体
      * @param responseType 响应类型
-     * @param <T> 响应泛型
+     * @param <T>          响应泛型
      * @return 响应对象
      */
     private <T> T exchange(URI uri, HttpMethod method, Object body, Class<T> responseType) {

@@ -85,7 +85,7 @@ public class WorkflowInternalController {
      * 查询指定业务的最新流程实例详情。
      *
      * @param businessType 业务类型
-     * @param businessNo 业务单号
+     * @param businessNo   业务单号
      * @return 流程实例详情
      */
     @GetMapping("/instances/latest/detail")
@@ -107,13 +107,14 @@ public class WorkflowInternalController {
      * 判断是否存在运行中的流程实例。
      *
      * @param businessType 业务类型
-     * @param businessNo 业务单号
+     * @param businessNo   业务单号
      * @return true 表示存在
      */
     @GetMapping("/instances/running")
     public Boolean hasRunningInstance(@RequestParam("businessType") String businessType,
             @RequestParam("businessNo") String businessNo) {
-        List<SysWorkflowInstance> instanceList = workflowEngineService.selectInstanceList(null, INSTANCE_STATUS_RUNNING, businessNo);
+        List<SysWorkflowInstance> instanceList = workflowEngineService.selectInstanceList(null, INSTANCE_STATUS_RUNNING,
+                businessNo);
         return instanceList.stream()
                 .filter(Objects::nonNull)
                 .anyMatch(instance -> businessType.equalsIgnoreCase(instance.getBusinessType()));
@@ -136,15 +137,16 @@ public class WorkflowInternalController {
             return Boolean.FALSE;
         }
         startBody.setProcessKey(resolvedProcessKey);
-        return workflowEngineService.startProcess(startBody, currentUser.userId, currentUser.userName, currentUser.nickName);
+        return workflowEngineService.startProcess(startBody, currentUser.userId, currentUser.userName,
+                currentUser.nickName);
     }
 
     /**
      * 按业务标识中止运行中的流程实例。
      *
      * @param businessType 业务类型
-     * @param businessNo 业务单号
-     * @param actionBody 中止说明
+     * @param businessNo   业务单号
+     * @param actionBody   中止说明
      * @return true 表示成功
      */
     @PostMapping("/instances/abort")
@@ -155,7 +157,8 @@ public class WorkflowInternalController {
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
             return Boolean.FALSE;
         }
-        List<SysWorkflowInstance> instanceList = workflowEngineService.selectInstanceList(null, INSTANCE_STATUS_RUNNING, businessNo);
+        List<SysWorkflowInstance> instanceList = workflowEngineService.selectInstanceList(null, INSTANCE_STATUS_RUNNING,
+                businessNo);
         SysWorkflowInstance latestInstance = instanceList.stream()
                 .filter(Objects::nonNull)
                 .filter(instance -> StringUtils.hasText(instance.getBusinessType()))
@@ -175,7 +178,7 @@ public class WorkflowInternalController {
     /**
      * 审批通过任务。
      *
-     * @param taskId 任务ID
+     * @param taskId     任务ID
      * @param actionBody 审批参数
      * @return true 表示成功
      */
@@ -186,13 +189,14 @@ public class WorkflowInternalController {
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
             return Boolean.FALSE;
         }
-        return workflowEngineService.approveTask(taskId, actionBody, currentUser.userId, currentUser.userName, currentUser.nickName);
+        return workflowEngineService.approveTask(taskId, actionBody, currentUser.userId, currentUser.userName,
+                currentUser.nickName);
     }
 
     /**
      * 驳回任务。
      *
-     * @param taskId 任务ID
+     * @param taskId     任务ID
      * @param actionBody 审批参数
      * @return true 表示成功
      */
@@ -203,7 +207,8 @@ public class WorkflowInternalController {
         if (currentUser.userId == null || !StringUtils.hasText(currentUser.userName)) {
             return Boolean.FALSE;
         }
-        return workflowEngineService.rejectTask(taskId, actionBody, currentUser.userId, currentUser.userName, currentUser.nickName);
+        return workflowEngineService.rejectTask(taskId, actionBody, currentUser.userId, currentUser.userName,
+                currentUser.nickName);
     }
 
     /**
@@ -230,10 +235,12 @@ public class WorkflowInternalController {
      * @return 轻量流程定义列表
      */
     @GetMapping("/definitions/lite")
-    public List<WorkflowDefinitionLiteVO> definitionLite(@RequestParam(value = "processName", required = false) String processName,
+    public List<WorkflowDefinitionLiteVO> definitionLite(
+            @RequestParam(value = "processName", required = false) String processName,
             @RequestParam(value = "processKey", required = false) String processKey,
             @RequestParam(value = "status", required = false) String status) {
-        List<SysWorkflowDefinition> definitionList = workflowDefinitionService.selectList(processName, processKey, null, status);
+        List<SysWorkflowDefinition> definitionList = workflowDefinitionService.selectList(processName, processKey, null,
+                status);
         if (definitionList == null || definitionList.isEmpty()) {
             return new ArrayList<>();
         }
@@ -253,14 +260,16 @@ public class WorkflowInternalController {
             return Boolean.FALSE;
         }
         SysTodoTask todoTask = todoTaskService.getById(todoId);
-        if (todoTask == null || todoTask.getAssigneeUserId() == null || !currentUser.userId.equals(todoTask.getAssigneeUserId())) {
+        if (todoTask == null || todoTask.getAssigneeUserId() == null
+                || !currentUser.userId.equals(todoTask.getAssigneeUserId())) {
             return Boolean.FALSE;
         }
         Long workflowTaskId = resolveWorkflowTaskId(todoTask);
         if (workflowTaskId == null) {
             return todoTaskService.claim(todoId, currentUser.userId);
         }
-        return workflowEngineService.claimTask(workflowTaskId, currentUser.userId, currentUser.userName, currentUser.nickName);
+        return workflowEngineService.claimTask(workflowTaskId, currentUser.userId, currentUser.userName,
+                currentUser.nickName);
     }
 
     /**
@@ -276,7 +285,8 @@ public class WorkflowInternalController {
             return Boolean.FALSE;
         }
         SysTodoTask todoTask = todoTaskService.getById(todoId);
-        if (todoTask == null || todoTask.getAssigneeUserId() == null || !currentUser.userId.equals(todoTask.getAssigneeUserId())) {
+        if (todoTask == null || todoTask.getAssigneeUserId() == null
+                || !currentUser.userId.equals(todoTask.getAssigneeUserId())) {
             return Boolean.FALSE;
         }
         Long workflowTaskId = resolveWorkflowTaskId(todoTask);
@@ -313,6 +323,47 @@ public class WorkflowInternalController {
         return Boolean.FALSE;
     }
 
+    @GetMapping("/tasks/todo/{todoId}")
+    public SysTodoTask getTodoTask(@PathVariable("todoId") Long todoId) {
+        return todoTaskService.getById(todoId);
+    }
+
+    @GetMapping("/tasks/todo/by-task/{taskId}")
+    public SysTodoTask getTodoTaskByTaskId(@PathVariable("taskId") Long taskId) {
+        return todoTaskService.getOne(new LambdaQueryWrapper<SysTodoTask>()
+                .eq(SysTodoTask::getTaskId, taskId).last("LIMIT 1"));
+    }
+
+    @GetMapping("/tasks/todo/pending-count")
+    public Long countPendingTodos(@RequestParam("userId") Long userId) {
+        return todoTaskService.count(new LambdaQueryWrapper<SysTodoTask>()
+                .eq(SysTodoTask::getAssigneeUserId, userId)
+                .in(SysTodoTask::getStatus, "0", "1"));
+    }
+
+    @GetMapping("/tasks/todo/pending")
+    public List<SysTodoTask> getPendingTodos(@RequestParam("userId") Long userId, @RequestParam("limit") int limit) {
+        return todoTaskService.list(new LambdaQueryWrapper<SysTodoTask>()
+                .eq(SysTodoTask::getAssigneeUserId, userId)
+                .in(SysTodoTask::getStatus, "0", "1")
+                .orderByAsc(SysTodoTask::getStatus)
+                .orderByAsc(SysTodoTask::getDueTime)
+                .orderByDesc(SysTodoTask::getCreateTime)
+                .last("LIMIT " + limit));
+    }
+
+    @GetMapping("/tasks/workflow/{taskId}")
+    public SysWorkflowTask getWorkflowTask(@PathVariable("taskId") Long taskId) {
+        return workflowTaskMapper.selectById(taskId);
+    }
+
+    @GetMapping("/tasks/workflow/by-todo/{todoId}")
+    public SysWorkflowTask getWorkflowTaskByTodoId(@PathVariable("todoId") Long todoId) {
+        return workflowTaskMapper.selectOne(new LambdaQueryWrapper<SysWorkflowTask>()
+                .eq(SysWorkflowTask::getTodoId, todoId)
+                .orderByDesc(SysWorkflowTask::getTaskId).last("LIMIT 1"));
+    }
+
     /**
      * 解析当前用户。
      *
@@ -324,7 +375,8 @@ public class WorkflowInternalController {
         if (!StringUtils.hasText(userName)) {
             return new CurrentUser(userId, null, null);
         }
-        PlatformUserView user = platformReadService.getActiveUserByUsername(securityUserResolver.getCurrentTenantId(), userName);
+        PlatformUserView user = platformReadService.getActiveUserByUsername(securityUserResolver.getCurrentTenantId(),
+                userName);
         String nickName = user == null ? userName : user.getNickName();
         Long resolvedUserId = userId != null ? userId : user == null ? null : user.getUserId();
         return new CurrentUser(resolvedUserId, userName.trim(), nickName);

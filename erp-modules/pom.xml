@@ -19,5 +19,6 @@
         <module>erp-system</module>
         <module>erp-workflow</module>
         <module>erp-business</module>
+        <module>erp-ai</module>
     </modules>
 </project>

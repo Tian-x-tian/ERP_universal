@@ -291,10 +291,10 @@ public class SystemInternalController {
             return Collections.emptyList();
         }
         return userService.list(new LambdaQueryWrapper<SysUser>()
-                        .eq(SysUser::getDeptId, deptId)
-                        .eq(SysUser::getStatus, STATUS_ENABLED)
-                        .eq(SysUser::getDelFlag, DEL_FLAG_EXISTS)
-                        .orderByAsc(SysUser::getUserId))
+                .eq(SysUser::getDeptId, deptId)
+                .eq(SysUser::getStatus, STATUS_ENABLED)
+                .eq(SysUser::getDelFlag, DEL_FLAG_EXISTS)
+                .orderByAsc(SysUser::getUserId))
                 .stream()
                 .map(this::toPlatformUser)
                 .collect(Collectors.toList());
@@ -367,10 +367,10 @@ public class SystemInternalController {
     @GetMapping("/platform/roles")
     public List<PlatformRoleView> roles() {
         return roleService.list(new LambdaQueryWrapper<SysRole>()
-                        .eq(SysRole::getStatus, STATUS_ENABLED)
-                        .eq(SysRole::getDelFlag, DEL_FLAG_EXISTS)
-                        .orderByAsc(SysRole::getRoleSort)
-                        .orderByAsc(SysRole::getRoleId))
+                .eq(SysRole::getStatus, STATUS_ENABLED)
+                .eq(SysRole::getDelFlag, DEL_FLAG_EXISTS)
+                .orderByAsc(SysRole::getRoleSort)
+                .orderByAsc(SysRole::getRoleId))
                 .stream()
                 .map(this::toPlatformRole)
                 .collect(Collectors.toList());
@@ -384,9 +384,9 @@ public class SystemInternalController {
     @GetMapping("/platform/posts")
     public List<PlatformPostView> posts() {
         return postService.list(new LambdaQueryWrapper<SysPost>()
-                        .eq(SysPost::getStatus, STATUS_ENABLED)
-                        .orderByAsc(SysPost::getPostSort)
-                        .orderByAsc(SysPost::getPostId))
+                .eq(SysPost::getStatus, STATUS_ENABLED)
+                .orderByAsc(SysPost::getPostSort)
+                .orderByAsc(SysPost::getPostId))
                 .stream()
                 .map(this::toPlatformPost)
                 .collect(Collectors.toList());
@@ -454,6 +454,97 @@ public class SystemInternalController {
         notice.setCreateTime(request.getCreateTime());
         noticeService.createNotice(notice);
         return notice.getNoticeId();
+    }
+
+    @GetMapping("/platform/notices/{noticeId}")
+    public com.erp.platform.contract.model.PlatformNoticeView getNotice(@PathVariable("noticeId") Long noticeId) {
+        SysNotice notice = noticeService.getById(noticeId);
+        if (notice == null)
+            return null;
+        com.erp.platform.contract.model.PlatformNoticeView view = new com.erp.platform.contract.model.PlatformNoticeView();
+        view.setNoticeId(notice.getNoticeId());
+        view.setReceiverUserId(notice.getReceiverUserId());
+        view.setTitle(notice.getTitle());
+        view.setBusinessNo(notice.getBusinessNo());
+        view.setSource(notice.getSource());
+        view.setNoticeType(notice.getNoticeType());
+        view.setStatus(notice.getStatus());
+        view.setDeliveryStatus(notice.getDeliveryStatus());
+        view.setCreateTime(notice.getCreateTime());
+        return view;
+    }
+
+    @GetMapping("/platform/notices/unread-count")
+    public Long countUnreadNotices(@RequestParam(value = "userId", required = false) Long userId) {
+        Long targetUserId = userId != null ? userId : securityUserResolver.getCurrentUserId();
+        return noticeService.count(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysNotice>()
+                .eq(SysNotice::getReceiverUserId, targetUserId)
+                .eq(SysNotice::getStatus, "0"));
+    }
+
+    @GetMapping("/platform/notices/latest")
+    public List<com.erp.platform.contract.model.PlatformNoticeView> getLatestNotices(
+            @RequestParam(value = "userId", required = false) Long userId, @RequestParam("limit") int limit) {
+        Long targetUserId = userId != null ? userId : securityUserResolver.getCurrentUserId();
+        List<SysNotice> list = noticeService
+                .list(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysNotice>()
+                        .eq(SysNotice::getReceiverUserId, targetUserId)
+                        .orderByDesc(SysNotice::getCreateTime)
+                        .last("LIMIT " + limit));
+        if (list == null)
+            return Collections.emptyList();
+        List<com.erp.platform.contract.model.PlatformNoticeView> views = new ArrayList<>();
+        for (SysNotice notice : list) {
+            com.erp.platform.contract.model.PlatformNoticeView view = new com.erp.platform.contract.model.PlatformNoticeView();
+            view.setNoticeId(notice.getNoticeId());
+            view.setReceiverUserId(notice.getReceiverUserId());
+            view.setTitle(notice.getTitle());
+            view.setBusinessNo(notice.getBusinessNo());
+            view.setSource(notice.getSource());
+            view.setNoticeType(notice.getNoticeType());
+            view.setStatus(notice.getStatus());
+            view.setDeliveryStatus(notice.getDeliveryStatus());
+            view.setCreateTime(notice.getCreateTime());
+            views.add(view);
+        }
+        return views;
+    }
+
+    @PostMapping("/platform/notices/{noticeId}/read")
+    public Boolean markNoticeRead(@PathVariable("noticeId") Long noticeId,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        Long targetUserId = userId != null ? userId : securityUserResolver.getCurrentUserId();
+        return noticeService.markRead(noticeId, targetUserId);
+    }
+
+    @PostMapping("/platform/notices/read-all")
+    public Integer markAllNoticeRead(@RequestParam(value = "userId", required = false) Long userId) {
+        Long targetUserId = userId != null ? userId : securityUserResolver.getCurrentUserId();
+        return noticeService.markAllRead(targetUserId);
+    }
+
+    @GetMapping("/platform/permissions/check")
+    public Boolean hasPermission(@RequestParam("permission") String permission) {
+        Long userId = securityUserResolver.getCurrentUserId();
+        if (userId == null || !StringUtils.hasText(permission)) {
+            return false;
+        }
+        if (roleService.isPlatformSuperAdmin(userId)) {
+            return true;
+        }
+        Set<String> perms = menuService.selectMenuPermsByUserId(userId);
+        if (perms == null) {
+            return false;
+        }
+        for (String p : perms) {
+            if ("*:*:*".equals(p) || permission.equals(p)) {
+                return true;
+            }
+            if (p.endsWith(":*") && permission.startsWith(p.substring(0, p.length() - 1))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -693,4 +784,3 @@ public class SystemInternalController {
         return result;
     }
 }
-

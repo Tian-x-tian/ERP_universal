@@ -45,6 +45,10 @@ spring:
           uri: lb://erp-workflow
           predicates:
             - Path=/workflow/**
+        - id: erp-ai
+          uri: lb://erp-ai
+          predicates:
+            - Path=/system/ai/**
         - id: erp-system
           uri: lb://erp-system
           predicates:
