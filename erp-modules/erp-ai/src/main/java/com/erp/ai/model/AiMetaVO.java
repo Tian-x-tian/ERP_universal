@@ -1,7 +1,9 @@
 package com.erp.ai.model;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * AI 能力元信息。
@@ -36,6 +38,26 @@ public class AiMetaVO {
      * 当前用户可执行的动作列表。
      */
     private List<AiActionDescriptor> actions = new ArrayList<>();
+
+    /**
+     * 当前租户配置版本。
+     */
+    private String tenantConfigVersion;
+
+    /**
+     * 当前用户角色画像。
+     */
+    private AiRoleProfileVO roleProfile;
+
+    /**
+     * 交互与动作策略摘要。
+     */
+    private AiPolicySummaryVO policySummary;
+
+    /**
+     * 页面快捷提问模板。
+     */
+    private Map<String, List<String>> pageQuestionTemplates = new LinkedHashMap<>();
 
     public boolean isEnabled() {
         return enabled;
@@ -83,5 +105,37 @@ public class AiMetaVO {
 
     public void setActions(List<AiActionDescriptor> actions) {
         this.actions = actions;
+    }
+
+    public String getTenantConfigVersion() {
+        return tenantConfigVersion;
+    }
+
+    public void setTenantConfigVersion(String tenantConfigVersion) {
+        this.tenantConfigVersion = tenantConfigVersion;
+    }
+
+    public AiRoleProfileVO getRoleProfile() {
+        return roleProfile;
+    }
+
+    public void setRoleProfile(AiRoleProfileVO roleProfile) {
+        this.roleProfile = roleProfile;
+    }
+
+    public AiPolicySummaryVO getPolicySummary() {
+        return policySummary;
+    }
+
+    public void setPolicySummary(AiPolicySummaryVO policySummary) {
+        this.policySummary = policySummary;
+    }
+
+    public Map<String, List<String>> getPageQuestionTemplates() {
+        return pageQuestionTemplates;
+    }
+
+    public void setPageQuestionTemplates(Map<String, List<String>> pageQuestionTemplates) {
+        this.pageQuestionTemplates = pageQuestionTemplates;
     }
 }

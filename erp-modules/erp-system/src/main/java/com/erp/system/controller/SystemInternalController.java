@@ -2,6 +2,11 @@ package com.erp.system.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.erp.platform.contract.model.PlatformAuthorityBundle;
+import com.erp.platform.contract.model.PlatformAiActionPolicyItem;
+import com.erp.platform.contract.model.PlatformAiAuditCreateRequest;
+import com.erp.platform.contract.model.PlatformAiAuditView;
+import com.erp.platform.contract.model.PlatformAiConfigUpdateRequest;
+import com.erp.platform.contract.model.PlatformAiConfigView;
 import com.erp.platform.contract.model.PlatformDeptView;
 import com.erp.platform.contract.model.PlatformImexJob;
 import com.erp.platform.contract.model.PlatformImexJobCreateRequest;
@@ -29,6 +34,8 @@ import com.erp.system.domain.SysUserRole;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmItemService;
 import com.erp.system.service.IMdmWarehouseService;
+import com.erp.system.service.ISysAiAuditService;
+import com.erp.system.service.ISysAiConfigService;
 import com.erp.system.service.ISysConfigService;
 import com.erp.system.service.ISysDeptService;
 import com.erp.system.service.ISysImexJobService;
@@ -72,6 +79,8 @@ public class SystemInternalController {
     private final ISysConfigService configService;
     private final ISysTenantService tenantService;
     private final ISysImexJobService imexJobService;
+    private final ISysAiConfigService aiConfigService;
+    private final ISysAiAuditService aiAuditService;
     private final IMdmItemService itemService;
     private final IMdmWarehouseService warehouseService;
     private final ISysUserService userService;
@@ -87,6 +96,8 @@ public class SystemInternalController {
             ISysConfigService configService,
             ISysTenantService tenantService,
             ISysImexJobService imexJobService,
+            ISysAiConfigService aiConfigService,
+            ISysAiAuditService aiAuditService,
             IMdmItemService itemService,
             IMdmWarehouseService warehouseService,
             ISysUserService userService,
@@ -101,6 +112,8 @@ public class SystemInternalController {
         this.configService = configService;
         this.tenantService = tenantService;
         this.imexJobService = imexJobService;
+        this.aiConfigService = aiConfigService;
+        this.aiAuditService = aiAuditService;
         this.itemService = itemService;
         this.warehouseService = warehouseService;
         this.userService = userService;
@@ -545,6 +558,76 @@ public class SystemInternalController {
             }
         }
         return false;
+    }
+
+    /**
+     * 查询当前租户 AI 配置。
+     *
+     * @return AI 配置
+     */
+    @GetMapping("/platform/ai/config")
+    public PlatformAiConfigView aiConfig() {
+        return aiConfigService.getTenantConfig(securityUserResolver.getCurrentTenantId());
+    }
+
+    /**
+     * 更新当前租户 AI 配置。
+     *
+     * @param request 更新请求
+     * @return 更新后的 AI 配置
+     */
+    @PutMapping("/platform/ai/config")
+    public PlatformAiConfigView updateAiConfig(@RequestBody(required = false) PlatformAiConfigUpdateRequest request) {
+        return aiConfigService.updateTenantConfig(securityUserResolver.getCurrentTenantId(), request);
+    }
+
+    /**
+     * 查询当前租户 AI 动作策略。
+     *
+     * @return 动作策略列表
+     */
+    @GetMapping("/platform/ai/policy/actions")
+    public List<PlatformAiActionPolicyItem> aiActionPolicies() {
+        return aiConfigService.listActionPolicies(securityUserResolver.getCurrentTenantId());
+    }
+
+    /**
+     * 更新当前租户 AI 动作策略。
+     *
+     * @param policyItems 动作策略列表
+     * @return 更新后的动作策略列表
+     */
+    @PutMapping("/platform/ai/policy/actions")
+    public List<PlatformAiActionPolicyItem> updateAiActionPolicies(
+            @RequestBody(required = false) List<PlatformAiActionPolicyItem> policyItems) {
+        return aiConfigService.updateActionPolicies(securityUserResolver.getCurrentTenantId(), policyItems);
+    }
+
+    /**
+     * 写入 AI 审计记录。
+     *
+     * @param request 审计写入请求
+     */
+    @PostMapping("/platform/ai/audit")
+    public void recordAiAudit(@RequestBody(required = false) PlatformAiAuditCreateRequest request) {
+        aiAuditService.record(
+                securityUserResolver.getCurrentTenantId(),
+                securityUserResolver.getCurrentUserId(),
+                securityUserResolver.getCurrentUsername(),
+                request);
+    }
+
+    /**
+     * 查询当前租户 AI 审计记录。
+     *
+     * @param limit 查询条数
+     * @return 审计记录列表
+     */
+    @GetMapping("/platform/ai/audit")
+    public List<PlatformAiAuditView> aiAuditList(@RequestParam(value = "limit", required = false) Integer limit) {
+        return aiAuditService.listByTenant(
+                securityUserResolver.getCurrentTenantId(),
+                limit == null ? 50 : limit);
     }
 
     /**

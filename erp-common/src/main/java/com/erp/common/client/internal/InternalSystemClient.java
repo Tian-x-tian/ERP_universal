@@ -1,6 +1,11 @@
 package com.erp.common.client.internal;
 
 import com.erp.platform.contract.model.PlatformAuthorityBundle;
+import com.erp.platform.contract.model.PlatformAiActionPolicyItem;
+import com.erp.platform.contract.model.PlatformAiAuditCreateRequest;
+import com.erp.platform.contract.model.PlatformAiAuditView;
+import com.erp.platform.contract.model.PlatformAiConfigUpdateRequest;
+import com.erp.platform.contract.model.PlatformAiConfigView;
 import com.erp.platform.contract.model.PlatformImexJob;
 import com.erp.platform.contract.model.PlatformImexJobCreateRequest;
 import com.erp.platform.contract.model.PlatformImexJobUpdateRequest;
@@ -233,6 +238,87 @@ public class InternalSystemClient {
                 new ParameterizedTypeReference<List<com.erp.platform.contract.model.PlatformNoticeView>>() {
                 });
         List<com.erp.platform.contract.model.PlatformNoticeView> body = response.getBody();
+        return body == null ? Collections.emptyList() : body;
+    }
+
+    /**
+     * 查询当前租户 AI 配置。
+     *
+     * @return AI 配置
+     */
+    public PlatformAiConfigView getAiConfig() {
+        return exchange(buildUri("/system/internal/platform/ai/config"), HttpMethod.GET, null, PlatformAiConfigView.class);
+    }
+
+    /**
+     * 更新当前租户 AI 配置。
+     *
+     * @param request 更新请求
+     * @return 更新后的 AI 配置
+     */
+    public PlatformAiConfigView updateAiConfig(PlatformAiConfigUpdateRequest request) {
+        return exchange(buildUri("/system/internal/platform/ai/config"), HttpMethod.PUT, request, PlatformAiConfigView.class);
+    }
+
+    /**
+     * 查询当前租户 AI 动作策略。
+     *
+     * @return 动作策略列表
+     */
+    public List<PlatformAiActionPolicyItem> listAiActionPolicies() {
+        ResponseEntity<List<PlatformAiActionPolicyItem>> response = restTemplate.exchange(
+                buildUri("/system/internal/platform/ai/policy/actions"),
+                HttpMethod.GET,
+                new HttpEntity<>(headerFactory.buildHeaders()),
+                new ParameterizedTypeReference<List<PlatformAiActionPolicyItem>>() {
+                });
+        List<PlatformAiActionPolicyItem> body = response.getBody();
+        return body == null ? Collections.emptyList() : body;
+    }
+
+    /**
+     * 更新当前租户 AI 动作策略。
+     *
+     * @param policyItems 策略列表
+     * @return 更新后的策略列表
+     */
+    public List<PlatformAiActionPolicyItem> updateAiActionPolicies(List<PlatformAiActionPolicyItem> policyItems) {
+        ResponseEntity<List<PlatformAiActionPolicyItem>> response = restTemplate.exchange(
+                buildUri("/system/internal/platform/ai/policy/actions"),
+                HttpMethod.PUT,
+                new HttpEntity<>(policyItems, headerFactory.buildHeaders()),
+                new ParameterizedTypeReference<List<PlatformAiActionPolicyItem>>() {
+                });
+        List<PlatformAiActionPolicyItem> body = response.getBody();
+        return body == null ? Collections.emptyList() : body;
+    }
+
+    /**
+     * 写入 AI 审计记录。
+     *
+     * @param request 审计写入请求
+     */
+    public void recordAiAudit(PlatformAiAuditCreateRequest request) {
+        exchange(buildUri("/system/internal/platform/ai/audit"), HttpMethod.POST, request, Void.class);
+    }
+
+    /**
+     * 查询当前租户 AI 审计记录。
+     *
+     * @param limit 限制条数
+     * @return 审计记录列表
+     */
+    public List<PlatformAiAuditView> listAiAuditRecords(int limit) {
+        ResponseEntity<List<PlatformAiAuditView>> response = restTemplate.exchange(
+                UriComponentsBuilder.fromUri(buildUri("/system/internal/platform/ai/audit"))
+                        .queryParam("limit", limit)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.GET,
+                new HttpEntity<>(headerFactory.buildHeaders()),
+                new ParameterizedTypeReference<List<PlatformAiAuditView>>() {
+                });
+        List<PlatformAiAuditView> body = response.getBody();
         return body == null ? Collections.emptyList() : body;
     }
 

@@ -1,6 +1,9 @@
 package com.erp.system.controller;
 
 import com.erp.platform.contract.model.PlatformDeptView;
+import com.erp.platform.contract.model.PlatformAiActionPolicyItem;
+import com.erp.platform.contract.model.PlatformAiAuditView;
+import com.erp.platform.contract.model.PlatformAiConfigView;
 import com.erp.platform.contract.model.PlatformPostView;
 import com.erp.platform.contract.model.PlatformRoleView;
 import com.erp.platform.contract.model.PlatformUserPostLink;
@@ -15,6 +18,8 @@ import com.erp.system.domain.SysUserRole;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmItemService;
 import com.erp.system.service.IMdmWarehouseService;
+import com.erp.system.service.ISysAiAuditService;
+import com.erp.system.service.ISysAiConfigService;
 import com.erp.system.service.ISysConfigService;
 import com.erp.system.service.ISysDeptService;
 import com.erp.system.service.ISysImexJobService;
@@ -58,6 +63,10 @@ class SystemInternalControllerTest {
     @Mock
     private ISysImexJobService imexJobService;
     @Mock
+    private ISysAiConfigService aiConfigService;
+    @Mock
+    private ISysAiAuditService aiAuditService;
+    @Mock
     private IMdmItemService itemService;
     @Mock
     private IMdmWarehouseService warehouseService;
@@ -88,6 +97,8 @@ class SystemInternalControllerTest {
                 configService,
                 tenantService,
                 imexJobService,
+                aiConfigService,
+                aiAuditService,
                 itemService,
                 warehouseService,
                 userService,
@@ -194,5 +205,38 @@ class SystemInternalControllerTest {
         Assertions.assertEquals(3L, roleLinks.get(0).getRoleId());
         Assertions.assertEquals(1, postLinks.size());
         Assertions.assertEquals(5L, postLinks.get(0).getPostId());
+    }
+
+    /**
+     * 验证 AI 配置、策略、审计接口返回租户隔离数据。
+     */
+    @Test
+    void shouldExposeAiConfigPolicyAndAuditViews() {
+        when(securityUserResolver.getCurrentTenantId()).thenReturn("TENANT_A");
+
+        PlatformAiConfigView configView = new PlatformAiConfigView();
+        configView.setTenantId("TENANT_A");
+        configView.setEnabled(true);
+        configView.setModel("gpt-5.1");
+        when(aiConfigService.getTenantConfig("TENANT_A")).thenReturn(configView);
+
+        PlatformAiActionPolicyItem policyItem = new PlatformAiActionPolicyItem();
+        policyItem.setActionKey("todo_finish");
+        policyItem.setEnabled(true);
+        policyItem.setRiskLevel("high");
+        when(aiConfigService.listActionPolicies("TENANT_A")).thenReturn(Collections.singletonList(policyItem));
+
+        PlatformAiAuditView auditView = new PlatformAiAuditView();
+        auditView.setTenantId("TENANT_A");
+        auditView.setQuestionType("todo_summary");
+        when(aiAuditService.listByTenant("TENANT_A", 20)).thenReturn(Collections.singletonList(auditView));
+
+        PlatformAiConfigView responseConfig = controller.aiConfig();
+        List<PlatformAiActionPolicyItem> responsePolicy = controller.aiActionPolicies();
+        List<PlatformAiAuditView> responseAudit = controller.aiAuditList(20);
+
+        Assertions.assertEquals("TENANT_A", responseConfig.getTenantId());
+        Assertions.assertEquals("todo_finish", responsePolicy.get(0).getActionKey());
+        Assertions.assertEquals("todo_summary", responseAudit.get(0).getQuestionType());
     }
 }

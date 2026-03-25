@@ -80,12 +80,28 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
     @Override
     public AiModelCompletion completeChat(List<AiChatMessage> messages, List<AiToolDefinition> tools)
             throws IOException, InterruptedException {
+        return completeChat(null, messages, tools);
+    }
+
+    /**
+     * 以非流式方式请求指定模型补全，并支持工具调用结果解析。
+     *
+     * @param model    模型编号
+     * @param messages 对话消息列表
+     * @param tools    可用工具列表
+     * @return 模型补全结果
+     * @throws IOException          IO 异常
+     * @throws InterruptedException 中断异常
+     */
+    @Override
+    public AiModelCompletion completeChat(String model, List<AiChatMessage> messages, List<AiToolDefinition> tools)
+            throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(resolveUri(erpAiProperties.getChatPath()))
                 .timeout(Duration.ofMillis(Math.max(5000L, erpAiProperties.getReadTimeoutMs())))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json, text/event-stream")
-                .POST(HttpRequest.BodyPublishers.ofString(buildChatRequestBody(messages, false, tools)))
+                .POST(HttpRequest.BodyPublishers.ofString(buildChatRequestBody(model, messages, false, tools)))
                 .build();
 
         HttpResponse<InputStream> response = sendWithRetry(request);
@@ -114,12 +130,28 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
      */
     @Override
     public String streamChat(List<AiChatMessage> messages, Consumer<String> deltaConsumer) throws IOException, InterruptedException {
+        return streamChat(null, messages, deltaConsumer);
+    }
+
+    /**
+     * 以流式方式请求指定模型回复。
+     *
+     * @param model         模型编号
+     * @param messages      对话消息列表
+     * @param deltaConsumer 流式增量回调
+     * @return 最终完整回复
+     * @throws IOException          IO 异常
+     * @throws InterruptedException 中断异常
+     */
+    @Override
+    public String streamChat(String model, List<AiChatMessage> messages, Consumer<String> deltaConsumer)
+            throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(resolveUri(erpAiProperties.getChatPath()))
                 .timeout(Duration.ofMillis(Math.max(5000L, erpAiProperties.getReadTimeoutMs())))
                 .header("Content-Type", "application/json")
                 .header("Accept", "text/event-stream, application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(buildChatRequestBody(messages, true, Collections.emptyList())))
+                .POST(HttpRequest.BodyPublishers.ofString(buildChatRequestBody(model, messages, true, Collections.emptyList())))
                 .build();
 
         HttpResponse<InputStream> response = sendWithRetry(request);
@@ -151,9 +183,10 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
      * @return JSON 字符串
      * @throws IOException 序列化异常
      */
-    private String buildChatRequestBody(List<AiChatMessage> messages, boolean stream, List<AiToolDefinition> tools) throws IOException {
+    private String buildChatRequestBody(String model, List<AiChatMessage> messages, boolean stream, List<AiToolDefinition> tools)
+            throws IOException {
         Map<String, Object> requestBody = new LinkedHashMap<>();
-        requestBody.put("model", erpAiProperties.getModel());
+        requestBody.put("model", resolveModel(model));
         requestBody.put("stream", stream);
         List<Map<String, String>> messageList = new ArrayList<>();
         for (AiChatMessage message : messages) {
@@ -172,6 +205,19 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
             requestBody.put("tool_choice", "auto");
         }
         return objectMapper.writeValueAsString(requestBody);
+    }
+
+    /**
+     * 解析最终模型编号。
+     *
+     * @param model 指定模型
+     * @return 模型编号
+     */
+    private String resolveModel(String model) {
+        if (StringUtils.hasText(model)) {
+            return model.trim();
+        }
+        return erpAiProperties.getModel();
     }
 
     /**

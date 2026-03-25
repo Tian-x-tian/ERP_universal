@@ -14,8 +14,10 @@ import com.erp.ai.model.AiToolCall;
 import com.erp.ai.model.AiToolDefinition;
 import com.erp.ai.service.AiActionService;
 import com.erp.ai.service.AiConfirmationTokenService;
+import com.erp.ai.service.AiTenantConfigService;
 import com.erp.ai.security.service.SecurityUserResolver;
 import com.erp.common.client.internal.InternalSystemClient;
+import com.erp.platform.contract.model.PlatformAiActionPolicyItem;
 import com.erp.platform.contract.model.PlatformNoticeView;
 import com.erp.workflow.contract.domain.SysTodoTask;
 import com.erp.workflow.contract.domain.SysWorkflowTask;
@@ -62,17 +64,20 @@ public class AiActionServiceImpl implements AiActionService {
     private final InternalSystemClient internalSystemClient;
     private final InternalWorkflowClient internalWorkflowClient;
     private final AiConfirmationTokenService aiConfirmationTokenService;
+    private final AiTenantConfigService aiTenantConfigService;
     private final ObjectMapper objectMapper;
 
     public AiActionServiceImpl(SecurityUserResolver securityUserResolver,
             InternalSystemClient internalSystemClient,
             InternalWorkflowClient internalWorkflowClient,
             AiConfirmationTokenService aiConfirmationTokenService,
+            AiTenantConfigService aiTenantConfigService,
             ObjectMapper objectMapper) {
         this.securityUserResolver = securityUserResolver;
         this.internalSystemClient = internalSystemClient;
         this.internalWorkflowClient = internalWorkflowClient;
         this.aiConfirmationTokenService = aiConfirmationTokenService;
+        this.aiTenantConfigService = aiTenantConfigService;
         this.objectMapper = objectMapper;
     }
 
@@ -83,14 +88,29 @@ public class AiActionServiceImpl implements AiActionService {
      */
     @Override
     public List<AiActionDescriptor> listAvailableActions() {
+        Map<String, PlatformAiActionPolicyItem> policyMap = resolveActionPolicyMap();
         List<AiActionDescriptor> actionList = new ArrayList<>();
-        appendActionIfAllowed(actionList, ACTION_TODO_CLAIM, "签收待办", RISK_LOW, hasTodoClaimPermission());
-        appendActionIfAllowed(actionList, ACTION_TODO_FINISH, "办结待办", RISK_HIGH, hasTodoFinishPermission());
-        appendActionIfAllowed(actionList, ACTION_NOTICE_READ, "标记消息已读", RISK_LOW, hasNoticeReadPermission());
-        appendActionIfAllowed(actionList, ACTION_NOTICE_READ_ALL, "全部消息已读", RISK_LOW, hasNoticeReadPermission());
-        appendActionIfAllowed(actionList, ACTION_WORKFLOW_APPROVE, "审批通过", RISK_HIGH, hasWorkflowApprovePermission());
-        appendActionIfAllowed(actionList, ACTION_WORKFLOW_REJECT, "审批驳回", RISK_HIGH, hasWorkflowRejectPermission());
-        appendActionIfAllowed(actionList, ACTION_WORKFLOW_DEFINITION_PUBLISH, "发布流程定义", RISK_HIGH, hasWorkflowPublishPermission());
+        appendActionIfAllowed(actionList, ACTION_TODO_CLAIM, "签收待办",
+                resolveRiskLevel(ACTION_TODO_CLAIM, RISK_LOW, policyMap),
+                hasTodoClaimPermission() && isActionEnabledByPolicy(ACTION_TODO_CLAIM, policyMap));
+        appendActionIfAllowed(actionList, ACTION_TODO_FINISH, "办结待办",
+                resolveRiskLevel(ACTION_TODO_FINISH, RISK_HIGH, policyMap),
+                hasTodoFinishPermission() && isActionEnabledByPolicy(ACTION_TODO_FINISH, policyMap));
+        appendActionIfAllowed(actionList, ACTION_NOTICE_READ, "标记消息已读",
+                resolveRiskLevel(ACTION_NOTICE_READ, RISK_LOW, policyMap),
+                hasNoticeReadPermission() && isActionEnabledByPolicy(ACTION_NOTICE_READ, policyMap));
+        appendActionIfAllowed(actionList, ACTION_NOTICE_READ_ALL, "全部消息已读",
+                resolveRiskLevel(ACTION_NOTICE_READ_ALL, RISK_LOW, policyMap),
+                hasNoticeReadPermission() && isActionEnabledByPolicy(ACTION_NOTICE_READ_ALL, policyMap));
+        appendActionIfAllowed(actionList, ACTION_WORKFLOW_APPROVE, "审批通过",
+                resolveRiskLevel(ACTION_WORKFLOW_APPROVE, RISK_HIGH, policyMap),
+                hasWorkflowApprovePermission() && isActionEnabledByPolicy(ACTION_WORKFLOW_APPROVE, policyMap));
+        appendActionIfAllowed(actionList, ACTION_WORKFLOW_REJECT, "审批驳回",
+                resolveRiskLevel(ACTION_WORKFLOW_REJECT, RISK_HIGH, policyMap),
+                hasWorkflowRejectPermission() && isActionEnabledByPolicy(ACTION_WORKFLOW_REJECT, policyMap));
+        appendActionIfAllowed(actionList, ACTION_WORKFLOW_DEFINITION_PUBLISH, "发布流程定义",
+                resolveRiskLevel(ACTION_WORKFLOW_DEFINITION_PUBLISH, RISK_HIGH, policyMap),
+                hasWorkflowPublishPermission() && isActionEnabledByPolicy(ACTION_WORKFLOW_DEFINITION_PUBLISH, policyMap));
         return actionList;
     }
 
@@ -101,32 +121,35 @@ public class AiActionServiceImpl implements AiActionService {
      */
     @Override
     public List<AiToolDefinition> buildAvailableTools() {
+        Map<String, PlatformAiActionPolicyItem> policyMap = resolveActionPolicyMap();
         List<AiToolDefinition> toolList = new ArrayList<>();
-        if (hasTodoClaimPermission()) {
+        if (hasTodoClaimPermission() && isActionEnabledByPolicy(ACTION_TODO_CLAIM, policyMap)) {
             toolList.add(buildTool(ACTION_TODO_CLAIM,
                     "当用户明确要求签收某条待办时调用。优先传 todoId；若没有明确 ID，可传 reference。",
                     buildSchema(
                             buildIntegerProperty("todoId", "待办ID，优先使用"),
                             buildStringProperty("reference", "待办引用，如“第一条”“最新一条”“采购审批单 WF20260322001”"))));
         }
-        if (hasTodoFinishPermission()) {
+        if (hasTodoFinishPermission() && isActionEnabledByPolicy(ACTION_TODO_FINISH, policyMap)) {
             toolList.add(buildTool(ACTION_TODO_FINISH,
                     "当用户明确要求办结某条待办时调用。该动作属于高风险，会进入确认卡片。",
                     buildSchema(
                             buildIntegerProperty("todoId", "待办ID，优先使用"),
                             buildStringProperty("reference", "待办引用，如“第一条”“最新一条”“采购审批单 WF20260322001”"))));
         }
-        if (hasNoticeReadPermission()) {
+        if (hasNoticeReadPermission() && isActionEnabledByPolicy(ACTION_NOTICE_READ, policyMap)) {
             toolList.add(buildTool(ACTION_NOTICE_READ,
                     "当用户要求把某条系统消息标记为已读时调用。优先传 noticeId。",
                     buildSchema(
                             buildIntegerProperty("noticeId", "消息ID，优先使用"),
                             buildStringProperty("reference", "消息引用，如“第一条”“最新一条”“流程催办”"))));
-            toolList.add(buildTool(ACTION_NOTICE_READ_ALL,
-                    "当用户要求把当前账号全部未读消息标记为已读时调用。",
-                    buildSchema()));
+            if (isActionEnabledByPolicy(ACTION_NOTICE_READ_ALL, policyMap)) {
+                toolList.add(buildTool(ACTION_NOTICE_READ_ALL,
+                        "当用户要求把当前账号全部未读消息标记为已读时调用。",
+                        buildSchema()));
+            }
         }
-        if (hasWorkflowApprovePermission()) {
+        if (hasWorkflowApprovePermission() && isActionEnabledByPolicy(ACTION_WORKFLOW_APPROVE, policyMap)) {
             toolList.add(buildTool(ACTION_WORKFLOW_APPROVE,
                     "当用户明确要求审批通过某条流程任务时调用。优先传 taskId 或 todoId，可附 comment。",
                     buildSchema(
@@ -135,7 +158,7 @@ public class AiActionServiceImpl implements AiActionService {
                             buildStringProperty("reference", "任务引用，如“第一条”“最新一条”“采购审批单 WF20260322001”"),
                             buildStringProperty("comment", "审批意见，可为空"))));
         }
-        if (hasWorkflowRejectPermission()) {
+        if (hasWorkflowRejectPermission() && isActionEnabledByPolicy(ACTION_WORKFLOW_REJECT, policyMap)) {
             toolList.add(buildTool(ACTION_WORKFLOW_REJECT,
                     "当用户明确要求驳回某条流程任务且已经提供驳回原因时调用。没有 reason 时不要调用。",
                     buildSchema(
@@ -144,7 +167,7 @@ public class AiActionServiceImpl implements AiActionService {
                             buildStringProperty("reference", "任务引用，如“第一条”“最新一条”“采购审批单 WF20260322001”"),
                             buildStringProperty("reason", "驳回原因，必填"))));
         }
-        if (hasWorkflowPublishPermission()) {
+        if (hasWorkflowPublishPermission() && isActionEnabledByPolicy(ACTION_WORKFLOW_DEFINITION_PUBLISH, policyMap)) {
             toolList.add(buildTool(ACTION_WORKFLOW_DEFINITION_PUBLISH,
                     "当用户明确要求发布流程定义时调用。优先传 definitionId；否则传 processKey 或 processName。",
                     buildSchema(
@@ -182,7 +205,7 @@ public class AiActionServiceImpl implements AiActionService {
             handleResult.setAssistantMessage(preparedAction.clarificationMessage);
             return handleResult;
         }
-        if (isHighRiskAction(actionKey)) {
+        if (RISK_HIGH.equalsIgnoreCase(preparedAction.riskLevel)) {
             AiPendingAction pendingAction = buildPendingAction(preparedAction);
             handleResult.setAssistantMessage("我已定位到【" + pendingAction.getTargetLabel() + "】。这是高风险操作，请先确认后再执行。");
             handleResult.setPendingAction(pendingAction);
@@ -251,7 +274,10 @@ public class AiActionServiceImpl implements AiActionService {
     }
 
     private PreparedAction prepareNoticeReadAll() {
-        PreparedAction preparedAction = PreparedAction.of(ACTION_NOTICE_READ_ALL, "全部消息已读", RISK_LOW);
+        PreparedAction preparedAction = PreparedAction.of(
+                ACTION_NOTICE_READ_ALL,
+                "全部消息已读",
+                resolveRiskLevel(ACTION_NOTICE_READ_ALL, RISK_LOW, null));
         preparedAction.targetLabel = "当前账号全部未读消息";
         preparedAction.summary = "将当前账号全部未读消息标记为已读。";
         return preparedAction;
@@ -266,7 +292,10 @@ public class AiActionServiceImpl implements AiActionService {
         if (currentUserId == null || !Objects.equals(currentUserId, notice.getReceiverUserId())) {
             return PreparedAction.clarify("当前只能处理属于你自己的系统消息。");
         }
-        PreparedAction preparedAction = PreparedAction.of(ACTION_NOTICE_READ, "标记消息已读", RISK_LOW);
+        PreparedAction preparedAction = PreparedAction.of(
+                ACTION_NOTICE_READ,
+                "标记消息已读",
+                resolveRiskLevel(ACTION_NOTICE_READ, RISK_LOW, null));
         preparedAction.targetLabel = buildNoticeLabel(notice);
         preparedAction.summary = "将消息标记为已读：" + preparedAction.targetLabel;
         preparedAction.actionArgs.put("noticeId", notice.getNoticeId());
@@ -284,7 +313,10 @@ public class AiActionServiceImpl implements AiActionService {
         if (!TODO_STATUS_PENDING.equals(trimToNull(resolvedTarget.todoTask.getStatus()))) {
             return PreparedAction.clarify("这条待办当前不是“待处理”状态，无需再次签收。");
         }
-        PreparedAction preparedAction = PreparedAction.of(ACTION_TODO_CLAIM, "签收待办", RISK_LOW);
+        PreparedAction preparedAction = PreparedAction.of(
+                ACTION_TODO_CLAIM,
+                "签收待办",
+                resolveRiskLevel(ACTION_TODO_CLAIM, RISK_LOW, null));
         preparedAction.targetLabel = resolvedTarget.targetLabel;
         preparedAction.summary = "签收待办：" + preparedAction.targetLabel;
         preparedAction.actionArgs.put("todoId", resolvedTarget.todoTask.getTodoId());
@@ -302,7 +334,10 @@ public class AiActionServiceImpl implements AiActionService {
         if (TODO_STATUS_FINISHED.equals(trimToNull(resolvedTarget.todoTask.getStatus()))) {
             return PreparedAction.clarify("这条待办已经办结，无需重复处理。");
         }
-        PreparedAction preparedAction = PreparedAction.of(ACTION_TODO_FINISH, "办结待办", RISK_HIGH);
+        PreparedAction preparedAction = PreparedAction.of(
+                ACTION_TODO_FINISH,
+                "办结待办",
+                resolveRiskLevel(ACTION_TODO_FINISH, RISK_HIGH, null));
         preparedAction.targetLabel = resolvedTarget.targetLabel;
         preparedAction.summary = "办结待办后，可能会推进对应流程：" + preparedAction.targetLabel;
         preparedAction.actionArgs.put("todoId", resolvedTarget.todoTask.getTodoId());
@@ -317,7 +352,10 @@ public class AiActionServiceImpl implements AiActionService {
         if (resolvedTarget.workflowTask == null || resolvedTarget.workflowTask.getTaskId() == null) {
             return PreparedAction.clarify("当前没有可审批的流程任务，请先指定待办。");
         }
-        PreparedAction preparedAction = PreparedAction.of(ACTION_WORKFLOW_APPROVE, "审批通过", RISK_HIGH);
+        PreparedAction preparedAction = PreparedAction.of(
+                ACTION_WORKFLOW_APPROVE,
+                "审批通过",
+                resolveRiskLevel(ACTION_WORKFLOW_APPROVE, RISK_HIGH, null));
         preparedAction.targetLabel = resolvedTarget.targetLabel;
         preparedAction.summary = "审批通过流程任务：" + preparedAction.targetLabel;
         preparedAction.actionArgs.put("taskId", resolvedTarget.workflowTask.getTaskId());
@@ -338,7 +376,10 @@ public class AiActionServiceImpl implements AiActionService {
         if (resolvedTarget.workflowTask == null || resolvedTarget.workflowTask.getTaskId() == null) {
             return PreparedAction.clarify("当前没有可驳回的流程任务，请先指定待办。");
         }
-        PreparedAction preparedAction = PreparedAction.of(ACTION_WORKFLOW_REJECT, "审批驳回", RISK_HIGH);
+        PreparedAction preparedAction = PreparedAction.of(
+                ACTION_WORKFLOW_REJECT,
+                "审批驳回",
+                resolveRiskLevel(ACTION_WORKFLOW_REJECT, RISK_HIGH, null));
         preparedAction.targetLabel = resolvedTarget.targetLabel;
         preparedAction.summary = "驳回流程任务：" + preparedAction.targetLabel + "。驳回原因：" + reason;
         preparedAction.actionArgs.put("taskId", resolvedTarget.workflowTask.getTaskId());
@@ -355,7 +396,10 @@ public class AiActionServiceImpl implements AiActionService {
         if (definition == null || definition.getDefinitionId() == null) {
             return PreparedAction.clarify("我还没定位到要发布的流程定义，请补充流程标识或流程名称。");
         }
-        PreparedAction preparedAction = PreparedAction.of(ACTION_WORKFLOW_DEFINITION_PUBLISH, "发布流程定义", RISK_HIGH);
+        PreparedAction preparedAction = PreparedAction.of(
+                ACTION_WORKFLOW_DEFINITION_PUBLISH,
+                "发布流程定义",
+                resolveRiskLevel(ACTION_WORKFLOW_DEFINITION_PUBLISH, RISK_HIGH, null));
         preparedAction.targetLabel = buildDefinitionLabel(definition);
         preparedAction.summary = "发布流程定义：" + preparedAction.targetLabel;
         preparedAction.actionArgs.put("definitionId", definition.getDefinitionId());
@@ -852,10 +896,7 @@ public class AiActionServiceImpl implements AiActionService {
     }
 
     private boolean isHighRiskAction(String actionKey) {
-        return ACTION_TODO_FINISH.equals(actionKey)
-                || ACTION_WORKFLOW_APPROVE.equals(actionKey)
-                || ACTION_WORKFLOW_REJECT.equals(actionKey)
-                || ACTION_WORKFLOW_DEFINITION_PUBLISH.equals(actionKey);
+        return RISK_HIGH.equalsIgnoreCase(resolveRiskLevel(actionKey, defaultRiskLevel(actionKey), null));
     }
 
     private String resolveAssistantMessage(AiActionResultVO result) {
@@ -1000,6 +1041,73 @@ public class AiActionServiceImpl implements AiActionService {
         if (allowed) {
             actionList.add(new AiActionDescriptor(key, label, riskLevel));
         }
+    }
+
+    /**
+     * 解析动作策略映射。
+     *
+     * @return 动作策略映射
+     */
+    private Map<String, PlatformAiActionPolicyItem> resolveActionPolicyMap() {
+        Map<String, PlatformAiActionPolicyItem> policyMap = new LinkedHashMap<>();
+        List<PlatformAiActionPolicyItem> policyList = aiTenantConfigService.listActionPolicies();
+        if (policyList == null || policyList.isEmpty()) {
+            return policyMap;
+        }
+        for (PlatformAiActionPolicyItem item : policyList) {
+            if (item == null || !StringUtils.hasText(item.getActionKey())) {
+                continue;
+            }
+            policyMap.put(item.getActionKey().trim(), item);
+        }
+        return policyMap;
+    }
+
+    /**
+     * 判断动作是否被策略禁用。
+     *
+     * @param actionKey 动作编码
+     * @param policyMap 策略映射
+     * @return true 表示允许执行
+     */
+    private boolean isActionEnabledByPolicy(String actionKey, Map<String, PlatformAiActionPolicyItem> policyMap) {
+        Map<String, PlatformAiActionPolicyItem> safePolicyMap = policyMap == null ? resolveActionPolicyMap() : policyMap;
+        PlatformAiActionPolicyItem policyItem = safePolicyMap.get(actionKey);
+        return policyItem == null || policyItem.isEnabled();
+    }
+
+    /**
+     * 解析动作风险等级。
+     *
+     * @param actionKey 动作编码
+     * @param defaultRisk 默认风险
+     * @param policyMap 策略映射
+     * @return 风险等级
+     */
+    private String resolveRiskLevel(String actionKey, String defaultRisk, Map<String, PlatformAiActionPolicyItem> policyMap) {
+        Map<String, PlatformAiActionPolicyItem> safePolicyMap = policyMap == null ? resolveActionPolicyMap() : policyMap;
+        PlatformAiActionPolicyItem policyItem = safePolicyMap.get(actionKey);
+        if (policyItem == null || !StringUtils.hasText(policyItem.getRiskLevel())) {
+            return defaultRisk;
+        }
+        String riskLevel = policyItem.getRiskLevel().trim().toLowerCase(Locale.ROOT);
+        return RISK_HIGH.equals(riskLevel) ? RISK_HIGH : RISK_LOW;
+    }
+
+    /**
+     * 解析动作默认风险等级。
+     *
+     * @param actionKey 动作编码
+     * @return 默认风险等级
+     */
+    private String defaultRiskLevel(String actionKey) {
+        if (ACTION_TODO_FINISH.equals(actionKey)
+                || ACTION_WORKFLOW_APPROVE.equals(actionKey)
+                || ACTION_WORKFLOW_REJECT.equals(actionKey)
+                || ACTION_WORKFLOW_DEFINITION_PUBLISH.equals(actionKey)) {
+            return RISK_HIGH;
+        }
+        return RISK_LOW;
     }
 
     private AiToolDefinition buildTool(String name, String description, Map<String, Object> schema) {

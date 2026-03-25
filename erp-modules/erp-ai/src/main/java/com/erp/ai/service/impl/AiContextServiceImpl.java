@@ -4,7 +4,9 @@ import com.erp.ai.config.ErpAiProperties;
 import com.erp.ai.model.AiChatRequest;
 import com.erp.ai.model.AiPageContext;
 import com.erp.ai.model.AiPromptContext;
+import com.erp.ai.model.AiRuntimeConfig;
 import com.erp.ai.service.AiContextService;
+import com.erp.ai.service.AiTenantConfigService;
 import com.erp.platform.contract.model.PlatformNoticeView;
 import com.erp.platform.contract.model.PlatformUserView;
 import com.erp.ai.security.service.SecurityUserResolver;
@@ -34,15 +36,18 @@ public class AiContextServiceImpl implements AiContextService {
     private final InternalSystemClient internalSystemClient;
     private final InternalWorkflowClient internalWorkflowClient;
     private final ErpAiProperties erpAiProperties;
+    private final AiTenantConfigService aiTenantConfigService;
 
     public AiContextServiceImpl(SecurityUserResolver securityUserResolver,
             InternalSystemClient internalSystemClient,
             InternalWorkflowClient internalWorkflowClient,
-            ErpAiProperties erpAiProperties) {
+            ErpAiProperties erpAiProperties,
+            AiTenantConfigService aiTenantConfigService) {
         this.securityUserResolver = securityUserResolver;
         this.internalSystemClient = internalSystemClient;
         this.internalWorkflowClient = internalWorkflowClient;
         this.erpAiProperties = erpAiProperties;
+        this.aiTenantConfigService = aiTenantConfigService;
     }
 
     /**
@@ -61,8 +66,9 @@ public class AiContextServiceImpl implements AiContextService {
         AiPromptContext promptContext = new AiPromptContext();
         promptContext.setCurrentUser(buildCurrentUserContext(currentUser));
         promptContext.setPageContext(normalizePageContext(request == null ? null : request.getPageContext()));
-        fillTodoContext(promptContext, currentUser.getUserId());
-        fillNoticeContext(promptContext, currentUser.getUserId());
+        AiRuntimeConfig runtimeConfig = aiTenantConfigService.resolveRuntimeConfig();
+        fillTodoContext(promptContext, currentUser.getUserId(), runtimeConfig.getMaxTodoItems());
+        fillNoticeContext(promptContext, currentUser.getUserId(), runtimeConfig.getMaxNoticeItems());
         fillDefinitionCandidates(promptContext);
         return promptContext;
     }
@@ -121,7 +127,7 @@ public class AiContextServiceImpl implements AiContextService {
      * @param promptContext 提示词上下文
      * @param userId        当前用户ID
      */
-    private void fillTodoContext(AiPromptContext promptContext, Long userId) {
+    private void fillTodoContext(AiPromptContext promptContext, Long userId, int maxTodoItemsConfig) {
         promptContext.setTodoContextAvailable(false);
         promptContext.setTodoContextMessage("当前未读取到待办上下文");
         promptContext.setTodoCount(0);
@@ -132,7 +138,7 @@ public class AiContextServiceImpl implements AiContextService {
         try {
             Long todoCount = internalWorkflowClient.countPendingTodos(userId);
 
-            int maxTodoItems = Math.max(1, erpAiProperties.getMaxTodoItems());
+            int maxTodoItems = Math.max(1, maxTodoItemsConfig <= 0 ? erpAiProperties.getMaxTodoItems() : maxTodoItemsConfig);
             List<AiPromptContext.TodoSummary> todoSummaryList = internalWorkflowClient.getPendingTodos(userId, maxTodoItems)
                     .stream()
                     .map(this::buildTodoSummary)
@@ -176,7 +182,7 @@ public class AiContextServiceImpl implements AiContextService {
      * @param promptContext 提示词上下文
      * @param userId        当前用户ID
      */
-    private void fillNoticeContext(AiPromptContext promptContext, Long userId) {
+    private void fillNoticeContext(AiPromptContext promptContext, Long userId, int maxNoticeItemsConfig) {
         promptContext.setNoticeContextAvailable(false);
         promptContext.setNoticeContextMessage("当前未读取到消息上下文");
         promptContext.setUnreadNoticeCount(0);
@@ -187,7 +193,8 @@ public class AiContextServiceImpl implements AiContextService {
         try {
             Long unreadNoticeCount = internalSystemClient.countUnreadNotices(userId);
 
-            int maxNoticeItems = Math.max(1, erpAiProperties.getMaxNoticeItems());
+            int maxNoticeItems = Math.max(1,
+                    maxNoticeItemsConfig <= 0 ? erpAiProperties.getMaxNoticeItems() : maxNoticeItemsConfig);
             List<AiPromptContext.NoticeSummary> noticeSummaryList = internalSystemClient.getLatestNotices(userId, maxNoticeItems)
                     .stream()
                     .map(this::buildNoticeSummary)
