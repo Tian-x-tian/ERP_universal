@@ -16,6 +16,10 @@
     <modules>
         <module>erp-platform-contract</module>
         <module>erp-workflow-contract</module>
+        <module>erp-internal-client-core</module>
+        <module>erp-platform-client</module>
+        <module>erp-workflow-client</module>
+        <module>erp-business-client</module>
         <module>erp-system</module>
         <module>erp-workflow</module>
         <module>erp-business</module>

@@ -9,7 +9,7 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>erp-common</artifactId>
+    <artifactId>erp-common-core</artifactId>
     <description>Common modules for the ERP system</description>
 
     <dependencies>
@@ -27,16 +27,6 @@
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.erp</groupId>
-            <artifactId>erp-platform-contract</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.erp</groupId>
-            <artifactId>erp-workflow-contract</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <!-- MyBatis Plus -->
         <dependency>
