@@ -3,7 +3,9 @@ package com.erp.business.hr.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.erp.business.hr.domain.HrWarningRecord;
 import com.erp.business.hr.domain.vo.HrWarningHandleBody;
+import com.erp.business.hr.domain.vo.HrWarningHomeSummaryVO;
 import com.erp.business.hr.domain.vo.HrWarningQuery;
+import com.erp.business.hr.service.IHrHomeSummaryService;
 import com.erp.business.hr.service.IHrWarningService;
 import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
@@ -22,9 +24,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/business/hr/warning")
 public class HrWarningController {
     private final IHrWarningService warningService;
+    private final IHrHomeSummaryService hrHomeSummaryService;
 
-    public HrWarningController(IHrWarningService warningService) {
+    public HrWarningController(IHrWarningService warningService,
+            IHrHomeSummaryService hrHomeSummaryService) {
         this.warningService = warningService;
+        this.hrHomeSummaryService = hrHomeSummaryService;
     }
 
     /**
@@ -38,6 +43,16 @@ public class HrWarningController {
     public R<PageData<HrWarningRecord>> list(HrWarningQuery query) {
         Page<HrWarningRecord> page = warningService.selectPage(query);
         return R.page(page.getRecords(), page.getCurrent(), page.getSize(), page.getTotal());
+    }
+
+    /**
+     * 查询 HR 预警首页汇总。
+     *
+     * @return 汇总结果
+     */
+    @GetMapping("/home-summary")
+    public R<HrWarningHomeSummaryVO> homeSummary() {
+        return R.success(hrHomeSummaryService.buildWarningSummary());
     }
 
     /**

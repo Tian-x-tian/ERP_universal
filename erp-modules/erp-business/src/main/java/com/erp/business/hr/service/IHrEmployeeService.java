@@ -25,4 +25,12 @@ public interface IHrEmployeeService {
      * @return 聚合详情
      */
     HrEmployeeDetailVO getEmployeeDetail(Long employeeId);
+
+    /**
+     * 查询各状态下的人员数量统计。
+     *
+     * @param query 查询参数（可选）
+     * @return 状态到总数的映射
+     */
+    java.util.Map<String, Long> selectEmployeeStatusStats(HrEmployeeAggregateQuery query);
 }

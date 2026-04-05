@@ -48,6 +48,18 @@ public class HrEmployeeController {
     }
 
     /**
+     * 查询各状态下的人员数量统计。
+     *
+     * @param query 查询参数
+     * @return 统计映射
+     */
+    @GetMapping("/status-stats")
+    @PreAuthorize("@ss.hasPermi('business:hr:employee:list')")
+    public R<java.util.Map<String, Long>> getStatusStats(HrEmployeeAggregateQuery query) {
+        return R.success(hrEmployeeService.selectEmployeeStatusStats(query));
+    }
+
+    /**
      * 查询 HR 员工详情。
      *
      * @param employeeId 员工ID

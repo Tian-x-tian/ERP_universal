@@ -106,6 +106,40 @@ public class HrEmployeeServiceImpl implements IHrEmployeeService {
     }
 
     /**
+     * 查询各状态下的人员数量统计。
+     *
+     * @param query 查询参数（可选）
+     * @return 状态到总数的映射
+     */
+    @Override
+    public Map<String, Long> selectEmployeeStatusStats(HrEmployeeAggregateQuery query) {
+        HrEmployeeAggregateQuery safeQuery = query == null ? new HrEmployeeAggregateQuery() : query;
+        // 使用 MyBatis Plus 的 selectMaps 进行聚合查询
+        com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<HrEmployeeCore> wrapper = new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
+        wrapper.select("status, count(*) as count")
+                .eq("del_flag", HrEmployeeSupport.EXIST_DEL_FLAG)
+                .eq(safeQuery.getOrgId() != null, "org_id", safeQuery.getOrgId())
+                .eq(safeQuery.getDeptId() != null, "dept_id", safeQuery.getDeptId())
+                .groupBy("status");
+        
+        List<Map<String, Object>> list = employeeCoreMapper.selectMaps(wrapper);
+        Map<String, Long> stats = new HashMap<>();
+        long totalCount = 0;
+        if (list != null) {
+            for (Map<String, Object> map : list) {
+                String status = (String) map.get("status");
+                Long count = ((Number) map.get("count")).longValue();
+                if (status != null) {
+                    stats.put(status, count);
+                    totalCount += count;
+                }
+            }
+        }
+        stats.put("TOTAL", totalCount);
+        return stats;
+    }
+
+    /**
      * 批量加载扩展档案索引。
      *
      * @param coreRecords 员工主档集合

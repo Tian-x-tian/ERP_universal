@@ -32,7 +32,7 @@ erp:
     enabled: ${ERP_AI_ENABLED:true}
     base-url: ${ERP_AI_BASE_URL:http://127.0.0.1:8317/v1}
     chat-path: ${ERP_AI_CHAT_PATH:/chat/completions}
-    model: ${ERP_AI_MODEL:gpt-5.3}
+    model: ${ERP_AI_MODEL:gpt-5.1}
     connect-timeout-ms: ${ERP_AI_CONNECT_TIMEOUT_MS:5000}
     read-timeout-ms: ${ERP_AI_READ_TIMEOUT_MS:120000}
     max-history-turns: ${ERP_AI_MAX_HISTORY_TURNS:12}

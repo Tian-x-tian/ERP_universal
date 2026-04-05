@@ -2,6 +2,8 @@ package com.erp.business.inventory.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.erp.business.inventory.domain.InventoryInboundOrder;
+import com.erp.business.inventory.domain.vo.InventoryInboundHomeSummaryVO;
+import com.erp.business.inventory.service.IInventoryHomeSummaryService;
 import com.erp.business.inventory.service.IInventoryInboundService;
 import com.erp.common.core.domain.PageData;
 import com.erp.common.core.domain.R;
@@ -23,9 +25,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class InventoryInboundController {
 
     private final IInventoryInboundService inboundService;
+    private final IInventoryHomeSummaryService inventoryHomeSummaryService;
 
-    public InventoryInboundController(IInventoryInboundService inboundService) {
+    public InventoryInboundController(IInventoryInboundService inboundService,
+            IInventoryHomeSummaryService inventoryHomeSummaryService) {
         this.inboundService = inboundService;
+        this.inventoryHomeSummaryService = inventoryHomeSummaryService;
     }
 
     /**
@@ -45,6 +50,16 @@ public class InventoryInboundController {
             @RequestParam(value = "pageSize", required = false) Long pageSize) {
         Page<InventoryInboundOrder> page = inboundService.selectPage(billNo, status, pageNum, pageSize);
         return R.page(page.getRecords(), page.getCurrent(), page.getSize(), page.getTotal());
+    }
+
+    /**
+     * 查询入库首页汇总。
+     *
+     * @return 入库首页汇总
+     */
+    @GetMapping("/home-summary")
+    public R<InventoryInboundHomeSummaryVO> homeSummary() {
+        return R.success(inventoryHomeSummaryService.buildInboundSummary());
     }
 
     /**
