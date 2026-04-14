@@ -52,5 +52,21 @@ erp:
 
 security:
   jwt:
-    secret: ${ERP_JWT_SECRET:erp-auth-jwt-secret-2026}
+    secret: ${ERP_JWT_SECRET:}
     expire: ${ERP_JWT_EXPIRE_MS:86400000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,db,redis,ping

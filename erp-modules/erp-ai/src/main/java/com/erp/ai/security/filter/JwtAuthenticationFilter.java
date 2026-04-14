@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 public class JwtAuthenticationFilter extends InternalAuthenticationFilterSupport {
 
     public JwtAuthenticationFilter(ObjectMapper objectMapper,
-            @Value("${erp.internal.auth-signature-secret:erp-internal-auth-signature-2026}") String internalSignatureSecret) {
+            @Value("${erp.internal.auth-signature-secret:}") String internalSignatureSecret) {
         super(objectMapper, internalSignatureSecret, "/system/ai/", "AI模块");
     }
 }

@@ -3,7 +3,7 @@ package com.erp.common.web.exception;
 import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.core.exception.ServiceException;
-import com.erp.common.web.ApiHttpStatusResolver;
+import com.erp.common.web.error.ApiErrorResponseFactory;
 import jakarta.validation.ConstraintViolationException;
 import org.mybatis.spring.MyBatisSystemException;
 import org.slf4j.Logger;
@@ -180,8 +180,7 @@ public class GlobalExceptionHandlerSupport {
     public ResponseEntity<R<Void>> handleServiceException(ServiceException ex) {
         int errorCode = Optional.ofNullable(ex.getCode()).orElse((int) ResultCode.ERROR.getCode());
         String message = Optional.ofNullable(ex.getMessage()).orElse(ResultCode.ERROR.getMessage());
-        R<Void> body = R.custom(errorCode, message, null);
-        return ResponseEntity.status(ApiHttpStatusResolver.resolve(errorCode)).body(body);
+        return ApiErrorResponseFactory.buildResponseEntity(errorCode, message);
     }
 
     /**
@@ -276,9 +275,7 @@ public class GlobalExceptionHandlerSupport {
      * @return 响应实体
      */
     protected ResponseEntity<R<Void>> buildErrorResponse(ResultCode resultCode, String message) {
-        R<Void> body = R.failed(resultCode, message);
-        HttpStatus status = ApiHttpStatusResolver.resolve(resultCode.getCode());
-        return ResponseEntity.status(status).body(body);
+        return ApiErrorResponseFactory.buildResponseEntity(resultCode, message);
     }
 
     /**

@@ -2,6 +2,7 @@ package com.erp.business.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.erp.business.hr.attendance.core.service.IHrAttendanceWorkflowBridgeService;
 import com.erp.business.hr.service.IHrEmployeeWorkflowBridgeService;
 import com.erp.business.inventory.service.IInventoryInboundService;
 import com.erp.business.inventory.service.IInventoryOutboundService;
@@ -36,6 +37,8 @@ public class BusinessWorkflowCallbackController {
     private static final String BUSINESS_TYPE_INVENTORY_MOVE = "INVENTORY_MOVE";
     private static final String BUSINESS_TYPE_INVENTORY_STOCKTAKE = "INVENTORY_STOCKTAKE";
     private static final String BUSINESS_TYPE_INVENTORY_TRANSFER = "INVENTORY_TRANSFER";
+    private static final String BUSINESS_TYPE_ATTENDANCE_LEAVE = "HR_ATTENDANCE_LEAVE";
+    private static final String BUSINESS_TYPE_ATTENDANCE_OVERTIME = "HR_ATTENDANCE_OVERTIME";
 
     private final IInventoryInboundService inboundService;
     private final IInventoryOutboundService outboundService;
@@ -45,6 +48,7 @@ public class BusinessWorkflowCallbackController {
     private final IInventoryStocktakeService stocktakeService;
     private final IInventoryTransferService transferService;
     private final IHrEmployeeWorkflowBridgeService employeeWorkflowBridgeService;
+    private final IHrAttendanceWorkflowBridgeService attendanceWorkflowBridgeService;
     private final ObjectMapper objectMapper;
 
     public BusinessWorkflowCallbackController(IInventoryInboundService inboundService,
@@ -54,7 +58,8 @@ public class BusinessWorkflowCallbackController {
             IInventoryStockMoveService stockMoveService,
             IInventoryStocktakeService stocktakeService,
             IInventoryTransferService transferService,
-            IHrEmployeeWorkflowBridgeService employeeWorkflowBridgeService) {
+            IHrEmployeeWorkflowBridgeService employeeWorkflowBridgeService,
+            IHrAttendanceWorkflowBridgeService attendanceWorkflowBridgeService) {
         this.inboundService = inboundService;
         this.outboundService = outboundService;
         this.stockAdjustService = stockAdjustService;
@@ -63,6 +68,7 @@ public class BusinessWorkflowCallbackController {
         this.stocktakeService = stocktakeService;
         this.transferService = transferService;
         this.employeeWorkflowBridgeService = employeeWorkflowBridgeService;
+        this.attendanceWorkflowBridgeService = attendanceWorkflowBridgeService;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -141,6 +147,9 @@ public class BusinessWorkflowCallbackController {
      * @param event 回调事件
      */
     private void handleHrCallback(WorkflowCallbackEvent event) {
+        if (handleAttendanceCallback(event)) {
+            return;
+        }
         Long changeRecordId = readLong(readFormValue(event.getFormData(), "changeRecordId"));
         if (changeRecordId == null) {
             return;
@@ -154,6 +163,43 @@ public class BusinessWorkflowCallbackController {
         if (INSTANCE_STATUS_REJECTED.equals(event.getStatus()) || INSTANCE_STATUS_WITHDRAWN.equals(event.getStatus())) {
             employeeWorkflowBridgeService.onChangeRejected(changeRecordId, operator);
         }
+    }
+
+    /**
+     * 处理出勤审批回调。
+     *
+     * @param event 回调事件
+     * @return true 表示已处理
+     */
+    private boolean handleAttendanceCallback(WorkflowCallbackEvent event) {
+        Long orderId = readLong(readFormValue(event.getFormData(), "orderId"));
+        if (orderId == null || !StringUtils.hasText(event.getBusinessType())) {
+            return false;
+        }
+        String businessType = event.getBusinessType().trim().toUpperCase();
+        String operator = StringUtils.hasText(event.getOperator()) ? event.getOperator().trim() : "system";
+        boolean approved = INSTANCE_STATUS_COMPLETED.equals(event.getStatus());
+        boolean rejected = INSTANCE_STATUS_REJECTED.equals(event.getStatus()) || INSTANCE_STATUS_WITHDRAWN.equals(event.getStatus());
+        if (!approved && !rejected) {
+            return false;
+        }
+        if (BUSINESS_TYPE_ATTENDANCE_LEAVE.equals(businessType)) {
+            if (approved) {
+                attendanceWorkflowBridgeService.onLeaveApproved(orderId, operator);
+            } else {
+                attendanceWorkflowBridgeService.onLeaveRejected(orderId, operator);
+            }
+            return true;
+        }
+        if (BUSINESS_TYPE_ATTENDANCE_OVERTIME.equals(businessType)) {
+            if (approved) {
+                attendanceWorkflowBridgeService.onOvertimeApproved(orderId, operator);
+            } else {
+                attendanceWorkflowBridgeService.onOvertimeRejected(orderId, operator);
+            }
+            return true;
+        }
+        return false;
     }
 
     /**

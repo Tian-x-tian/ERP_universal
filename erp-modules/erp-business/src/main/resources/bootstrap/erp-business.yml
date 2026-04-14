@@ -32,7 +32,7 @@ spring:
   sql:
     init:
       mode: ${SQL_INIT_MODE:never}
-      schema-locations: classpath:sql/init_business.sql,classpath:sql/upgrade_business.sql,classpath*:sql/upgrade/business/*.sql
+      schema-locations: classpath:sql/init_business.sql
 
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
@@ -41,7 +41,12 @@ mybatis-plus:
 
 erp:
   internal:
-    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:erp-internal-auth-signature-2026}
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+  sql:
+    upgrade:
+      enabled: ${ERP_SQL_UPGRADE_ENABLED:true}
+      legacy-location: classpath:sql/upgrade_business.sql
+      location: classpath*:sql/upgrade/business/*.sql
   business:
     datasource:
       enabled: false

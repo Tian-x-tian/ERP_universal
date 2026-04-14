@@ -4,7 +4,7 @@ spring:
 
 erp:
   internal:
-    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:erp-internal-auth-signature-2026}
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
     service-user-name: ${ERP_INTERNAL_SERVICE_USER_NAME:erp-workflow}
   workflow:
     http-enabled: true

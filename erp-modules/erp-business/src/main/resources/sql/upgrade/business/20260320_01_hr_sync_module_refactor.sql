@@ -150,7 +150,7 @@ FROM (
   UNION ALL SELECT '/business/hr/performance', '绩效推送', 3, 'business:hr:performance:push'
   UNION ALL SELECT '/business/hr/performance', '绩效重试', 4, 'business:hr:performance:retry'
 ) button_def
-INNER JOIN `sys_menu` parent_menu ON parent_menu.path = button_def.path
+INNER JOIN `sys_menu` parent_menu ON parent_menu.path = button_def.path AND parent_menu.menu_type = 'C'
 WHERE NOT EXISTS (
   SELECT 1 FROM `sys_menu` existed_menu
   WHERE existed_menu.path = button_def.path
@@ -186,3 +186,4 @@ WHERE admin_role.tenant_id = '000000'
       AND existed_role_menu.role_id = admin_role.role_id
       AND existed_role_menu.menu_id = menu_item.menu_id
   );
+

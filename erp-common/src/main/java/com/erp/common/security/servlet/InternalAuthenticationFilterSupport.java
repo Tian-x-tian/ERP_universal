@@ -1,11 +1,11 @@
 package com.erp.common.security.servlet;
 
 import com.erp.common.core.context.TenantContextHolder;
-import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.security.AuthHeaders;
 import com.erp.common.security.AuthenticatedUserPrincipal;
 import com.erp.common.security.InternalAuthSignatureUtils;
+import com.erp.common.web.error.ApiErrorResponseWriter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -76,7 +76,7 @@ public class InternalAuthenticationFilterSupport extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(authentication);
             chain.doFilter(request, response);
         } catch (IllegalArgumentException ex) {
-            writeUnauthorized(response, StringUtils.hasText(ex.getMessage()) ? ex.getMessage() : "Token无效或已过期");
+            writeUnauthorized(request, response, StringUtils.hasText(ex.getMessage()) ? ex.getMessage() : "Token无效或已过期");
         } finally {
             SecurityContextHolder.clearContext();
             TenantContextHolder.clear();
@@ -138,15 +138,22 @@ public class InternalAuthenticationFilterSupport extends OncePerRequestFilter {
      * @param message  提示信息
      * @throws IOException IO 异常
      */
-    protected void writeUnauthorized(HttpServletResponse response, String message) throws IOException {
+    protected void writeUnauthorized(HttpServletRequest request, HttpServletResponse response, String message)
+            throws java.io.IOException {
         TenantContextHolder.clear();
         SecurityContextHolder.clearContext();
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setCharacterEncoding("UTF-8");
-        response.setContentType(JSON_CONTENT_TYPE);
-        R<Void> body = R.failed(ResultCode.UNAUTHORIZED, message);
-        response.getWriter().write(objectMapper.writeValueAsString(body));
-        response.getWriter().flush();
+        ApiErrorResponseWriter.writeServlet(request, response, objectMapper, com.erp.common.core.domain.ResultCode.UNAUTHORIZED, message);
+    }
+
+    /**
+     * 兼容旧调用方的未授权写出入口。
+     *
+     * @param response 响应对象
+     * @param message  提示信息
+     * @throws java.io.IOException IO 异常
+     */
+    protected void writeUnauthorized(HttpServletResponse response, String message) throws java.io.IOException {
+        writeUnauthorized(null, response, message);
     }
 
     /**

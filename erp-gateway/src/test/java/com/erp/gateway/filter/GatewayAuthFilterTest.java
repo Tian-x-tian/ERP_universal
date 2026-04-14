@@ -53,6 +53,32 @@ class GatewayAuthFilterTest {
     }
 
     /**
+     * 校验认证中心校验失败时会返回统一未授权错误体，而不是手写精简 JSON。
+     */
+    @Test
+    void shouldWriteUnifiedUnauthorizedBodyWhenTokenVerificationFails() throws Exception {
+        GatewayAuthFilter filter = new GatewayAuthFilter(buildRejectedWebClientBuilder(), new ObjectMapper(), INTERNAL_SECRET);
+        MockServerHttpRequest request = MockServerHttpRequest.get("/workflow/todos/list")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer bad-token")
+                .header("tenantId", "DEFAULT")
+                .header("X-Trace-Id", "trace-gateway-auth-001")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+        GatewayFilterChain chain = forwarded -> Mono.empty();
+
+        filter.filter(exchange, chain).block();
+
+        String content = exchange.getResponse().getBodyAsString().block();
+        com.fasterxml.jackson.databind.JsonNode body = new ObjectMapper().readTree(content);
+        assertThat(exchange.getResponse().getStatusCode().value()).isEqualTo(401);
+        assertThat(body.path("code").asLong()).isEqualTo(40101L);
+        assertThat(body.path("message").asText()).isEqualTo("Token无效或已过期");
+        assertThat(body.path("traceId").asText()).isEqualTo("trace-gateway-auth-001");
+        assertThat(body.path("path").asText()).isEqualTo("/workflow/todos/list");
+        assertThat(body.path("timestamp").asText()).isNotBlank();
+    }
+
+    /**
      * 构造一个返回固定认证成功结果的 WebClient.Builder，模拟认证中心验签成功。
      *
      * @return 可用于 GatewayAuthFilter 的 WebClient.Builder
@@ -71,6 +97,25 @@ class GatewayAuthFilterTest {
                             "tokenVersion": 2,
                             "expiresAt": 1893456000000
                           }
+                        }
+                        """)
+                .build());
+        return WebClient.builder().exchangeFunction(exchangeFunction);
+    }
+
+    /**
+     * 构造一个返回认证失败结果的 WebClient.Builder，模拟认证中心验签失败。
+     *
+     * @return 可用于 GatewayAuthFilter 的 WebClient.Builder
+     */
+    private WebClient.Builder buildRejectedWebClientBuilder() {
+        ExchangeFunction exchangeFunction = request -> Mono.just(ClientResponse.create(HttpStatus.OK)
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .body("""
+                        {
+                          "code": 40101,
+                          "message": "Token无效或已过期",
+                          "data": null
                         }
                         """)
                 .build());

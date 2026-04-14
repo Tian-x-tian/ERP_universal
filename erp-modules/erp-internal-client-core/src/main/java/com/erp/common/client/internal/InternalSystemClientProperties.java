@@ -11,7 +11,7 @@ public class InternalSystemClientProperties {
     private static final String DEFAULT_WORKFLOW_BASE_URL = "http://erp-workflow";
     private static final String DEFAULT_BUSINESS_BASE_URL = "http://erp-business";
 
-    private String authSignatureSecret = "erp-internal-auth-signature-2026";
+    private String authSignatureSecret;
     private String systemBaseUrl = DEFAULT_SYSTEM_BASE_URL;
     private String workflowBaseUrl = DEFAULT_WORKFLOW_BASE_URL;
     private String businessBaseUrl = DEFAULT_BUSINESS_BASE_URL;
@@ -27,6 +27,18 @@ public class InternalSystemClientProperties {
 
     public void setAuthSignatureSecret(String authSignatureSecret) {
         this.authSignatureSecret = authSignatureSecret;
+    }
+
+    /**
+     * 解析内部调用签名密钥；缺失时直接失败，避免仓库内默认密钥或空签名继续参与内部调用。
+     *
+     * @return 修剪后的签名密钥
+     */
+    public String resolveAuthSignatureSecret() {
+        if (!hasText(authSignatureSecret)) {
+            throw new IllegalStateException("内部签名密钥 erp.internal.auth-signature-secret 未配置，无法生成内部签名。");
+        }
+        return authSignatureSecret.trim();
     }
 
     public String getSystemBaseUrl() {

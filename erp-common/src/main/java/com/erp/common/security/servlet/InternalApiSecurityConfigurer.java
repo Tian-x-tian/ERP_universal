@@ -1,11 +1,9 @@
 package com.erp.common.security.servlet;
 
-import com.erp.common.core.domain.R;
 import com.erp.common.core.domain.ResultCode;
-import com.erp.common.web.ApiHttpStatusResolver;
+import com.erp.common.web.error.ApiErrorResponseWriter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.DispatcherType;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -13,7 +11,6 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -65,34 +62,17 @@ public final class InternalApiSecurityConfigurer {
                     auth.anyRequest().authenticated();
                 })
                 .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint((request, response, authException) -> writeJson(response,
+                        .authenticationEntryPoint((request, response, authException) -> ApiErrorResponseWriter.writeServlet(
+                                request,
+                                response,
                                 objectMapper,
-                                R.failed(ResultCode.UNAUTHORIZED),
-                                ResultCode.UNAUTHORIZED.getCode()))
-                        .accessDeniedHandler((request, response, accessDeniedException) -> writeJson(response,
+                                ResultCode.UNAUTHORIZED))
+                        .accessDeniedHandler((request, response, accessDeniedException) -> ApiErrorResponseWriter.writeServlet(
+                                request,
+                                response,
                                 objectMapper,
-                                R.failed(ResultCode.FORBIDDEN),
-                                ResultCode.FORBIDDEN.getCode())))
+                                ResultCode.FORBIDDEN)))
                 .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
-    }
-
-    /**
-     * 统一写出 JSON 响应。
-     *
-     * @param response     响应对象
-     * @param objectMapper JSON 工具
-     * @param body         响应体
-     * @param code         业务码
-     * @throws IOException IO 异常
-     */
-    private static void writeJson(HttpServletResponse response,
-            ObjectMapper objectMapper,
-            R<?> body,
-            long code) throws IOException {
-        response.setCharacterEncoding("UTF-8");
-        response.setContentType("application/json; charset=UTF-8");
-        response.setStatus(ApiHttpStatusResolver.resolve(code).value());
-        response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 }

@@ -5,6 +5,7 @@ import com.erp.common.core.domain.ResultCode;
 import com.erp.common.security.AuthHeaders;
 import com.erp.common.security.AuthenticatedUserPrincipal;
 import com.erp.common.security.InternalAuthSignatureUtils;
+import com.erp.common.web.error.ApiErrorResponseWriter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,7 +24,6 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -88,7 +88,7 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
                             .build();
                     return chain.filter(sanitizedExchange.mutate().request(relayRequest).build());
                 })
-                .onErrorResume(ex -> writeUnauthorized(sanitizedExchange.getResponse(),
+                .onErrorResume(ex -> writeUnauthorized(sanitizedExchange,
                         StringUtils.hasText(ex.getMessage()) ? ex.getMessage() : "Token无效或已过期"));
     }
 
@@ -174,19 +174,11 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
     /**
      * 输出统一未授权响应。
      *
-     * @param response 响应对象
+     * @param exchange 请求交换对象
      * @param message  提示信息
      * @return 写出结果
      */
-    private Mono<Void> writeUnauthorized(ServerHttpResponse response, String message) {
-        response.setStatusCode(HttpStatus.UNAUTHORIZED);
-        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        try {
-            byte[] body = objectMapper.writeValueAsBytes(R.failed(ResultCode.UNAUTHORIZED, message));
-            return response.writeWith(Mono.just(response.bufferFactory().wrap(body)));
-        } catch (Exception ex) {
-            byte[] body = "{\"code\":40101,\"message\":\"Token无效或已过期\"}".getBytes(StandardCharsets.UTF_8);
-            return response.writeWith(Mono.just(response.bufferFactory().wrap(body)));
-        }
+    private Mono<Void> writeUnauthorized(ServerWebExchange exchange, String message) {
+        return ApiErrorResponseWriter.writeReactive(exchange, objectMapper, ResultCode.UNAUTHORIZED, message);
     }
 }

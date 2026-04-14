@@ -4,7 +4,6 @@ import com.erp.common.core.context.RequestTraceContextHolder;
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.core.domain.R;
 import com.erp.system.security.service.SecurityUserResolver;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
@@ -22,18 +21,10 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.lang.reflect.Array;
-import java.time.temporal.Temporal;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 控制层接口请求日志切面。
@@ -44,31 +35,15 @@ import java.util.Set;
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class ApiRequestLogAspect {
     private static final Logger log = LoggerFactory.getLogger(ApiRequestLogAspect.class);
-    private static final String MASKED_VALUE = "******";
-    private static final String NULL_VALUE = "null";
     private static final int MAX_LOG_LENGTH = 4000;
-    private static final int MAX_COLLECTION_LOG_SIZE = 20;
-    private static final int MAX_OBJECT_DEPTH = 4;
-    private static final Set<String> SENSITIVE_FIELD_NAMES = new LinkedHashSet<>(Arrays.asList(
-            "password",
-            "oldpassword",
-            "newpassword",
-            "confirmpassword",
-            "token",
-            "accesstoken",
-            "refreshtoken",
-            "authorization",
-            "secret",
-            "clientsecret",
-            "idtoken"
-    ));
+    private static final String NULL_VALUE = "null";
 
-    private final ObjectMapper objectMapper;
     private final SecurityUserResolver securityUserResolver;
+    private final ApiLogSanitizer apiLogSanitizer;
 
     public ApiRequestLogAspect(ObjectMapper objectMapper, SecurityUserResolver securityUserResolver) {
-        this.objectMapper = objectMapper;
         this.securityUserResolver = securityUserResolver;
+        this.apiLogSanitizer = new ApiLogSanitizer(objectMapper);
     }
 
     /**
@@ -114,7 +89,7 @@ public class ApiRequestLogAspect {
                     path,
                     costTime,
                     ex.getClass().getSimpleName(),
-                    truncate(ex.getMessage()),
+                    apiLogSanitizer.truncate(ex.getMessage(), MAX_LOG_LENGTH),
                     ex);
             throw ex;
         }
@@ -139,9 +114,9 @@ public class ApiRequestLogAspect {
      */
     private String buildRequestPayload(HttpServletRequest request, Object[] args) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("query", request == null ? null : request.getQueryString());
-        payload.put("args", sanitizeValue(filterArguments(args), 0, null));
-        return writeCompactJson(payload);
+        payload.put("query", request == null ? null : apiLogSanitizer.sanitizeQueryString(request.getQueryString()));
+        payload.put("args", apiLogSanitizer.sanitizeValue(filterArguments(args)));
+        return apiLogSanitizer.writeCompactJson(payload, MAX_LOG_LENGTH);
     }
 
     /**
@@ -156,10 +131,10 @@ public class ApiRequestLogAspect {
             payload.put("code", response.getCode());
             payload.put("message", response.getMessage());
             payload.put("success", response.isSuccess());
-            payload.put("data", sanitizeValue(response.getData(), 0, null));
-            return writeCompactJson(payload);
+            payload.put("data", apiLogSanitizer.sanitizeValue(response.getData()));
+            return apiLogSanitizer.writeCompactJson(payload, MAX_LOG_LENGTH);
         }
-        return writeCompactJson(sanitizeValue(result, 0, null));
+        return apiLogSanitizer.writeCompactJson(apiLogSanitizer.sanitizeValue(result), MAX_LOG_LENGTH);
     }
 
     /**
@@ -199,124 +174,6 @@ public class ApiRequestLogAspect {
         summary.put("originalFilename", multipartFile.getOriginalFilename());
         summary.put("size", multipartFile.getSize());
         return summary;
-    }
-
-    /**
-     * 对任意对象执行脱敏与裁剪。
-     *
-     * @param value     原始对象
-     * @param depth     当前递归深度
-     * @param fieldName 当前字段名
-     * @return 可日志化对象
-     */
-    @SuppressWarnings("unchecked")
-    private Object sanitizeValue(Object value, int depth, String fieldName) {
-        if (value == null) {
-            return null;
-        }
-        if (isSensitiveField(fieldName)) {
-            return MASKED_VALUE;
-        }
-        if (depth > MAX_OBJECT_DEPTH) {
-            return "[depth-limited]";
-        }
-        if (value instanceof CharSequence) {
-            return truncate(value.toString());
-        }
-        if (value instanceof Number || value instanceof Boolean || value instanceof Enum<?> || value instanceof Temporal || value instanceof Date) {
-            return value;
-        }
-        if (value instanceof MultipartFile multipartFile) {
-            return buildMultipartFileSummary(multipartFile);
-        }
-        if (value instanceof Map<?, ?> mapValue) {
-            Map<String, Object> sanitized = new LinkedHashMap<>();
-            int index = 0;
-            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
-                if (index >= MAX_COLLECTION_LOG_SIZE) {
-                    sanitized.put("_truncated", "size>" + MAX_COLLECTION_LOG_SIZE);
-                    break;
-                }
-                String key = entry.getKey() == null ? "null" : String.valueOf(entry.getKey());
-                sanitized.put(key, sanitizeValue(entry.getValue(), depth + 1, key));
-                index++;
-            }
-            return sanitized;
-        }
-        if (value instanceof Collection<?> collection) {
-            List<Object> sanitized = new ArrayList<>();
-            int index = 0;
-            for (Object item : collection) {
-                if (index >= MAX_COLLECTION_LOG_SIZE) {
-                    sanitized.add("[truncated]");
-                    break;
-                }
-                sanitized.add(sanitizeValue(item, depth + 1, fieldName));
-                index++;
-            }
-            return sanitized;
-        }
-        if (value.getClass().isArray()) {
-            int length = Array.getLength(value);
-            List<Object> sanitized = new ArrayList<>();
-            for (int i = 0; i < Math.min(length, MAX_COLLECTION_LOG_SIZE); i++) {
-                sanitized.add(sanitizeValue(Array.get(value, i), depth + 1, fieldName));
-            }
-            if (length > MAX_COLLECTION_LOG_SIZE) {
-                sanitized.add("[truncated]");
-            }
-            return sanitized;
-        }
-        try {
-            Object converted = objectMapper.convertValue(value, Object.class);
-            if (converted == value) {
-                return truncate(String.valueOf(value));
-            }
-            return sanitizeValue(converted, depth + 1, fieldName);
-        } catch (IllegalArgumentException ex) {
-            return truncate(String.valueOf(value));
-        }
-    }
-
-    /**
-     * 判断字段名是否为敏感字段。
-     *
-     * @param fieldName 字段名
-     * @return true 表示需要脱敏
-     */
-    private boolean isSensitiveField(String fieldName) {
-        if (!StringUtils.hasText(fieldName)) {
-            return false;
-        }
-        String normalizedFieldName = fieldName.replace("_", "").replace("-", "").toLowerCase(Locale.ROOT);
-        return SENSITIVE_FIELD_NAMES.contains(normalizedFieldName);
-    }
-
-    /**
-     * 将对象写为紧凑 JSON 文本。
-     *
-     * @param payload 日志对象
-     * @return JSON 字符串
-     */
-    private String writeCompactJson(Object payload) {
-        try {
-            return truncate(objectMapper.writeValueAsString(payload));
-        } catch (JsonProcessingException ex) {
-            return truncate(String.valueOf(payload));
-        }
-    }
-
-    /**
-     * 裁剪过长日志内容，避免刷屏。
-     *
-     * @param text 原始文本
-     * @return 裁剪后文本
-     */
-    private String truncate(String text) {
-        if (!StringUtils.hasText(text)) {
-            return NULL_VALUE;
-        }
-        return text.length() <= MAX_LOG_LENGTH ? text : text.substring(0, MAX_LOG_LENGTH) + "...[truncated]";
     }
 
     /**

@@ -27,7 +27,7 @@ spring:
 
 erp:
   internal:
-    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:erp-internal-auth-signature-2026}
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
   ai:
     enabled: ${ERP_AI_ENABLED:true}
     base-url: ${ERP_AI_BASE_URL:http://127.0.0.1:8317/v1}
@@ -38,3 +38,19 @@ erp:
     max-history-turns: ${ERP_AI_MAX_HISTORY_TURNS:12}
     max-todo-items: ${ERP_AI_MAX_TODO_ITEMS:10}
     max-notice-items: ${ERP_AI_MAX_NOTICE_ITEMS:10}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,ping

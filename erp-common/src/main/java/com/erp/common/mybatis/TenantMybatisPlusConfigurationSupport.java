@@ -62,11 +62,11 @@ public abstract class TenantMybatisPlusConfigurationSupport {
             @Override
             public boolean ignoreTable(String tableName) {
                 if (tableName == null) {
-                    return false;
+                    return true;
                 }
                 String normalizedTableName = normalizeTableName(tableName);
-                if (!globalTableCandidates().contains(normalizedTableName)) {
-                    return false;
+                if (globalTableCandidates().contains(normalizedTableName)) {
+                    return true;
                 }
                 return !hasTenantColumn(normalizedTableName);
             }

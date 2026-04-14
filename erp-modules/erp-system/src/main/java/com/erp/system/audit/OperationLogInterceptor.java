@@ -2,9 +2,9 @@ package com.erp.system.audit;
 
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.system.domain.SysOperLog;
+import com.erp.system.logging.ApiLogSanitizer;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.ISysOperLogService;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -39,14 +39,14 @@ public class OperationLogInterceptor implements HandlerInterceptor {
 
     private final ISysOperLogService operLogService;
     private final SecurityUserResolver securityUserResolver;
-    private final ObjectMapper objectMapper;
+    private final ApiLogSanitizer apiLogSanitizer;
 
     public OperationLogInterceptor(ISysOperLogService operLogService,
             SecurityUserResolver securityUserResolver,
             ObjectMapper objectMapper) {
         this.operLogService = operLogService;
         this.securityUserResolver = securityUserResolver;
-        this.objectMapper = objectMapper;
+        this.apiLogSanitizer = new ApiLogSanitizer(objectMapper);
     }
 
     /**
@@ -199,18 +199,13 @@ public class OperationLogInterceptor implements HandlerInterceptor {
      */
     private String serializeRequest(HttpServletRequest request, Object handler) {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("query", request.getQueryString());
-        payload.put("params", request.getParameterMap());
+        payload.put("query", apiLogSanitizer.sanitizeQueryString(request.getQueryString()));
+        payload.put("params", apiLogSanitizer.sanitizeParameterMap(request.getParameterMap()));
         if (handler instanceof HandlerMethod) {
             HandlerMethod handlerMethod = (HandlerMethod) handler;
             payload.put("handler", handlerMethod.getBeanType().getSimpleName() + "#" + handlerMethod.getMethod().getName());
         }
-        try {
-            String json = objectMapper.writeValueAsString(payload);
-            return json.length() > MAX_SERIALIZED_LENGTH ? json.substring(0, MAX_SERIALIZED_LENGTH) : json;
-        } catch (JsonProcessingException ex) {
-            return "{\"error\":\"request-params-serialize-failed\"}";
-        }
+        return apiLogSanitizer.writeCompactJson(payload, MAX_SERIALIZED_LENGTH);
     }
 
     /**

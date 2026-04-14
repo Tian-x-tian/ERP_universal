@@ -10,6 +10,8 @@ import com.erp.business.hr.domain.HrAttendanceRetryTask;
 import com.erp.business.hr.domain.HrAttendanceSyncLog;
 import com.erp.business.hr.domain.vo.HrAttendanceCallbackBody;
 import com.erp.business.hr.domain.vo.HrAttendancePushBody;
+import com.erp.business.hr.attendance.core.domain.vo.HrAttendanceExternalRecordBody;
+import com.erp.business.hr.attendance.core.service.IHrAttendanceService;
 import com.erp.business.hr.mapper.HrEmployeeCoreMapper;
 import com.erp.business.hr.mapper.HrAttendanceFieldMappingMapper;
 import com.erp.business.hr.mapper.HrAttendanceRetryTaskMapper;
@@ -47,6 +49,9 @@ public class HrAttendanceIntegrationServiceImpl implements IHrAttendanceIntegrat
     private final SecurityUserResolver securityUserResolver;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
+
+    @Autowired(required = false)
+    private IHrAttendanceService attendanceService;
 
     @Value("${hr.integration.attendance.push-url:}")
     private String pushUrl;
@@ -166,6 +171,7 @@ public class HrAttendanceIntegrationServiceImpl implements IHrAttendanceIntegrat
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
         syncLogMapper.updateById(updateEntity);
+        synchronizeExternalAttendance(body);
         return syncLogMapper.selectById(log.getLogId());
     }
 
@@ -381,6 +387,32 @@ public class HrAttendanceIntegrationServiceImpl implements IHrAttendanceIntegrat
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("出勤同步载荷序列化失败", ex);
+        }
+    }
+
+    /**
+     * 将第三方回传结果同步到出勤核心台账。
+     *
+     * @param body 回传参数
+     */
+    private void synchronizeExternalAttendance(HrAttendanceCallbackBody body) {
+        if (attendanceService == null || body == null || !StringUtils.hasText(body.getPayloadJson())) {
+            return;
+        }
+        try {
+            if (body.getPayloadJson().trim().startsWith("[")) {
+                HrAttendanceExternalRecordBody[] recordArray = objectMapper.readValue(body.getPayloadJson(), HrAttendanceExternalRecordBody[].class);
+                if (recordArray != null) {
+                    for (HrAttendanceExternalRecordBody item : recordArray) {
+                        attendanceService.importExternalRecord(item);
+                    }
+                }
+                return;
+            }
+            HrAttendanceExternalRecordBody recordBody = objectMapper.readValue(body.getPayloadJson(), HrAttendanceExternalRecordBody.class);
+            attendanceService.importExternalRecord(recordBody);
+        } catch (Exception ex) {
+            throw new IllegalStateException("第三方出勤回传解析失败", ex);
         }
     }
 

@@ -25,6 +25,13 @@ public class SysTenantServiceImpl extends ServiceImpl<SysTenantMapper, SysTenant
     @Override
     public boolean save(SysTenant entity) {
         normalizeTenant(entity, true, null);
+        if (StringUtils.hasText(entity.getTenantId())) {
+            long count = count(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<SysTenant>()
+                    .eq("tenant_id", entity.getTenantId()));
+            if (count > 0) {
+                throw new com.erp.common.core.exception.ServiceException("租户编号已存在：" + entity.getTenantId(), (int) com.erp.common.core.domain.ResultCode.CONFLICT.getCode());
+            }
+        }
         return super.save(entity);
     }
 
@@ -40,6 +47,16 @@ public class SysTenantServiceImpl extends ServiceImpl<SysTenantMapper, SysTenant
         if (entity != null && entity.getId() != null) {
             SysTenant existedTenant = getById(entity.getId());
             currentStatus = existedTenant == null ? null : existedTenant.getStatus();
+            
+            // 如果修改了租户编号，必须校验是否与现有其他记录冲突
+            if (StringUtils.hasText(entity.getTenantId()) && existedTenant != null && !entity.getTenantId().equals(existedTenant.getTenantId())) {
+                long count = count(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<SysTenant>()
+                        .eq("tenant_id", entity.getTenantId())
+                        .ne("id", entity.getId()));
+                if (count > 0) {
+                    throw new com.erp.common.core.exception.ServiceException("租户编号已存在：" + entity.getTenantId(), (int) com.erp.common.core.domain.ResultCode.CONFLICT.getCode());
+                }
+            }
         }
         normalizeTenant(entity, false, currentStatus);
         return super.updateById(entity);

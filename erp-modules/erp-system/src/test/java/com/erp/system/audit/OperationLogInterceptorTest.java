@@ -51,6 +51,9 @@ class OperationLogInterceptorTest {
         request.setRemoteAddr("127.0.0.1");
         request.addHeader("tenantId", "000001");
         request.addParameter("userName", "tester");
+        request.addParameter("contactEmail", "tester@example.com");
+        request.addParameter("bankAccountInfo", "6222021234567890");
+        request.setQueryString("contactPhone=13812345678&token=plain-token");
         MockHttpServletResponse response = new MockHttpServletResponse();
         response.setStatus(200);
         HandlerMethod handlerMethod = new HandlerMethod(new TestController(),
@@ -73,6 +76,11 @@ class OperationLogInterceptorTest {
         Assertions.assertEquals(Integer.valueOf(200), savedLog.getResponseCode());
         Assertions.assertTrue(savedLog.getRequestParams().contains("TestController#save"));
         Assertions.assertTrue(savedLog.getRequestParams().contains("tester"));
+        Assertions.assertFalse(savedLog.getRequestParams().contains("tester@example.com"));
+        Assertions.assertFalse(savedLog.getRequestParams().contains("6222021234567890"));
+        Assertions.assertFalse(savedLog.getRequestParams().contains("13812345678"));
+        Assertions.assertFalse(savedLog.getRequestParams().contains("plain-token"));
+        Assertions.assertTrue(savedLog.getRequestParams().contains("******"));
     }
 
     /**

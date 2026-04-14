@@ -96,9 +96,7 @@ public class AiConfirmationTokenServiceImpl implements AiConfirmationTokenServic
     private byte[] sign(String payloadText) {
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);
-            String secret = StringUtils.hasText(internalSystemClientProperties.getAuthSignatureSecret())
-                    ? internalSystemClientProperties.getAuthSignatureSecret().trim()
-                    : "erp-internal-auth-signature-2026";
+            String secret = internalSystemClientProperties.resolveAuthSignatureSecret();
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_ALGORITHM));
             return mac.doFinal(payloadText.getBytes(StandardCharsets.UTF_8));
         } catch (Exception ex) {

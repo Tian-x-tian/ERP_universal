@@ -47,7 +47,7 @@ public class InternalRequestHeaderFactory {
         headers.set(AuthHeaders.TOKEN_VERSION, String.valueOf(principal.getTokenVersion()));
         headers.set(AuthHeaders.EXPIRES_AT, String.valueOf(principal.getExpiresAt()));
         headers.set(AuthHeaders.SIGNATURE,
-                InternalAuthSignatureUtils.sign(properties.getAuthSignatureSecret() == null ? "" : properties.getAuthSignatureSecret(),
+                InternalAuthSignatureUtils.sign(properties.resolveAuthSignatureSecret(),
                         principal.getUserId(),
                         principal.getUserName(),
                         principal.getTenantId(),
