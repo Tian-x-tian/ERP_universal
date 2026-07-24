@@ -25,7 +25,7 @@ spring:
     import:
       - optional:nacos:erp-business.yml?refreshable=true
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_system}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_system}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -50,7 +50,7 @@ erp:
   business:
     datasource:
       enabled: false
-      url: jdbc:mysql://${MYSQL_BUSINESS_HOST:${MYSQL_HOST:127.0.0.1}}:${MYSQL_BUSINESS_PORT:${MYSQL_PORT:3306}}/${MYSQL_BUSINESS_DATABASE:${MYSQL_DATABASE:erp_system}}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+      url: jdbc:mysql://${MYSQL_BUSINESS_HOST:${MYSQL_HOST:127.0.0.1}}:${MYSQL_BUSINESS_PORT:${MYSQL_PORT:3306}}/${MYSQL_BUSINESS_DATABASE:${MYSQL_DATABASE:erp_system}}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
       username: ${MYSQL_BUSINESS_USERNAME:${MYSQL_USERNAME:root}}
       password: ${MYSQL_BUSINESS_PASSWORD:${MYSQL_PASSWORD:}}
       driver-class-name: com.mysql.cj.jdbc.Driver
