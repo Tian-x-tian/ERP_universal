@@ -36,7 +36,28 @@ Requires JDK 17 and Maven 3.9+. Artifacts resolve through the Aliyun mirror conf
 `erp-ui/` is gitignored (tracked as a separate repo). From `erp-ui/`:
 
 - `npm install` then `npm run dev` — Vite dev server on **port 9000**, proxies `/api/*` → `http://127.0.0.1:9090` (the gateway), stripping the `/api` prefix.
-- `npm run build` — `vue-tsc` type-check then `vite build`.
+- `npm run build` — colour guard, then `vue-tsc` type-check, then `vite build`.
+- `npm run lint:colors` — the colour guard on its own.
+
+### Frontend styling & theming (hard rule)
+
+**Never hard-code neutral colours in page or layout styles.** Use the semantic tokens in
+`src/styles/palette.css`; `npm run build` fails if you don't (`scripts/check-colors.mjs`).
+
+- `--erp-c-*` — business pages: `surface` / `surface-2` / `page`, `fill*`, `border*`, `text-strong|text|text-2|-3|-4`, `tint-{green,orange,yellow,blue,indigo,red}`.
+- `--erp-s-*` — the classic sidebar shell only (blue-tinted family), plus `--erp-s-v-*` for its four colour variants.
+- Every token is defined once for light and once under `html.dark`, so **adding a token pair is the only place a colour needs a dark counterpart** — never write a parallel `html.dark` block per component.
+- Saturated brand/status colours (orange, red, green…) and light text sitting on coloured backgrounds are allowed as literals; the guard permits them automatically. For a genuinely decorative literal, put `eslint-disable-next-line color-token` on the line above.
+- `src/styles/palette.css` and `src/styles/ui-preference.css` are the theming layer itself and are exempt.
+
+There are **two layout shells** and both must be checked after any visual change:
+`src/layout/ExecutiveLayout.vue` (top nav **plus its own left sidebar**, the default) and
+`src/layout/index.vue` (classic sidebar). `layout/index.vue` doubles as the entry component and
+renders one or the other based on `layoutStyle` from `useUiPreferenceStore`.
+
+UI personalisation (theme colour, dark mode, density, radius, motion, …) is driven by that store;
+it persists to `localStorage` and syncs to `/system/ui-preference`, merging
+system default ‹ tenant policy ‹ personal, with tenant-locked keys forced.
 
 ### Infrastructure prerequisites
 
