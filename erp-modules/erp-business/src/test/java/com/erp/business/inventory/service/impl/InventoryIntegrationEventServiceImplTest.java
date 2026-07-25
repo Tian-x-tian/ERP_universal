@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -127,5 +128,30 @@ class InventoryIntegrationEventServiceImplTest {
         Assertions.assertEquals(2, captor.getValue().getRetryCount());
         Assertions.assertNull(captor.getValue().getLastError());
         Assertions.assertEquals("admin", captor.getValue().getUpdateBy());
+    }
+
+    /**
+     * 财务模块未接入时，凭证事件应归档为 SKIPPED，且不得调用推送、不得记为成功。
+     */
+    @Test
+    void shouldArchiveFinanceVoucherAsSkippedWhenFinanceModuleNotEnabled() {
+        InventoryIntegrationEvent event = new InventoryIntegrationEvent();
+        event.setEventId(9L);
+        event.setTenantId("000000");
+        event.setEventType("FINANCE_VOUCHER");
+        event.setRetryCount(1);
+        when(integrationEventMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(event);
+        when(financeVoucherFacade.isEnabled()).thenReturn(false);
+        when(integrationEventMapper.updateById(any(InventoryIntegrationEvent.class))).thenReturn(1);
+
+        boolean result = integrationEventService.replay(9L);
+
+        Assertions.assertTrue(result);
+        ArgumentCaptor<InventoryIntegrationEvent> captor = ArgumentCaptor.forClass(InventoryIntegrationEvent.class);
+        verify(integrationEventMapper).updateById(captor.capture());
+        Assertions.assertEquals("SKIPPED", captor.getValue().getEventStatus());
+        Assertions.assertNotNull(captor.getValue().getLastError());
+        // 未接入时不应触碰推送通道，避免留下"投递成功"的假记录
+        verify(financeVoucherFacade, never()).pushVoucher(any(InventoryIntegrationEvent.class));
     }
 }

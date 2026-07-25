@@ -24,6 +24,9 @@ import java.util.List;
 @Service
 public class InventoryIntegrationEventServiceImpl implements IInventoryIntegrationEventService {
 
+    /** 下游模块尚未接入：事件已归档，接入后可原样重放 */
+    private static final String SKIPPED_STATUS = "SKIPPED";
+
     private final InventoryIntegrationEventMapper integrationEventMapper;
     private final InventorySourceIntegrationFacade sourceIntegrationFacade;
     private final InventoryFinanceVoucherFacade financeVoucherFacade;
@@ -115,10 +118,17 @@ public class InventoryIntegrationEventServiceImpl implements IInventoryIntegrati
     @Transactional(rollbackFor = Exception.class)
     public boolean replay(Long eventId) {
         InventoryIntegrationEvent event = loadEvent(eventId);
+        boolean isFinanceEvent = "FINANCE_VOUCHER".equals(event.getEventType());
+
+        // 财务模块尚未接入：事件归档为 SKIPPED 等待后续重放，不谎报成功、也不制造失败告警
+        if (isFinanceEvent && !financeVoucherFacade.isEnabled()) {
+            return updateEventStatus(event, SKIPPED_STATUS, "财务模块尚未接入，事件已归档待重放");
+        }
+
         boolean success;
         String errorMessage = null;
         try {
-            if ("FINANCE_VOUCHER".equals(event.getEventType())) {
+            if (isFinanceEvent) {
                 success = financeVoucherFacade.pushVoucher(event);
             } else {
                 success = sourceIntegrationFacade.pushProgress(event);
@@ -132,6 +142,24 @@ public class InventoryIntegrationEventServiceImpl implements IInventoryIntegrati
         updateEntity.setEventStatus(success ? "SUCCESS" : "FAILED");
         updateEntity.setRetryCount((event.getRetryCount() == null ? 0 : event.getRetryCount()) + 1);
         updateEntity.setLastError(success ? null : safeText(errorMessage));
+        updateEntity.setUpdateBy(resolveOperator());
+        updateEntity.setUpdateTime(new Date());
+        return integrationEventMapper.updateById(updateEntity) > 0;
+    }
+
+    /**
+     * 更新事件状态（不增加重试次数，用于归档类状态流转）。
+     *
+     * @param event   事件
+     * @param status  目标状态
+     * @param message 状态说明
+     * @return true 表示更新成功
+     */
+    private boolean updateEventStatus(InventoryIntegrationEvent event, String status, String message) {
+        InventoryIntegrationEvent updateEntity = new InventoryIntegrationEvent();
+        updateEntity.setEventId(event.getEventId());
+        updateEntity.setEventStatus(status);
+        updateEntity.setLastError(safeText(message));
         updateEntity.setUpdateBy(resolveOperator());
         updateEntity.setUpdateTime(new Date());
         return integrationEventMapper.updateById(updateEntity) > 0;

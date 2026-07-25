@@ -47,8 +47,9 @@ Requires JDK 17 and Maven 3.9+. Artifacts resolve through the Aliyun mirror conf
 - `--erp-c-*` — business pages: `surface` / `surface-2` / `page`, `fill*`, `border*`, `text-strong|text|text-2|-3|-4`, `tint-{green,orange,yellow,blue,indigo,red}`.
 - `--erp-s-*` — the classic sidebar shell only (blue-tinted family), plus `--erp-s-v-*` for its four colour variants.
 - Every token is defined once for light and once under `html.dark`, so **adding a token pair is the only place a colour needs a dark counterpart** — never write a parallel `html.dark` block per component.
+- Translucent panels must use `--erp-c-glass*`, never a literal `rgba(255,255,255,…)`. A white glass background that stays light while its text follows the theme is what produced a white-on-white login screen once — the guard now rejects `rgba(255,255,255,α≥0.5)` on `background` for exactly this reason.
 - Saturated brand/status colours (orange, red, green…) and light text sitting on coloured backgrounds are allowed as literals; the guard permits them automatically. For a genuinely decorative literal, put `eslint-disable-next-line color-token` on the line above.
-- `src/styles/palette.css` and `src/styles/ui-preference.css` are the theming layer itself and are exempt.
+- `src/styles/palette.css` and `src/styles/ui-preference.css` are the theming layer itself and are exempt. So is `src/views/login/index.vue`: it is a **fixed-theme brand page** (blue gradient + deliberately white card) that must not follow dark mode — keep its literals, and don't tokenise pages like it (see `FIXED_THEME_PAGES` in the guard).
 
 There are **two layout shells** and both must be checked after any visual change:
 `src/layout/ExecutiveLayout.vue` (top nav **plus its own left sidebar**, the default) and
