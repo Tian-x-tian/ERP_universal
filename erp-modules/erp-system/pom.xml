@@ -54,6 +54,10 @@
         </dependency>
         <dependency>
             <groupId>com.erp</groupId>
+            <artifactId>erp-business-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.erp</groupId>
             <artifactId>erp-platform-contract</artifactId>
             <version>${project.version}</version>
         </dependency>

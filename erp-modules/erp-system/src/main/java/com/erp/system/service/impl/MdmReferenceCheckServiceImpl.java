@@ -14,7 +14,8 @@ import com.erp.workflow.contract.domain.SysWorkflowInstance;
 import com.erp.system.mapper.MdmCustomerMapper;
 import com.erp.system.mapper.MdmCurrencyMapper;
 import com.erp.system.mapper.MdmEmployeeMapper;
-import com.erp.system.mapper.InventoryReferenceMapper;
+import com.erp.common.client.internal.InternalBusinessClient;
+import com.erp.platform.contract.model.WarehouseReferenceUsage;
 import com.erp.system.mapper.MdmItemMapper;
 import com.erp.system.mapper.MdmProjectMapper;
 import com.erp.system.mapper.MdmSupplierMapper;
@@ -46,7 +47,7 @@ public class MdmReferenceCheckServiceImpl implements IMdmReferenceCheckService {
     private final MdmItemMapper itemMapper;
     private final MdmCurrencyMapper currencyMapper;
     private final ISysWorkflowEngineService workflowEngineService;
-    private final InventoryReferenceMapper inventoryReferenceMapper;
+    private final InternalBusinessClient internalBusinessClient;
 
     public MdmReferenceCheckServiceImpl(
             MdmProjectMapper projectMapper,
@@ -57,7 +58,7 @@ public class MdmReferenceCheckServiceImpl implements IMdmReferenceCheckService {
             MdmItemMapper itemMapper,
             MdmCurrencyMapper currencyMapper,
             ISysWorkflowEngineService workflowEngineService,
-            InventoryReferenceMapper inventoryReferenceMapper) {
+            InternalBusinessClient internalBusinessClient) {
         this.projectMapper = projectMapper;
         this.customerMapper = customerMapper;
         this.employeeMapper = employeeMapper;
@@ -66,7 +67,7 @@ public class MdmReferenceCheckServiceImpl implements IMdmReferenceCheckService {
         this.itemMapper = itemMapper;
         this.currencyMapper = currencyMapper;
         this.workflowEngineService = workflowEngineService;
-        this.inventoryReferenceMapper = inventoryReferenceMapper;
+        this.internalBusinessClient = internalBusinessClient;
     }
 
     @Override
@@ -101,15 +102,19 @@ public class MdmReferenceCheckServiceImpl implements IMdmReferenceCheckService {
                         "基础资料: 仓库负责人已引用当前员工");
                 break;
             case MdmDomainTypeSupport.WAREHOUSE:
-                addReferenceDetail(referenceDetails,
-                        inventoryReferenceMapper.countWarehouseAvailableStock(id),
-                        "库存模块: 仓库存在可用库存");
-                addReferenceDetail(referenceDetails,
-                        inventoryReferenceMapper.countWarehouseOpenInboundOrders(id),
-                        "库存模块: 仓库存在未完成入库单");
-                addReferenceDetail(referenceDetails,
-                        inventoryReferenceMapper.countWarehouseOpenOutboundOrders(id),
-                        "库存模块: 仓库存在未完成出库单");
+                // 库存表归 erp-business 所有，这里通过内部客户端查询，不直接读 inv_* 表
+                WarehouseReferenceUsage warehouseUsage = internalBusinessClient.getWarehouseReferenceUsage(id);
+                if (warehouseUsage != null) {
+                    addReferenceDetail(referenceDetails,
+                            warehouseUsage.getAvailableStockCount(),
+                            "库存模块: 仓库存在可用库存");
+                    addReferenceDetail(referenceDetails,
+                            warehouseUsage.getOpenInboundOrderCount(),
+                            "库存模块: 仓库存在未完成入库单");
+                    addReferenceDetail(referenceDetails,
+                            warehouseUsage.getOpenOutboundOrderCount(),
+                            "库存模块: 仓库存在未完成出库单");
+                }
                 break;
             case MdmDomainTypeSupport.ORG:
                 addReferenceDetail(referenceDetails,

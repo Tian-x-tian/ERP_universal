@@ -1,5 +1,6 @@
 package com.erp.common.client.internal;
 
+import com.erp.platform.contract.model.WarehouseReferenceUsage;
 import com.erp.workflow.contract.domain.vo.WorkflowCallbackEvent;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -38,6 +39,21 @@ public class InternalBusinessClient {
                 HttpMethod.POST,
                 event,
                 Void.class);
+    }
+
+    /**
+     * 查询仓库在库存模块中的引用占用情况。
+     *
+     * <p>供主数据模块在停用/删除仓库前校验，替代此前直接查询 {@code inv_*} 表的做法。
+     *
+     * @param warehouseId 仓库ID
+     * @return 占用情况
+     */
+    public WarehouseReferenceUsage getWarehouseReferenceUsage(Long warehouseId) {
+        return exchange(buildUri("/business/internal/inventory/warehouses/" + warehouseId + "/reference-usage"),
+                HttpMethod.GET,
+                null,
+                WarehouseReferenceUsage.class);
     }
 
     /**

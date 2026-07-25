@@ -5,7 +5,7 @@ import com.erp.common.core.exception.ServiceException;
 import com.erp.system.mapper.MdmCustomerMapper;
 import com.erp.system.mapper.MdmCurrencyMapper;
 import com.erp.system.mapper.MdmEmployeeMapper;
-import com.erp.system.mapper.InventoryReferenceMapper;
+import com.erp.common.client.internal.InternalBusinessClient;
 import com.erp.system.mapper.MdmItemMapper;
 import com.erp.system.mapper.MdmProjectMapper;
 import com.erp.system.mapper.MdmSupplierMapper;
@@ -53,7 +53,7 @@ class MdmReferenceCheckServiceImplTest {
     private ISysWorkflowEngineService workflowEngineService;
 
     @Mock
-    private InventoryReferenceMapper inventoryReferenceMapper;
+    private InternalBusinessClient internalBusinessClient;
 
     private MdmReferenceCheckServiceImpl referenceCheckService;
 
@@ -71,7 +71,7 @@ class MdmReferenceCheckServiceImplTest {
                 itemMapper,
                 currencyMapper,
                 workflowEngineService,
-                inventoryReferenceMapper);
+                internalBusinessClient);
     }
 
     /**

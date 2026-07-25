@@ -1,14 +1,17 @@
-package com.erp.system.mapper;
+package com.erp.business.inventory.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * 库存只读引用检查 Mapper。
+ * 仓库占用情况查询 Mapper。
+ *
+ * <p>这些统计原先由 erp-system 直接查询 {@code inv_*} 表实现，属于跨服务读库；
+ * 现收归库存模块自身，通过内部接口对外提供。
  */
 @Mapper
-public interface InventoryReferenceMapper {
+public interface InventoryWarehouseUsageMapper {
 
     /**
      * 统计仓库下可用库存余额记录数。
@@ -22,7 +25,7 @@ public interface InventoryReferenceMapper {
             WHERE warehouse_id = #{warehouseId}
               AND available_qty > 0
             """)
-    Long countWarehouseAvailableStock(@Param("warehouseId") Long warehouseId);
+    Long countAvailableStock(@Param("warehouseId") Long warehouseId);
 
     /**
      * 统计仓库下未完成入库单数量。
@@ -36,7 +39,7 @@ public interface InventoryReferenceMapper {
             WHERE warehouse_id = #{warehouseId}
               AND status NOT IN ('COMPLETED', 'CANCELLED')
             """)
-    Long countWarehouseOpenInboundOrders(@Param("warehouseId") Long warehouseId);
+    Long countOpenInboundOrders(@Param("warehouseId") Long warehouseId);
 
     /**
      * 统计仓库下未完成出库单数量。
@@ -50,5 +53,5 @@ public interface InventoryReferenceMapper {
             WHERE warehouse_id = #{warehouseId}
               AND status NOT IN ('COMPLETED', 'CANCELLED')
             """)
-    Long countWarehouseOpenOutboundOrders(@Param("warehouseId") Long warehouseId);
+    Long countOpenOutboundOrders(@Param("warehouseId") Long warehouseId);
 }
