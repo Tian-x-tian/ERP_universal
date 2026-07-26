@@ -3,18 +3,20 @@ package com.erp.business.hr.attendance.core.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.erp.common.mybatis.BaseAuditEntity;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.Date;
 
 /**
  * 出勤定位规则。
  */
 @Data
+@EqualsAndHashCode(callSuper = false)
 @TableName("hr_attendance_location_rule")
-public class HrAttendanceLocationRule implements Serializable {
+public class HrAttendanceLocationRule extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "rule_id", type = IdType.AUTO)
@@ -27,8 +29,4 @@ public class HrAttendanceLocationRule implements Serializable {
     private Integer radiusMeters;
     private String enabledFlag;
     private String remark;
-    private String createBy;
-    private Date createTime;
-    private String updateBy;
-    private Date updateTime;
 }

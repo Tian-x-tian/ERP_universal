@@ -259,7 +259,6 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         updateEntity.setStatus(MdmStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
-        updateEntity.setUpdateTime(new Date());
         updateEntity.setCreateBy(null);
         updateEntity.setCreateTime(null);
         updateEntity.setDelFlag(null);
@@ -285,7 +284,6 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
-        updateEntity.setUpdateTime(new Date());
         boolean updated = orgMapper.update(updateEntity, new LambdaUpdateWrapper<MdmOrg>()
                 .eq(MdmOrg::getOrgId, orgId)
                 .eq(MdmOrg::getDelFlag, DEL_FLAG_EXIST)
@@ -329,7 +327,6 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         updateEntity.setStatus(MdmStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
-        updateEntity.setUpdateTime(new Date());
         updateEntity.setCreateBy(null);
         updateEntity.setCreateTime(null);
         updateEntity.setDelFlag(null);
@@ -355,7 +352,6 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
-        updateEntity.setUpdateTime(new Date());
         boolean updated = costCenterMapper.update(updateEntity, new LambdaUpdateWrapper<MdmCostCenter>()
                 .eq(MdmCostCenter::getCcId, ccId)
                 .eq(MdmCostCenter::getDelFlag, DEL_FLAG_EXIST)
@@ -399,7 +395,6 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         updateEntity.setStatus(MdmStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
-        updateEntity.setUpdateTime(new Date());
         updateEntity.setCreateBy(null);
         updateEntity.setCreateTime(null);
         updateEntity.setDelFlag(null);
@@ -425,7 +420,6 @@ public class MdmDimensionWorkflowCallbackServiceImpl implements IWorkflowBusines
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
-        updateEntity.setUpdateTime(new Date());
         boolean updated = projectMapper.update(updateEntity, new LambdaUpdateWrapper<MdmProject>()
                 .eq(MdmProject::getProjectId, projectId)
                 .eq(MdmProject::getDelFlag, DEL_FLAG_EXIST)

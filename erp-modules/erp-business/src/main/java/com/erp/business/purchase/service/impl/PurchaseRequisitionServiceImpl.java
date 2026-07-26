@@ -108,10 +108,6 @@ public class PurchaseRequisitionServiceImpl implements IPurchaseRequisitionServi
         requisition.setProcessKey(PROCESS_KEY);
         requisition.setApplyDate(requisition.getApplyDate() == null ? now : requisition.getApplyDate());
         requisition.setVersionNo(1);
-        requisition.setCreateBy(operator);
-        requisition.setUpdateBy(operator);
-        requisition.setCreateTime(now);
-        requisition.setUpdateTime(now);
         requisition.setTotalAmount(sumEstimatedAmount(requisition.getLines()));
         if (requisitionMapper.insert(requisition) <= 0) {
             throw new ServiceException("采购申请保存失败");
@@ -138,8 +134,6 @@ public class PurchaseRequisitionServiceImpl implements IPurchaseRequisitionServi
         existed.setExpectDate(requisition.getExpectDate());
         existed.setRemark(trim(requisition.getRemark()));
         existed.setTotalAmount(sumEstimatedAmount(requisition.getLines()));
-        existed.setUpdateBy(resolveOperator());
-        existed.setUpdateTime(new Date());
         if (requisitionMapper.updateById(existed) <= 0) {
             return false;
         }

@@ -60,7 +60,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (profile == null || profile.getUserId() == null) {
             return false;
         }
-        profile.setUpdateTime(new Date());
         return baseMapper.updateById(profile) > 0;
     }
 
@@ -80,7 +79,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         SysUser updateEntity = new SysUser();
         updateEntity.setUserId(userId);
         updateEntity.setPassword(encodedPassword);
-        updateEntity.setUpdateTime(new Date());
         return baseMapper.updateById(updateEntity) > 0;
     }
 
@@ -101,7 +99,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (StringUtils.hasText(entity.getNickName())) {
             entity.setNickName(entity.getNickName().trim());
         }
-        entity.setCreateTime(new Date());
         if (entity.getTokenVersion() == null) {
             entity.setTokenVersion(0);
         }
@@ -140,7 +137,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (StringUtils.hasText(entity.getNickName())) {
             entity.setNickName(entity.getNickName().trim());
         }
-        entity.setUpdateTime(new Date());
         // 先删除原有关联
         userRoleService.remove(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, entity.getUserId()));
         userPostService.remove(new LambdaQueryWrapper<SysUserPost>().eq(SysUserPost::getUserId, entity.getUserId()));
@@ -173,7 +169,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         SysUser updateEntity = new SysUser();
         updateEntity.setUserId(userId);
         updateEntity.setTokenVersion((existedUser.getTokenVersion() == null ? 0 : existedUser.getTokenVersion()) + 1);
-        updateEntity.setUpdateTime(new Date());
         return baseMapper.updateById(updateEntity) > 0;
     }
 

@@ -376,11 +376,9 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
         menu.setIcon(targetIcon);
         if (changed || createNew) {
             menu.setUpdateBy(operator);
-            menu.setUpdateTime(now);
         }
         if (createNew) {
             menu.setCreateBy(operator);
-            menu.setCreateTime(now);
         }
         return changed;
     }

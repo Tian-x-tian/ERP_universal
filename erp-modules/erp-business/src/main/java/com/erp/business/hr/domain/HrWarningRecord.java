@@ -3,7 +3,9 @@ package com.erp.business.hr.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.erp.common.mybatis.BaseAuditEntity;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -12,8 +14,9 @@ import java.util.Date;
  * HR 预警记录对象。
  */
 @Data
+@EqualsAndHashCode(callSuper = false)
 @TableName("hr_warning_record")
-public class HrWarningRecord implements Serializable {
+public class HrWarningRecord extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.AUTO)
@@ -31,8 +34,4 @@ public class HrWarningRecord implements Serializable {
     private String handledBy;
     private Date handledTime;
     private String remark;
-    private String createBy;
-    private Date createTime;
-    private String updateBy;
-    private Date updateTime;
 }

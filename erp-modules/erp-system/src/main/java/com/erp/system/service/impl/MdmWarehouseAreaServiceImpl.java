@@ -7,7 +7,6 @@ import com.erp.system.domain.MdmWarehouse;
 import com.erp.system.domain.MdmWarehouseArea;
 import com.erp.system.mapper.MdmWarehouseAreaMapper;
 import com.erp.system.mapper.MdmWarehouseMapper;
-import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmWarehouseAreaService;
 import com.erp.system.support.MdmOptimisticLockSupport;
 import com.erp.system.support.MdmStatusSupport;
@@ -31,11 +30,9 @@ public class MdmWarehouseAreaServiceImpl extends ServiceImpl<MdmWarehouseAreaMap
     private static final String DEFAULT_OPERATOR = "system";
 
     private final MdmWarehouseMapper warehouseMapper;
-    private final SecurityUserResolver securityUserResolver;
 
-    public MdmWarehouseAreaServiceImpl(MdmWarehouseMapper warehouseMapper, SecurityUserResolver securityUserResolver) {
+    public MdmWarehouseAreaServiceImpl(MdmWarehouseMapper warehouseMapper) {
         this.warehouseMapper = warehouseMapper;
-        this.securityUserResolver = securityUserResolver;
     }
 
     /**
@@ -84,10 +81,6 @@ public class MdmWarehouseAreaServiceImpl extends ServiceImpl<MdmWarehouseAreaMap
         area.setVersionNo(1);
         area.setDelFlag(DEL_FLAG_EXIST);
         area.setRemark(MdmValueSupport.trimToNull(area.getRemark()));
-        area.setCreateBy(resolveOperator());
-        area.setCreateTime(now);
-        area.setUpdateBy(resolveOperator());
-        area.setUpdateTime(now);
         return save(area);
     }
 
@@ -122,8 +115,6 @@ public class MdmWarehouseAreaServiceImpl extends ServiceImpl<MdmWarehouseAreaMap
         updateEntity.setStatus(MdmStatusSupport.normalizeStatusForUpdate(area.getStatus(), existed.getStatus()));
         updateEntity.setRemark(MdmValueSupport.trimToNull(area.getRemark()));
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return updateAreaByVersion(updateEntity, expectedVersion);
     }
 
@@ -146,8 +137,6 @@ public class MdmWarehouseAreaServiceImpl extends ServiceImpl<MdmWarehouseAreaMap
         updateEntity.setAreaId(areaId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return updateAreaByVersion(updateEntity, expectedVersion);
     }
 
@@ -170,8 +159,6 @@ public class MdmWarehouseAreaServiceImpl extends ServiceImpl<MdmWarehouseAreaMap
         updateEntity.setAreaId(areaId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return updateAreaByVersion(updateEntity, expectedVersion);
     }
 
@@ -252,15 +239,6 @@ public class MdmWarehouseAreaServiceImpl extends ServiceImpl<MdmWarehouseAreaMap
         return true;
     }
 
-    /**
-     * 获取当前操作人。
-     *
-     * @return 操作人账号
-     */
-    private String resolveOperator() {
-        String username = securityUserResolver.getCurrentUsername();
-        return StringUtils.hasText(username) ? username.trim() : DEFAULT_OPERATOR;
-    }
 
     /**
      * 裁剪字符串。

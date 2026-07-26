@@ -63,7 +63,6 @@ class InventoryInboundServiceImplTest {
     @BeforeEach
     void setUp() {
         TenantContextHolder.setTenantId("TENANT_A");
-        when(securityUserResolver.getCurrentUsername()).thenReturn("tester");
         inboundService = new InventoryInboundServiceImpl(orderMapper, lineMapper, stockEngineSupport, workflowGateway,
                 sourceProgressCallback, securityUserResolver);
         initTableInfoIfAbsent(InventoryInboundOrder.class);

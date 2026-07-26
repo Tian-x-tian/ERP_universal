@@ -245,8 +245,6 @@ public class MdmWarehouseWorkflowSubmitServiceImpl implements IMdmWarehouseWorkf
         MdmWarehouse updateEntity = new MdmWarehouse();
         updateEntity.setWarehouseId(warehouseId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return warehouseService.update(updateEntity, new LambdaUpdateWrapper<MdmWarehouse>()
                 .eq(MdmWarehouse::getWarehouseId, warehouseId)
                 .eq(MdmWarehouse::getDelFlag, DEL_FLAG_EXIST)

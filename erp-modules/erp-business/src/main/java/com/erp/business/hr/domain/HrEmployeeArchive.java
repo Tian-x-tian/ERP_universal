@@ -2,7 +2,9 @@ package com.erp.business.hr.domain;
 
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.erp.common.mybatis.BaseAuditEntity;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -11,8 +13,9 @@ import java.util.Date;
  * 员工扩展档案对象。
  */
 @Data
+@EqualsAndHashCode(callSuper = false)
 @TableName("hr_employee_archive")
-public class HrEmployeeArchive implements Serializable {
+public class HrEmployeeArchive extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId("employee_id")
@@ -30,8 +33,4 @@ public class HrEmployeeArchive implements Serializable {
     private String emergencyPhone;
     private String homeAddress;
     private String remark;
-    private String createBy;
-    private Date createTime;
-    private String updateBy;
-    private Date updateTime;
 }

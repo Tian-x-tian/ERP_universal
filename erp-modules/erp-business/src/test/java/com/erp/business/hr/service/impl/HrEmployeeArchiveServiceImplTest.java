@@ -73,7 +73,7 @@ class HrEmployeeArchiveServiceImplTest {
         Assertions.assertNotNull(archive);
         ArgumentCaptor<HrEmployeeArchive> captor = ArgumentCaptor.forClass(HrEmployeeArchive.class);
         verify(archiveMapper).insert(captor.capture());
-        Assertions.assertEquals("tester", captor.getValue().getCreateBy());
+        // create_by 等留痕字段已改由 AuditMetaObjectHandlerSupport 自动填充，不再由本服务赋值
         Assertions.assertEquals("ID_CARD", captor.getValue().getCertType());
     }
 

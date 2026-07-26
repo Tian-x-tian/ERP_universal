@@ -7,6 +7,7 @@ import com.erp.platform.contract.model.PlatformImexJobCreateRequest;
 import com.erp.platform.contract.model.PlatformImexJobUpdateRequest;
 import com.erp.platform.contract.model.PlatformItemView;
 import com.erp.platform.contract.model.PlatformNoticeCreateRequest;
+import com.erp.platform.contract.model.PlatformOperationLogCreateRequest;
 import com.erp.platform.contract.model.PlatformPostView;
 import com.erp.platform.contract.model.PlatformRoleView;
 import com.erp.platform.contract.model.PlatformTenantView;
@@ -330,6 +331,18 @@ public class InternalPlatformClient {
         exchange(buildUri("/system/internal/workflow/callbacks/terminal"),
                 HttpMethod.POST,
                 event,
+                Void.class);
+    }
+
+    /**
+     * 回传操作/审计日志给 erp-system 落库。
+     *
+     * @param request 日志写入请求
+     */
+    public void recordOperationLog(PlatformOperationLogCreateRequest request) {
+        exchange(buildUri("/system/internal/platform/oper-log"),
+                HttpMethod.POST,
+                request,
                 Void.class);
     }
 

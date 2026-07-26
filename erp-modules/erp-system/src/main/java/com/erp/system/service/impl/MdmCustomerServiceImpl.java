@@ -137,10 +137,6 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         customer.setStatus(MdmStatusSupport.DRAFT);
         customer.setVersionNo(1);
         customer.setDelFlag(DEL_FLAG_EXIST);
-        customer.setCreateBy(operator);
-        customer.setUpdateBy(operator);
-        customer.setCreateTime(now);
-        customer.setUpdateTime(now);
         customer.setEffectiveTime(null);
         boolean saved = save(customer);
         if (saved) {
@@ -215,8 +211,6 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         if (MdmStatusSupport.isActive(newStatus) && existedCustomer.getEffectiveTime() == null) {
             customer.setEffectiveTime(new Date());
         }
-        customer.setUpdateBy(resolveOperator());
-        customer.setUpdateTime(new Date());
         boolean updated = updateCustomerByVersion(customer, expectedVersionNo);
         if (updated) {
             MdmCustomer after = getById(customer.getCustomerId());
@@ -269,8 +263,6 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         updateEntity.setCustomerId(customerId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existedCustomer.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateCustomerByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             MdmCustomer after = getById(customerId);
@@ -316,8 +308,6 @@ public class MdmCustomerServiceImpl extends ServiceImpl<MdmCustomerMapper, MdmCu
         updateEntity.setCustomerId(customerId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existedCustomer.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateCustomerByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.CUSTOMER,

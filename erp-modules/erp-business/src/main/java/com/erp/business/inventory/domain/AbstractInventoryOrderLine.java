@@ -2,6 +2,7 @@ package com.erp.business.inventory.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.erp.common.mybatis.BaseAuditEntity;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -9,8 +10,9 @@ import java.util.Date;
 
 /**
  * 库存单据行基类。
+ * 审计字段由 {@link BaseAuditEntity} 承载，对应 20260725_01 增量脚本补齐的行级留痕列。
  */
-public abstract class AbstractInventoryOrderLine implements Serializable {
+public abstract class AbstractInventoryOrderLine extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.AUTO)

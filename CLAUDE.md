@@ -133,6 +133,31 @@ central to this repo — follow it strictly.
 - New cross-service data goes in a `*-contract` module as a plain POJO; the calling side gets a method on the matching `*-client`; the serving side exposes it under `/<module>/internal/**`.
 - Chinese is used for docs, commit messages, and Javadoc in this repo; match the surrounding style.
 
+### Audit columns (`create_by` / `create_time` / `update_by` / `update_time`)
+
+New entities whose table carries all four columns **must extend `BaseAuditEntity`**
+(`erp-common`, `com.erp.common.mybatis`) instead of redeclaring the fields. Each deployable
+module registers an `AuditMetaObjectHandler` (extending `AuditMetaObjectHandlerSupport`) that
+fills them on insert/update, so **do not hand-write `setCreateBy` / `setUpdateTime` in services** —
+filling only happens when the field is null, so an explicit value (data import keeping the original
+operator, workflow callbacks resolving the approver) still wins.
+
+Two limits worth knowing: auto-fill needs an entity parameter, so pure `UpdateWrapper` and
+hand-written XML updates are not covered — new tables should declare
+`DEFAULT CURRENT_TIMESTAMP` / `ON UPDATE CURRENT_TIMESTAMP` as the DB-level backstop.
+`erp-workflow-contract` cannot depend on `erp-common`, so its two entities carry
+`@TableField(fill = ...)` on their own fields instead.
+
+### Operation & audit logging
+
+`OperationLogInterceptorSupport` (write requests) and `AuditLogAspectSupport` (GET requests) live
+in `erp-common` (`com.erp.common.logging`) and hand an `OperationLogPayload` to an
+`OperationLogRecorder`. erp-system implements it with `LocalOperationLogRecorder` (writes
+`sys_oper_log` / `sys_audit_log` directly); erp-business and erp-workflow implement it with
+`RemoteOperationLogRecorder`, which posts asynchronously to `/system/internal/platform/oper-log`
+via `erp-platform-client` — those two services must never write the log tables themselves.
+`/*/internal/**` paths are excluded from logging so service-to-service calls don't amplify.
+
 ## Reference docs
 
 `PROJECT_CONTEXT.md` (vision/stack/roadmap), `ARCH_DECISIONS.md` (ADRs), `AGENTS.md` (the

@@ -234,8 +234,6 @@ public class MdmSupplierWorkflowSubmitServiceImpl implements IMdmSupplierWorkflo
         MdmSupplier updateEntity = new MdmSupplier();
         updateEntity.setSupplierId(supplierId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return supplierService.update(updateEntity, new LambdaUpdateWrapper<MdmSupplier>()
                 .eq(MdmSupplier::getSupplierId, supplierId)
                 .eq(MdmSupplier::getDelFlag, DEL_FLAG_EXIST)

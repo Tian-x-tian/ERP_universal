@@ -11,7 +11,6 @@ import com.erp.business.inventory.mapper.InventoryStockBalanceMapper;
 import com.erp.business.inventory.mapper.InventoryStockPolicyMapper;
 import com.erp.business.inventory.mapper.InventoryWarningRecordMapper;
 import com.erp.business.inventory.service.IInventoryWarningService;
-import com.erp.business.security.service.SecurityUserResolver;
 import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.core.domain.ResultCode;
@@ -39,20 +38,17 @@ public class InventoryWarningServiceImpl implements IInventoryWarningService {
     private final InventoryStockBalanceMapper stockBalanceMapper;
     private final InventoryBatchRecordMapper batchRecordMapper;
     private final InternalSystemClient internalSystemClient;
-    private final SecurityUserResolver securityUserResolver;
 
     public InventoryWarningServiceImpl(InventoryWarningRecordMapper warningRecordMapper,
             InventoryStockPolicyMapper stockPolicyMapper,
             InventoryStockBalanceMapper stockBalanceMapper,
             InventoryBatchRecordMapper batchRecordMapper,
-            InternalSystemClient internalSystemClient,
-            SecurityUserResolver securityUserResolver) {
+            InternalSystemClient internalSystemClient) {
         this.warningRecordMapper = warningRecordMapper;
         this.stockPolicyMapper = stockPolicyMapper;
         this.stockBalanceMapper = stockBalanceMapper;
         this.batchRecordMapper = batchRecordMapper;
         this.internalSystemClient = internalSystemClient;
-        this.securityUserResolver = securityUserResolver;
     }
 
     /**
@@ -198,8 +194,6 @@ public class InventoryWarningServiceImpl implements IInventoryWarningService {
         InventoryWarningRecord updateEntity = new InventoryWarningRecord();
         updateEntity.setWarningId(warning.getWarningId());
         updateEntity.setStatus(status);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return warningRecordMapper.updateById(updateEntity) > 0;
     }
 
@@ -282,10 +276,6 @@ public class InventoryWarningServiceImpl implements IInventoryWarningService {
             warning.setSerialNo(serialNo);
             warning.setWarningKey(warningKey);
             warning.setWarningMessage(message);
-            warning.setCreateBy(resolveOperator());
-            warning.setUpdateBy(resolveOperator());
-            warning.setCreateTime(now);
-            warning.setUpdateTime(now);
             warningRecordMapper.insert(warning);
             return;
         }
@@ -294,8 +284,6 @@ public class InventoryWarningServiceImpl implements IInventoryWarningService {
         updateEntity.setWarningType(warningType);
         updateEntity.setStatus("NEW");
         updateEntity.setWarningMessage(message);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(now);
         warningRecordMapper.updateById(updateEntity);
     }
 
@@ -332,15 +320,6 @@ public class InventoryWarningServiceImpl implements IInventoryWarningService {
         return tenantId.trim();
     }
 
-    /**
-     * 获取当前操作人。
-     *
-     * @return 操作人账号
-     */
-    private String resolveOperator() {
-        String username = securityUserResolver.getCurrentUsername();
-        return StringUtils.hasText(username) ? username.trim() : "system";
-    }
 
     /**
      * 规范化页码。

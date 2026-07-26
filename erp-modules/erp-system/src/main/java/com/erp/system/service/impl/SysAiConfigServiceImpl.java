@@ -9,7 +9,6 @@ import com.erp.platform.contract.model.PlatformAiConfigUpdateRequest;
 import com.erp.platform.contract.model.PlatformAiConfigView;
 import com.erp.system.domain.SysAiConfig;
 import com.erp.system.mapper.SysAiConfigMapper;
-import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.ISysAiConfigService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -44,11 +43,9 @@ public class SysAiConfigServiceImpl extends ServiceImpl<SysAiConfigMapper, SysAi
     private static final String ACTION_WORKFLOW_DEFINITION_PUBLISH = "workflow_definition_publish";
 
     private final ObjectMapper objectMapper;
-    private final SecurityUserResolver securityUserResolver;
 
-    public SysAiConfigServiceImpl(ObjectMapper objectMapper, SecurityUserResolver securityUserResolver) {
+    public SysAiConfigServiceImpl(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
-        this.securityUserResolver = securityUserResolver;
     }
 
     /**
@@ -93,8 +90,6 @@ public class SysAiConfigServiceImpl extends ServiceImpl<SysAiConfigMapper, SysAi
         if (isNew) {
             entity = new SysAiConfig();
             entity.setTenantId(normalizedTenantId);
-            entity.setCreateBy(resolveOperator());
-            entity.setCreateTime(new Date());
             entity.setEnabled(FLAG_YES);
             entity.setModel(DEFAULT_MODEL);
             entity.setMaxHistoryTurns(DEFAULT_MAX_HISTORY_TURNS);
@@ -103,8 +98,6 @@ public class SysAiConfigServiceImpl extends ServiceImpl<SysAiConfigMapper, SysAi
         }
 
         applyConfigUpdate(entity, request);
-        entity.setUpdateBy(resolveOperator());
-        entity.setUpdateTime(new Date());
 
         if (isNew) {
             save(entity);
@@ -154,8 +147,6 @@ public class SysAiConfigServiceImpl extends ServiceImpl<SysAiConfigMapper, SysAi
         if (isNew) {
             entity = new SysAiConfig();
             entity.setTenantId(normalizedTenantId);
-            entity.setCreateBy(resolveOperator());
-            entity.setCreateTime(new Date());
             entity.setEnabled(FLAG_YES);
             entity.setModel(DEFAULT_MODEL);
             entity.setMaxHistoryTurns(DEFAULT_MAX_HISTORY_TURNS);
@@ -163,8 +154,6 @@ public class SysAiConfigServiceImpl extends ServiceImpl<SysAiConfigMapper, SysAi
             entity.setMaxNoticeItems(DEFAULT_MAX_NOTICE_ITEMS);
         }
         entity.setActionPolicyJson(serializePolicyItems(mergedPolicyList));
-        entity.setUpdateBy(resolveOperator());
-        entity.setUpdateTime(new Date());
 
         if (isNew) {
             save(entity);
@@ -407,16 +396,6 @@ public class SysAiConfigServiceImpl extends ServiceImpl<SysAiConfigMapper, SysAi
             return "default";
         }
         return "v" + updateTime.getTime();
-    }
-
-    /**
-     * 解析当前操作人。
-     *
-     * @return 操作人账号
-     */
-    private String resolveOperator() {
-        String userName = securityUserResolver.getCurrentUsername();
-        return StringUtils.hasText(userName) ? userName.trim() : "system";
     }
 
     /**

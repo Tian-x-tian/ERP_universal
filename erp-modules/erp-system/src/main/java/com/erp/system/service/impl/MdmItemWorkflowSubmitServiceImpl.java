@@ -235,8 +235,6 @@ public class MdmItemWorkflowSubmitServiceImpl implements IMdmItemWorkflowSubmitS
         MdmItem updateEntity = new MdmItem();
         updateEntity.setItemId(itemId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return itemService.update(updateEntity, new LambdaUpdateWrapper<MdmItem>()
                 .eq(MdmItem::getItemId, itemId)
                 .eq(MdmItem::getDelFlag, DEL_FLAG_EXIST)

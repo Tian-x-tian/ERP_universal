@@ -81,12 +81,8 @@ public class SysUserUiPreferenceServiceImpl
             userEntity.setTenantId(requireCurrentTenantId());
             userEntity.setScopeType(SCOPE_USER);
             userEntity.setUserId(userId);
-            userEntity.setCreateBy(resolveOperator());
-            userEntity.setCreateTime(new Date());
         }
         userEntity.setPreferenceJson(writeJson(sanitized));
-        userEntity.setUpdateBy(resolveOperator());
-        userEntity.setUpdateTime(new Date());
 
         if (isNew) {
             save(userEntity);
@@ -136,13 +132,9 @@ public class SysUserUiPreferenceServiceImpl
             tenantEntity.setTenantId(requireCurrentTenantId());
             tenantEntity.setScopeType(SCOPE_TENANT);
             tenantEntity.setUserId(TENANT_SCOPE_USER_ID);
-            tenantEntity.setCreateBy(resolveOperator());
-            tenantEntity.setCreateTime(new Date());
         }
         tenantEntity.setPreferenceJson(writeJson(safeMap(preference)));
         tenantEntity.setLockedKeys(joinLockedKeys(lockedKeys));
-        tenantEntity.setUpdateBy(resolveOperator());
-        tenantEntity.setUpdateTime(new Date());
 
         if (isNew) {
             save(tenantEntity);
@@ -313,13 +305,4 @@ public class SysUserUiPreferenceServiceImpl
         return tenantId;
     }
 
-    /**
-     * 解析当前操作人。
-     *
-     * @return 操作人账号
-     */
-    private String resolveOperator() {
-        String userName = securityUserResolver.getCurrentUsername();
-        return StringUtils.hasText(userName) ? userName.trim() : "system";
-    }
 }

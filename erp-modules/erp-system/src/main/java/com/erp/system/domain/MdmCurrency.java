@@ -3,6 +3,7 @@ package com.erp.system.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.erp.common.mybatis.BaseAuditEntity;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -11,7 +12,7 @@ import java.util.Date;
  * MDM 币种字典对象 mdm_currency。
  */
 @TableName("mdm_currency")
-public class MdmCurrency implements Serializable {
+public class MdmCurrency extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.AUTO)
@@ -27,10 +28,6 @@ public class MdmCurrency implements Serializable {
     private Integer versionNo;
     private String delFlag;
     private String remark;
-    private String createBy;
-    private Date createTime;
-    private String updateBy;
-    private Date updateTime;
 
 
     public Long getCurrencyId() {
@@ -129,35 +126,4 @@ public class MdmCurrency implements Serializable {
         this.remark = remark;
     }
 
-    public String getCreateBy() {
-        return createBy;
-    }
-
-    public void setCreateBy(String createBy) {
-        this.createBy = createBy;
-    }
-
-    public Date getCreateTime() {
-        return createTime;
-    }
-
-    public void setCreateTime(Date createTime) {
-        this.createTime = createTime;
-    }
-
-    public String getUpdateBy() {
-        return updateBy;
-    }
-
-    public void setUpdateBy(String updateBy) {
-        this.updateBy = updateBy;
-    }
-
-    public Date getUpdateTime() {
-        return updateTime;
-    }
-
-    public void setUpdateTime(Date updateTime) {
-        this.updateTime = updateTime;
-    }
 }

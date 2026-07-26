@@ -131,10 +131,6 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         employee.setStatus(MdmEmployeeStatusSupport.DRAFT);
         employee.setVersionNo(1);
         employee.setDelFlag(DEL_FLAG_EXIST);
-        employee.setCreateBy(operator);
-        employee.setUpdateBy(operator);
-        employee.setCreateTime(now);
-        employee.setUpdateTime(now);
         employee.setEffectiveTime(null);
         boolean saved = save(employee);
         if (saved) {
@@ -202,8 +198,6 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         employee.setStatus(
                 MdmEmployeeStatusSupport.normalizeStatusForUpdate(employee.getStatus(), existed.getStatus()));
         employee.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        employee.setUpdateBy(resolveOperator());
-        employee.setUpdateTime(new Date());
         boolean updated = updateEmployeeByVersion(employee, expectedVersionNo);
         if (updated) {
             MdmEmployee after = getById(employee.getEmployeeId());
@@ -253,8 +247,6 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         updateEntity.setEmployeeId(employeeId);
         updateEntity.setStatus(MdmEmployeeStatusSupport.LEAVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateEmployeeByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             MdmEmployee after = getById(employeeId);
@@ -302,8 +294,6 @@ public class MdmEmployeeServiceImpl extends ServiceImpl<MdmEmployeeMapper, MdmEm
         updateEntity.setEmployeeId(employeeId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateEmployeeByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.EMPLOYEE,

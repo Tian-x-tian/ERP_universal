@@ -126,10 +126,6 @@ public class MdmOrgServiceImpl extends ServiceImpl<MdmOrgMapper, MdmOrg> impleme
         org.setStatus(MdmStatusSupport.DRAFT);
         org.setVersionNo(1);
         org.setDelFlag(DEL_FLAG_EXIST);
-        org.setCreateBy(operator);
-        org.setUpdateBy(operator);
-        org.setCreateTime(now);
-        org.setUpdateTime(now);
         boolean saved = save(org);
         if (saved) {
             auditTrailService.record(MdmDomainTypeSupport.ORG,
@@ -187,8 +183,6 @@ public class MdmOrgServiceImpl extends ServiceImpl<MdmOrgMapper, MdmOrg> impleme
         org.setOrgType(MdmValueSupport.trimToNull(org.getOrgType()));
         org.setStatus(MdmStatusSupport.normalizeStatusForUpdate(org.getStatus(), existed.getStatus()));
         org.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        org.setUpdateBy(resolveOperator());
-        org.setUpdateTime(new Date());
         boolean updated = updateOrgByVersion(org, existed.getVersionNo());
         if (updated) {
             MdmOrg after = getById(org.getOrgId());
@@ -237,8 +231,6 @@ public class MdmOrgServiceImpl extends ServiceImpl<MdmOrgMapper, MdmOrg> impleme
         updateEntity.setOrgId(orgId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateOrgByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmOrg after = getById(orgId);
@@ -289,8 +281,6 @@ public class MdmOrgServiceImpl extends ServiceImpl<MdmOrgMapper, MdmOrg> impleme
         updateEntity.setOrgId(orgId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateOrgByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.ORG,

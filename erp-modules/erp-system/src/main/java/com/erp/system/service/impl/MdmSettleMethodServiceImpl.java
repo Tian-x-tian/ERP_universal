@@ -98,10 +98,6 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
         settleMethod.setStatus(MdmStatusSupport.DRAFT);
         settleMethod.setVersionNo(1);
         settleMethod.setDelFlag(DEL_FLAG_EXIST);
-        settleMethod.setCreateBy(operator);
-        settleMethod.setUpdateBy(operator);
-        settleMethod.setCreateTime(now);
-        settleMethod.setUpdateTime(now);
         boolean saved = save(settleMethod);
         if (saved) {
             auditTrailService.record(MdmDomainTypeSupport.SETTLE_METHOD,
@@ -155,8 +151,6 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
         settleMethod
                 .setStatus(MdmStatusSupport.normalizeStatusForUpdate(settleMethod.getStatus(), existed.getStatus()));
         settleMethod.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        settleMethod.setUpdateBy(resolveOperator());
-        settleMethod.setUpdateTime(new Date());
         boolean updated = updateSettleMethodByVersion(settleMethod, existed.getVersionNo());
         if (updated) {
             MdmSettleMethod after = getById(settleMethod.getSettleMethodId());
@@ -205,8 +199,6 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
         updateEntity.setSettleMethodId(settleMethodId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateSettleMethodByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmSettleMethod after = getById(settleMethodId);
@@ -249,8 +241,6 @@ public class MdmSettleMethodServiceImpl extends ServiceImpl<MdmSettleMethodMappe
         updateEntity.setSettleMethodId(settleMethodId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateSettleMethodByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.SETTLE_METHOD,

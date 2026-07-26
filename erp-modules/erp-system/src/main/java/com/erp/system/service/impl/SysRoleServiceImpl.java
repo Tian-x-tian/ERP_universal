@@ -142,7 +142,6 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
         updateEntity.setRoleId(role.getRoleId());
         updateEntity.setDataScope(role.getDataScope());
         updateEntity.setUpdateBy(role.getUpdateBy());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = super.updateById(updateEntity);
         if (!updated) {
             return false;

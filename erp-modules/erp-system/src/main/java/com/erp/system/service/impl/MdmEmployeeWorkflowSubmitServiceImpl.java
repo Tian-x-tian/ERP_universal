@@ -283,8 +283,6 @@ public class MdmEmployeeWorkflowSubmitServiceImpl implements IMdmEmployeeWorkflo
         MdmEmployee updateEntity = new MdmEmployee();
         updateEntity.setEmployeeId(employeeId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return employeeService.update(updateEntity, new LambdaUpdateWrapper<MdmEmployee>()
                 .eq(MdmEmployee::getEmployeeId, employeeId)
                 .eq(MdmEmployee::getDelFlag, DEL_FLAG_EXIST)

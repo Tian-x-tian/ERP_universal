@@ -117,10 +117,6 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
         costCenter.setStatus(MdmStatusSupport.DRAFT);
         costCenter.setVersionNo(1);
         costCenter.setDelFlag(DEL_FLAG_EXIST);
-        costCenter.setCreateBy(operator);
-        costCenter.setUpdateBy(operator);
-        costCenter.setCreateTime(now);
-        costCenter.setUpdateTime(now);
         boolean saved = save(costCenter);
         if (saved) {
             auditTrailService.record(MdmDomainTypeSupport.COST_CENTER,
@@ -182,8 +178,6 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
         }
         costCenter.setStatus(MdmStatusSupport.normalizeStatusForUpdate(costCenter.getStatus(), existed.getStatus()));
         costCenter.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        costCenter.setUpdateBy(resolveOperator());
-        costCenter.setUpdateTime(new Date());
         boolean updated = updateCostCenterByVersion(costCenter, existed.getVersionNo());
         if (updated) {
             MdmCostCenter after = getById(costCenter.getCcId());
@@ -232,8 +226,6 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
         updateEntity.setCcId(ccId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateCostCenterByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmCostCenter after = getById(ccId);
@@ -284,8 +276,6 @@ public class MdmCostCenterServiceImpl extends ServiceImpl<MdmCostCenterMapper, M
         updateEntity.setCcId(ccId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateCostCenterByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.COST_CENTER,

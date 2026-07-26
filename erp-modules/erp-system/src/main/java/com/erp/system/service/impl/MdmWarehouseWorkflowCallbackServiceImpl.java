@@ -159,7 +159,6 @@ public class MdmWarehouseWorkflowCallbackServiceImpl implements IWorkflowBusines
         updateEntity.setStatus(MdmStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
-        updateEntity.setUpdateTime(new Date());
         updateEntity.setCreateBy(null);
         updateEntity.setCreateTime(null);
         updateEntity.setDelFlag(null);
@@ -197,7 +196,6 @@ public class MdmWarehouseWorkflowCallbackServiceImpl implements IWorkflowBusines
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
-        updateEntity.setUpdateTime(new Date());
         boolean updated = warehouseMapper.update(updateEntity, new LambdaUpdateWrapper<MdmWarehouse>()
                 .eq(MdmWarehouse::getWarehouseId, warehouseId)
                 .eq(MdmWarehouse::getDelFlag, DEL_FLAG_EXIST)

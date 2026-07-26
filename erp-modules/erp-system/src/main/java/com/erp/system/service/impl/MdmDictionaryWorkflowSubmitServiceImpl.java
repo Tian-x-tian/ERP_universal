@@ -416,8 +416,6 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         MdmSettleMethod updateEntity = new MdmSettleMethod();
         updateEntity.setSettleMethodId(settleMethodId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return settleMethodService.update(updateEntity, new LambdaUpdateWrapper<MdmSettleMethod>().eq(MdmSettleMethod::getSettleMethodId, settleMethodId).eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST).eq(currentVersion != null, MdmSettleMethod::getVersionNo, currentVersion));
     }
 
@@ -425,8 +423,6 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         MdmTaxRate updateEntity = new MdmTaxRate();
         updateEntity.setTaxRateId(taxRateId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return taxRateService.update(updateEntity, new LambdaUpdateWrapper<MdmTaxRate>().eq(MdmTaxRate::getTaxRateId, taxRateId).eq(MdmTaxRate::getDelFlag, DEL_FLAG_EXIST).eq(currentVersion != null, MdmTaxRate::getVersionNo, currentVersion));
     }
 
@@ -434,8 +430,6 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         MdmCurrency updateEntity = new MdmCurrency();
         updateEntity.setCurrencyId(currencyId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return currencyService.update(updateEntity, new LambdaUpdateWrapper<MdmCurrency>().eq(MdmCurrency::getCurrencyId, currencyId).eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST).eq(currentVersion != null, MdmCurrency::getVersionNo, currentVersion));
     }
 
@@ -443,8 +437,6 @@ public class MdmDictionaryWorkflowSubmitServiceImpl implements IMdmDictionaryWor
         MdmUom updateEntity = new MdmUom();
         updateEntity.setUomId(uomId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return uomService.update(updateEntity, new LambdaUpdateWrapper<MdmUom>().eq(MdmUom::getUomId, uomId).eq(MdmUom::getDelFlag, DEL_FLAG_EXIST).eq(currentVersion != null, MdmUom::getVersionNo, currentVersion));
     }
 

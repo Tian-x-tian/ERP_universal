@@ -3,7 +3,9 @@ package com.erp.business.hr.attendance.core.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.erp.common.mybatis.BaseAuditEntity;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -13,8 +15,9 @@ import java.util.Date;
  * 出勤原子记录。
  */
 @Data
+@EqualsAndHashCode(callSuper = false)
 @TableName("hr_attendance_record")
-public class HrAttendanceRecord implements Serializable {
+public class HrAttendanceRecord extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "record_id", type = IdType.AUTO)
@@ -39,8 +42,4 @@ public class HrAttendanceRecord implements Serializable {
     private String signOutInRange;
     private String deviceSource;
     private String remark;
-    private String createBy;
-    private Date createTime;
-    private String updateBy;
-    private Date updateTime;
 }

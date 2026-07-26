@@ -93,10 +93,6 @@ public class HrEmployeePositionServiceImpl implements IHrEmployeePositionService
         HrEmployeePosition position = new HrEmployeePosition();
         position.setTenantId(employee.getTenantId());
         position.setEmployeeId(employee.getEmployeeId());
-        position.setCreateBy(resolveOperator());
-        position.setCreateTime(now);
-        position.setUpdateBy(resolveOperator());
-        position.setUpdateTime(now);
         applyBody(position, body);
         normalizePrimaryPosition(position);
         positionMapper.insert(position);
@@ -121,8 +117,6 @@ public class HrEmployeePositionServiceImpl implements IHrEmployeePositionService
         updateEntity.setPositionId(positionId);
         updateEntity.setTenantId(existed.getTenantId());
         updateEntity.setEmployeeId(existed.getEmployeeId());
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         applyBody(updateEntity, body);
         normalizePrimaryPosition(updateEntity);
         positionMapper.updateById(updateEntity);

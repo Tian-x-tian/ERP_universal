@@ -123,10 +123,6 @@ public class HrEmployeeChangeServiceImpl implements IHrEmployeeChangeService {
         change.setAfterSnapshot(writeSnapshot(afterSnapshot));
         change.setStatus(HrEmployeeSupport.CHANGE_STATUS_SUBMITTED);
         change.setRemark(HrEmployeeSupport.trimToNull(body == null ? null : body.getRemark()));
-        change.setCreateBy(resolveOperator());
-        change.setCreateTime(now);
-        change.setUpdateBy(resolveOperator());
-        change.setUpdateTime(now);
         changeMapper.insert(change);
         return changeMapper.selectById(change.getChangeId());
     }
@@ -221,7 +217,6 @@ public class HrEmployeeChangeServiceImpl implements IHrEmployeeChangeService {
         updateEntity.setChangeId(change.getChangeId());
         updateEntity.setStatus(status);
         updateEntity.setUpdateBy(StringUtils.hasText(operator) ? operator.trim() : "system");
-        updateEntity.setUpdateTime(new Date());
         changeMapper.updateById(updateEntity);
     }
 
@@ -284,13 +279,4 @@ public class HrEmployeeChangeServiceImpl implements IHrEmployeeChangeService {
         return securityUserResolver.getCurrentTenantId();
     }
 
-    /**
-     * 获取当前操作人。
-     *
-     * @return 操作人
-     */
-    private String resolveOperator() {
-        String username = securityUserResolver.getCurrentUsername();
-        return StringUtils.hasText(username) ? username.trim() : "system";
-    }
 }

@@ -7,7 +7,6 @@ import com.erp.business.inventory.domain.InventoryIntegrationEvent;
 import com.erp.business.inventory.mapper.InventoryIntegrationEventMapper;
 import com.erp.business.inventory.service.InventoryFinanceVoucherFacade;
 import com.erp.business.inventory.service.InventorySourceIntegrationFacade;
-import com.erp.business.security.service.SecurityUserResolver;
 import com.erp.common.core.context.TenantContextHolder;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
@@ -39,9 +38,6 @@ class InventoryIntegrationEventServiceImplTest {
     @Mock
     private InventoryFinanceVoucherFacade financeVoucherFacade;
 
-    @Mock
-    private SecurityUserResolver securityUserResolver;
-
     private InventoryIntegrationEventServiceImpl integrationEventService;
 
     /**
@@ -50,10 +46,9 @@ class InventoryIntegrationEventServiceImplTest {
     @BeforeEach
     void setUp() {
         integrationEventService = new InventoryIntegrationEventServiceImpl(integrationEventMapper,
-                sourceIntegrationFacade, financeVoucherFacade, securityUserResolver);
+                sourceIntegrationFacade, financeVoucherFacade);
         initTableInfoIfAbsent(InventoryIntegrationEvent.class);
         TenantContextHolder.setTenantId("000000");
-        when(securityUserResolver.getCurrentUsername()).thenReturn("admin");
     }
 
     /**
@@ -101,8 +96,7 @@ class InventoryIntegrationEventServiceImplTest {
         Assertions.assertEquals(201L, event.getBillId());
         Assertions.assertEquals("IN-001", event.getBillNo());
         Assertions.assertTrue(event.getPayloadJson().contains("COMPLETED"));
-        Assertions.assertEquals("admin", event.getCreateBy());
-        Assertions.assertEquals("admin", event.getUpdateBy());
+        // create_by / update_by 已改由 AuditMetaObjectHandlerSupport 自动填充，不再由本服务赋值
     }
 
     /**
@@ -127,7 +121,6 @@ class InventoryIntegrationEventServiceImplTest {
         Assertions.assertEquals("SUCCESS", captor.getValue().getEventStatus());
         Assertions.assertEquals(2, captor.getValue().getRetryCount());
         Assertions.assertNull(captor.getValue().getLastError());
-        Assertions.assertEquals("admin", captor.getValue().getUpdateBy());
     }
 
     /**

@@ -301,8 +301,6 @@ public class MdmCustomerWorkflowSubmitServiceImpl implements IMdmCustomerWorkflo
         MdmCustomer updateEntity = new MdmCustomer();
         updateEntity.setCustomerId(customerId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return customerService.update(updateEntity, new LambdaUpdateWrapper<MdmCustomer>()
                 .eq(MdmCustomer::getCustomerId, customerId)
                 .eq(MdmCustomer::getDelFlag, DEL_FLAG_EXIST)

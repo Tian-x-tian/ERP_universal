@@ -116,10 +116,6 @@ public class MdmProjectServiceImpl extends ServiceImpl<MdmProjectMapper, MdmProj
         project.setStatus(MdmStatusSupport.DRAFT);
         project.setVersionNo(1);
         project.setDelFlag(DEL_FLAG_EXIST);
-        project.setCreateBy(operator);
-        project.setUpdateBy(operator);
-        project.setCreateTime(now);
-        project.setUpdateTime(now);
         boolean saved = save(project);
         if (saved) {
             auditTrailService.record(MdmDomainTypeSupport.PROJECT,
@@ -181,8 +177,6 @@ public class MdmProjectServiceImpl extends ServiceImpl<MdmProjectMapper, MdmProj
         project.setProjectName(MdmValueSupport.trimToNull(project.getProjectName()));
         project.setStatus(MdmStatusSupport.normalizeStatusForUpdate(project.getStatus(), existed.getStatus()));
         project.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        project.setUpdateBy(resolveOperator());
-        project.setUpdateTime(new Date());
         boolean updated = updateProjectByVersion(project, existed.getVersionNo());
         if (updated) {
             MdmProject after = getById(project.getProjectId());
@@ -231,8 +225,6 @@ public class MdmProjectServiceImpl extends ServiceImpl<MdmProjectMapper, MdmProj
         updateEntity.setProjectId(projectId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateProjectByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmProject after = getById(projectId);
@@ -275,8 +267,6 @@ public class MdmProjectServiceImpl extends ServiceImpl<MdmProjectMapper, MdmProj
         updateEntity.setProjectId(projectId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateProjectByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.PROJECT,

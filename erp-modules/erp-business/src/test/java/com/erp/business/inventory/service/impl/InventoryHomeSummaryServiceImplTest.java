@@ -126,7 +126,6 @@ class InventoryHomeSummaryServiceImplTest {
         InventoryInboundOrder order = new InventoryInboundOrder();
         order.setOrderId(orderId);
         order.setStatus(status);
-        order.setCreateTime(new Date());
         return order;
     }
 

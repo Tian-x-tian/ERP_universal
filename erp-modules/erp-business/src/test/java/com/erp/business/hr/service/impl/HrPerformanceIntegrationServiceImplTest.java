@@ -68,7 +68,6 @@ class HrPerformanceIntegrationServiceImplTest {
         performanceService = new HrPerformanceIntegrationServiceImpl(fieldMappingMapper, syncLogMapper,
                 retryTaskMapper, employeeCoreMapper, securityUserResolver, new ObjectMapper(), restTemplate);
         when(securityUserResolver.getCurrentTenantId()).thenReturn("000000");
-        when(securityUserResolver.getCurrentUsername()).thenReturn("tester");
     }
 
     /**

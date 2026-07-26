@@ -170,10 +170,6 @@ public class HrEmployeeImportServiceImpl implements IHrEmployeeImportService {
         employee.setVersionNo(1);
         employee.setDelFlag(HrEmployeeSupport.EXIST_DEL_FLAG);
         employee.setRemark(trim(values, 11));
-        employee.setCreateBy(resolveOperator());
-        employee.setCreateTime(now);
-        employee.setUpdateBy(resolveOperator());
-        employee.setUpdateTime(now);
         employeeCoreMapper.insert(employee);
         createArchiveIfNeeded(employee, values);
         return employee;

@@ -352,8 +352,6 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         MdmOrg updateEntity = new MdmOrg();
         updateEntity.setOrgId(orgId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return orgService.update(updateEntity, new LambdaUpdateWrapper<MdmOrg>()
                 .eq(MdmOrg::getOrgId, orgId)
                 .eq(MdmOrg::getDelFlag, DEL_FLAG_EXIST)
@@ -364,8 +362,6 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         MdmCostCenter updateEntity = new MdmCostCenter();
         updateEntity.setCcId(ccId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return costCenterService.update(updateEntity, new LambdaUpdateWrapper<MdmCostCenter>()
                 .eq(MdmCostCenter::getCcId, ccId)
                 .eq(MdmCostCenter::getDelFlag, DEL_FLAG_EXIST)
@@ -376,8 +372,6 @@ public class MdmDimensionWorkflowSubmitServiceImpl implements IMdmDimensionWorkf
         MdmProject updateEntity = new MdmProject();
         updateEntity.setProjectId(projectId);
         updateEntity.setStatus(targetStatus);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return projectService.update(updateEntity, new LambdaUpdateWrapper<MdmProject>()
                 .eq(MdmProject::getProjectId, projectId)
                 .eq(MdmProject::getDelFlag, DEL_FLAG_EXIST)

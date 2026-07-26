@@ -3,10 +3,11 @@ package com.erp.system.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.erp.common.mybatis.BaseAuditEntity;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
-import java.util.Date;
 
 /**
  * UI 个性化偏好对象 sys_user_ui_preference。
@@ -19,7 +20,8 @@ import java.util.Date;
  */
 @TableName("sys_user_ui_preference")
 @Data
-public class SysUserUiPreference implements Serializable {
+@EqualsAndHashCode(callSuper = false)
+public class SysUserUiPreference extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /** 偏好ID */
@@ -42,14 +44,10 @@ public class SysUserUiPreference implements Serializable {
     private String lockedKeys;
 
     /** 创建者 */
-    private String createBy;
 
     /** 创建时间 */
-    private Date createTime;
 
     /** 更新者 */
-    private String updateBy;
 
     /** 更新时间 */
-    private Date updateTime;
 }

@@ -3,6 +3,7 @@ package com.erp.system.logging;
 import com.erp.common.core.context.RequestTraceContextHolder;
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.core.domain.R;
+import com.erp.common.logging.ApiLogSanitizer;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletRequest;

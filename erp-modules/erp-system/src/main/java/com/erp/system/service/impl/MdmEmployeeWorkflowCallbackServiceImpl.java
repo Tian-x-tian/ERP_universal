@@ -178,7 +178,6 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         updateEntity.setStatus(MdmEmployeeStatusSupport.ACTIVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
-        updateEntity.setUpdateTime(new Date());
         updateEntity.setCreateBy(null);
         updateEntity.setCreateTime(null);
         updateEntity.setDelFlag(null);
@@ -216,7 +215,6 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         updateEntity.setStatus(MdmEmployeeStatusSupport.LEAVE);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(before.getVersionNo()));
         updateEntity.setUpdateBy(resolveOperator(instance));
-        updateEntity.setUpdateTime(new Date());
         boolean updated = employeeMapper.update(updateEntity, new LambdaUpdateWrapper<MdmEmployee>()
                 .eq(MdmEmployee::getEmployeeId, employeeId)
                 .eq(MdmEmployee::getDelFlag, DEL_FLAG_EXIST)
@@ -302,11 +300,9 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
                 archive.setEmployeeId(change.getEmployeeId());
                 archive.setTenantId(change.getTenantId());
                 archive.setUpdateBy(resolveOperator(instance));
-                archive.setUpdateTime(new Date());
                 HrEmployeeArchiveMirror existed = archiveMirrorMapper.selectById(change.getEmployeeId());
                 if (existed == null) {
                     archive.setCreateBy(resolveOperator(instance));
-                    archive.setCreateTime(new Date());
                     archiveMirrorMapper.insert(archive);
                 } else {
                     archive.setCreateBy(null);
@@ -319,7 +315,6 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         updateEntity.setChangeId(changeRecordId);
         updateEntity.setStatus(HR_CHANGE_STATUS_APPROVED);
         updateEntity.setUpdateBy(resolveOperator(instance));
-        updateEntity.setUpdateTime(new Date());
         changeMirrorMapper.updateById(updateEntity);
     }
 
@@ -334,7 +329,6 @@ public class MdmEmployeeWorkflowCallbackServiceImpl implements IWorkflowBusiness
         updateEntity.setChangeId(changeRecordId);
         updateEntity.setStatus(HR_CHANGE_STATUS_REJECTED);
         updateEntity.setUpdateBy(operator);
-        updateEntity.setUpdateTime(new Date());
         changeMirrorMapper.updateById(updateEntity);
     }
 

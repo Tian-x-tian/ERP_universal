@@ -120,10 +120,6 @@ public class PurchaseOrderServiceImpl implements IPurchaseOrderService {
                 ? trim(order.getIdempotencyNo()) : order.getOrderNo());
         order.setCurrencyCode(StringUtils.hasText(order.getCurrencyCode()) ? trim(order.getCurrencyCode()) : "CNY");
         order.setVersionNo(1);
-        order.setCreateBy(operator);
-        order.setUpdateBy(operator);
-        order.setCreateTime(now);
-        order.setUpdateTime(now);
         applyTotals(order);
         if (orderMapper.insert(order) <= 0) {
             throw new ServiceException("采购订单保存失败");
@@ -152,8 +148,6 @@ public class PurchaseOrderServiceImpl implements IPurchaseOrderService {
         existed.setExpectDate(order.getExpectDate());
         existed.setRemark(trim(order.getRemark()));
         existed.setLines(order.getLines());
-        existed.setUpdateBy(resolveOperator());
-        existed.setUpdateTime(new Date());
         applyTotals(existed);
         if (orderMapper.updateById(existed) <= 0) {
             return false;

@@ -108,10 +108,6 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         item.setStatus(MdmStatusSupport.DRAFT);
         item.setVersionNo(1);
         item.setDelFlag(DEL_FLAG_EXIST);
-        item.setCreateBy(operator);
-        item.setUpdateBy(operator);
-        item.setCreateTime(now);
-        item.setUpdateTime(now);
         item.setEffectiveTime(null);
         boolean saved = save(item);
         if (saved) {
@@ -185,8 +181,6 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         if (MdmStatusSupport.isActive(newStatus) && existed.getEffectiveTime() == null) {
             item.setEffectiveTime(new Date());
         }
-        item.setUpdateBy(resolveOperator());
-        item.setUpdateTime(new Date());
         boolean updated = updateItemByVersion(item, expectedVersionNo);
         if (updated) {
             MdmItem after = getById(item.getItemId());
@@ -236,8 +230,6 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         updateEntity.setItemId(itemId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateItemByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             MdmItem after = getById(itemId);
@@ -281,8 +273,6 @@ public class MdmItemServiceImpl extends ServiceImpl<MdmItemMapper, MdmItem> impl
         updateEntity.setItemId(itemId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateItemByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.ITEM,

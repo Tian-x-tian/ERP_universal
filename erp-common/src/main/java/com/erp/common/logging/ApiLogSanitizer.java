@@ -1,4 +1,4 @@
-package com.erp.system.logging;
+package com.erp.common.logging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

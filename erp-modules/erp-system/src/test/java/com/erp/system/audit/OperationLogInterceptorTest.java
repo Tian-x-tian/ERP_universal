@@ -1,8 +1,8 @@
 package com.erp.system.audit;
 
-import com.erp.system.domain.SysOperLog;
+import com.erp.common.logging.OperationLogPayload;
+import com.erp.common.logging.OperationLogRecorder;
 import com.erp.system.security.service.SecurityUserResolver;
-import com.erp.system.service.ISysOperLogService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 class OperationLogInterceptorTest {
 
     @Mock
-    private ISysOperLogService operLogService;
+    private OperationLogRecorder operationLogRecorder;
 
     @Mock
     private SecurityUserResolver securityUserResolver;
@@ -37,14 +37,14 @@ class OperationLogInterceptorTest {
     }
 
     /**
-     * 验证普通写接口完成后会写入操作日志。
+     * 验证普通写接口完成后会记录操作日志，且敏感字段已脱敏。
      *
      * @throws NoSuchMethodException 反射获取测试方法异常
      */
     @Test
-    void shouldSaveOperationLogForWriteRequest() throws NoSuchMethodException {
+    void shouldRecordOperationLogForWriteRequest() throws NoSuchMethodException {
         OperationLogInterceptor interceptor = new OperationLogInterceptor(
-                operLogService,
+                operationLogRecorder,
                 securityUserResolver,
                 new ObjectMapper());
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/system/user");
@@ -64,23 +64,24 @@ class OperationLogInterceptorTest {
         interceptor.afterCompletion(request, response, handlerMethod, null);
 
         Assertions.assertTrue(continueChain);
-        ArgumentCaptor<SysOperLog> logCaptor = ArgumentCaptor.forClass(SysOperLog.class);
-        verify(operLogService).save(logCaptor.capture());
-        SysOperLog savedLog = logCaptor.getValue();
-        Assertions.assertEquals("000001", savedLog.getTenantId());
-        Assertions.assertEquals("admin", savedLog.getOperator());
-        Assertions.assertEquals("POST", savedLog.getRequestMethod());
-        Assertions.assertEquals("/system/user", savedLog.getRequestUri());
-        Assertions.assertEquals("127.0.0.1", savedLog.getRequestIp());
-        Assertions.assertEquals("1", savedLog.getSuccessFlag());
-        Assertions.assertEquals(Integer.valueOf(200), savedLog.getResponseCode());
-        Assertions.assertTrue(savedLog.getRequestParams().contains("TestController#save"));
-        Assertions.assertTrue(savedLog.getRequestParams().contains("tester"));
-        Assertions.assertFalse(savedLog.getRequestParams().contains("tester@example.com"));
-        Assertions.assertFalse(savedLog.getRequestParams().contains("6222021234567890"));
-        Assertions.assertFalse(savedLog.getRequestParams().contains("13812345678"));
-        Assertions.assertFalse(savedLog.getRequestParams().contains("plain-token"));
-        Assertions.assertTrue(savedLog.getRequestParams().contains("******"));
+        ArgumentCaptor<OperationLogPayload> logCaptor = ArgumentCaptor.forClass(OperationLogPayload.class);
+        verify(operationLogRecorder).record(logCaptor.capture());
+        OperationLogPayload payload = logCaptor.getValue();
+        Assertions.assertEquals(OperationLogPayload.TYPE_OPERATION, payload.getLogType());
+        Assertions.assertEquals("000001", payload.getTenantId());
+        Assertions.assertEquals("admin", payload.getOperator());
+        Assertions.assertEquals("POST", payload.getRequestMethod());
+        Assertions.assertEquals("/system/user", payload.getRequestUri());
+        Assertions.assertEquals("127.0.0.1", payload.getRequestIp());
+        Assertions.assertEquals("1", payload.getSuccessFlag());
+        Assertions.assertEquals(Integer.valueOf(200), payload.getResponseCode());
+        Assertions.assertTrue(payload.getRequestParams().contains("TestController#save"));
+        Assertions.assertTrue(payload.getRequestParams().contains("tester"));
+        Assertions.assertFalse(payload.getRequestParams().contains("tester@example.com"));
+        Assertions.assertFalse(payload.getRequestParams().contains("6222021234567890"));
+        Assertions.assertFalse(payload.getRequestParams().contains("13812345678"));
+        Assertions.assertFalse(payload.getRequestParams().contains("plain-token"));
+        Assertions.assertTrue(payload.getRequestParams().contains("******"));
     }
 
     /**
@@ -91,7 +92,7 @@ class OperationLogInterceptorTest {
     @Test
     void shouldSkipLoginRequest() throws NoSuchMethodException {
         OperationLogInterceptor interceptor = new OperationLogInterceptor(
-                operLogService,
+                operationLogRecorder,
                 securityUserResolver,
                 new ObjectMapper());
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
@@ -103,7 +104,29 @@ class OperationLogInterceptorTest {
         interceptor.afterCompletion(request, response, handlerMethod, null);
 
         Assertions.assertTrue(continueChain);
-        verify(operLogService, never()).save(org.mockito.ArgumentMatchers.any(SysOperLog.class));
+        verify(operationLogRecorder, never()).record(org.mockito.ArgumentMatchers.any(OperationLogPayload.class));
+    }
+
+    /**
+     * 验证日志查询接口自身不会写入操作日志。
+     *
+     * @throws NoSuchMethodException 反射获取测试方法异常
+     */
+    @Test
+    void shouldSkipOperationLogEndpointItself() throws NoSuchMethodException {
+        OperationLogInterceptor interceptor = new OperationLogInterceptor(
+                operationLogRecorder,
+                securityUserResolver,
+                new ObjectMapper());
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/system/oper/log/export");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        HandlerMethod handlerMethod = new HandlerMethod(new TestController(),
+                TestController.class.getMethod("save"));
+
+        interceptor.preHandle(request, response, handlerMethod);
+        interceptor.afterCompletion(request, response, handlerMethod, null);
+
+        verify(operationLogRecorder, never()).record(org.mockito.ArgumentMatchers.any(OperationLogPayload.class));
     }
 
     /**

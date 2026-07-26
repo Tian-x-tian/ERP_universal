@@ -48,7 +48,6 @@ public class SysCompanyServiceImpl extends ServiceImpl<SysCompanyMapper, SysComp
         company.setCompanyName(company.getCompanyName().trim());
         company.setStatus(StatusFieldSupport.normalizeBinaryStatus(company.getStatus()));
         company.setDelFlag(StringUtils.hasText(company.getDelFlag()) ? company.getDelFlag() : "0");
-        company.setCreateTime(new Date());
 
         if (parentCompanyId == 0L) {
             company.setAncestors("0");
@@ -119,7 +118,6 @@ public class SysCompanyServiceImpl extends ServiceImpl<SysCompanyMapper, SysComp
         if (!StringUtils.hasText(company.getTenantId())) {
             company.setTenantId(existedCompany.getTenantId());
         }
-        company.setUpdateTime(new Date());
         boolean updated = updateById(company);
         if (!updated) {
             return false;

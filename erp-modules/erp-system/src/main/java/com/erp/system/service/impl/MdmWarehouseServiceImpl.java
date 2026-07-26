@@ -122,10 +122,6 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         warehouse.setStatus(MdmStatusSupport.DRAFT);
         warehouse.setVersionNo(1);
         warehouse.setDelFlag(DEL_FLAG_EXIST);
-        warehouse.setCreateBy(operator);
-        warehouse.setUpdateBy(operator);
-        warehouse.setCreateTime(now);
-        warehouse.setUpdateTime(now);
         warehouse.setEffectiveTime(null);
         boolean saved = save(warehouse);
         if (saved) {
@@ -199,8 +195,6 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         if (MdmStatusSupport.isActive(newStatus) && existed.getEffectiveTime() == null) {
             warehouse.setEffectiveTime(new Date());
         }
-        warehouse.setUpdateBy(resolveOperator());
-        warehouse.setUpdateTime(new Date());
         boolean updated = updateWarehouseByVersion(warehouse, expectedVersionNo);
         if (updated) {
             MdmWarehouse after = getById(warehouse.getWarehouseId());
@@ -250,8 +244,6 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         updateEntity.setWarehouseId(warehouseId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateWarehouseByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             MdmWarehouse after = getById(warehouseId);
@@ -295,8 +287,6 @@ public class MdmWarehouseServiceImpl extends ServiceImpl<MdmWarehouseMapper, Mdm
         updateEntity.setWarehouseId(warehouseId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateWarehouseByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.WAREHOUSE,

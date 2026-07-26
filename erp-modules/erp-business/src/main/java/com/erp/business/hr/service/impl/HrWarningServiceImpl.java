@@ -125,8 +125,6 @@ public class HrWarningServiceImpl implements IHrWarningService {
         updateEntity.setHandledBy(resolveOperator());
         updateEntity.setHandledTime(new Date());
         updateEntity.setRemark(HrEmployeeSupport.trimToNull(body == null ? null : body.getRemark()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         warningRecordMapper.updateById(updateEntity);
         return warningRecordMapper.selectById(warningId);
     }
@@ -216,10 +214,6 @@ public class HrWarningServiceImpl implements IHrWarningService {
             warning.setWarningContent(content);
             warning.setExpireDate(expireDate);
             warning.setStatus(HrEmployeeSupport.WARNING_STATUS_NEW);
-            warning.setCreateBy(resolveOperator());
-            warning.setCreateTime(now);
-            warning.setUpdateBy(resolveOperator());
-            warning.setUpdateTime(now);
             warningRecordMapper.insert(warning);
             createNotice(warning);
             return;
@@ -230,8 +224,6 @@ public class HrWarningServiceImpl implements IHrWarningService {
         updateEntity.setWarningContent(content);
         updateEntity.setExpireDate(expireDate);
         updateEntity.setStatus(HrEmployeeSupport.WARNING_STATUS_NEW);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(now);
         warningRecordMapper.updateById(updateEntity);
     }
 

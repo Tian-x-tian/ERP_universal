@@ -222,8 +222,6 @@ public class MdmTaxRateServiceImpl extends ServiceImpl<MdmTaxRateMapper, MdmTaxR
         updateEntity.setTaxRateId(taxRateId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateTaxRateByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmTaxRate after = getById(taxRateId);
@@ -269,8 +267,6 @@ public class MdmTaxRateServiceImpl extends ServiceImpl<MdmTaxRateMapper, MdmTaxR
         updateEntity.setTaxRateId(taxRateId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateTaxRateByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.TAX_RATE,

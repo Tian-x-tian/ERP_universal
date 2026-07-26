@@ -13,6 +13,7 @@ import com.erp.platform.contract.model.PlatformImexJobCreateRequest;
 import com.erp.platform.contract.model.PlatformImexJobUpdateRequest;
 import com.erp.platform.contract.model.PlatformItemView;
 import com.erp.platform.contract.model.PlatformNoticeCreateRequest;
+import com.erp.platform.contract.model.PlatformOperationLogCreateRequest;
 import com.erp.platform.contract.model.PlatformPostView;
 import com.erp.platform.contract.model.PlatformRoleView;
 import com.erp.platform.contract.model.PlatformTenantView;
@@ -31,6 +32,8 @@ import com.erp.system.domain.SysTenant;
 import com.erp.system.domain.SysUser;
 import com.erp.system.domain.SysUserPost;
 import com.erp.system.domain.SysUserRole;
+import com.erp.common.logging.OperationLogPayload;
+import com.erp.common.logging.OperationLogRecorder;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IMdmItemService;
 import com.erp.system.service.IMdmWarehouseService;
@@ -59,6 +62,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -81,6 +85,7 @@ public class SystemInternalController {
     private final ISysImexJobService imexJobService;
     private final ISysAiConfigService aiConfigService;
     private final ISysAiAuditService aiAuditService;
+    private final OperationLogRecorder operationLogRecorder;
     private final IMdmItemService itemService;
     private final IMdmWarehouseService warehouseService;
     private final ISysUserService userService;
@@ -105,7 +110,9 @@ public class SystemInternalController {
             ISysPostService postService,
             ISysUserRoleService userRoleService,
             ISysUserPostService userPostService,
-            ISysNoticeService noticeService) {
+            ISysNoticeService noticeService,
+            OperationLogRecorder operationLogRecorder) {
+        this.operationLogRecorder = operationLogRecorder;
         this.securityUserResolver = securityUserResolver;
         this.roleService = roleService;
         this.menuService = menuService;
@@ -601,6 +608,36 @@ public class SystemInternalController {
     public List<PlatformAiActionPolicyItem> updateAiActionPolicies(
             @RequestBody(required = false) List<PlatformAiActionPolicyItem> policyItems) {
         return aiConfigService.updateActionPolicies(securityUserResolver.getCurrentTenantId(), policyItems);
+    }
+
+    /**
+     * 接收其他服务回传的操作/审计日志并落库。
+     * 非 erp-system 的服务不直接写 sys_oper_log / sys_audit_log，统一走本接口。
+     *
+     * @param request 日志写入请求
+     */
+    @PostMapping("/platform/oper-log")
+    public void recordOperationLog(@RequestBody(required = false) PlatformOperationLogCreateRequest request) {
+        if (request == null) {
+            return;
+        }
+        OperationLogPayload payload = new OperationLogPayload();
+        payload.setLogType(StringUtils.hasText(request.getLogType())
+                ? request.getLogType()
+                : OperationLogPayload.TYPE_OPERATION);
+        payload.setTenantId(request.getTenantId());
+        payload.setOperator(request.getOperator());
+        payload.setOperationType(request.getOperationType());
+        payload.setRequestMethod(request.getRequestMethod());
+        payload.setRequestUri(request.getRequestUri());
+        payload.setRequestIp(request.getRequestIp());
+        payload.setRequestParams(request.getRequestParams());
+        payload.setResponseCode(request.getResponseCode());
+        payload.setSuccessFlag(request.getSuccessFlag());
+        payload.setErrorMsg(request.getErrorMsg());
+        payload.setCostTime(request.getCostTime());
+        payload.setOperationTime(request.getOperationTime() == null ? new Date() : request.getOperationTime());
+        operationLogRecorder.record(payload);
     }
 
     /**

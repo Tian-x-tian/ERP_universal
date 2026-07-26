@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.erp.business.inventory.domain.InventoryStockPolicy;
 import com.erp.business.inventory.mapper.InventoryStockPolicyMapper;
 import com.erp.business.inventory.service.IInventoryStockPolicyService;
-import com.erp.business.security.service.SecurityUserResolver;
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.core.exception.ServiceException;
@@ -22,12 +21,9 @@ import java.util.Date;
 public class InventoryStockPolicyServiceImpl implements IInventoryStockPolicyService {
 
     private final InventoryStockPolicyMapper stockPolicyMapper;
-    private final SecurityUserResolver securityUserResolver;
 
-    public InventoryStockPolicyServiceImpl(InventoryStockPolicyMapper stockPolicyMapper,
-            SecurityUserResolver securityUserResolver) {
+    public InventoryStockPolicyServiceImpl(InventoryStockPolicyMapper stockPolicyMapper) {
         this.stockPolicyMapper = stockPolicyMapper;
-        this.securityUserResolver = securityUserResolver;
     }
 
     /**
@@ -82,10 +78,6 @@ public class InventoryStockPolicyServiceImpl implements IInventoryStockPolicySer
         policy.setTenantId(currentTenantId());
         policy.setAllowNegative(normalizeFlag(policy.getAllowNegative(), "N"));
         policy.setAllowExpiredOutbound(normalizeFlag(policy.getAllowExpiredOutbound(), "N"));
-        policy.setCreateBy(resolveOperator());
-        policy.setUpdateBy(resolveOperator());
-        policy.setCreateTime(now);
-        policy.setUpdateTime(now);
         return stockPolicyMapper.insert(policy) > 0;
     }
 
@@ -106,8 +98,6 @@ public class InventoryStockPolicyServiceImpl implements IInventoryStockPolicySer
         policy.setTenantId(existed.getTenantId());
         policy.setAllowNegative(normalizeFlag(policy.getAllowNegative(), "N"));
         policy.setAllowExpiredOutbound(normalizeFlag(policy.getAllowExpiredOutbound(), "N"));
-        policy.setUpdateBy(resolveOperator());
-        policy.setUpdateTime(new Date());
         return stockPolicyMapper.updateById(policy) > 0;
     }
 
@@ -177,15 +167,6 @@ public class InventoryStockPolicyServiceImpl implements IInventoryStockPolicySer
         return tenantId.trim();
     }
 
-    /**
-     * 获取当前操作人。
-     *
-     * @return 操作人账号
-     */
-    private String resolveOperator() {
-        String username = securityUserResolver.getCurrentUsername();
-        return StringUtils.hasText(username) ? username.trim() : "system";
-    }
 
     /**
      * 规范化页码。

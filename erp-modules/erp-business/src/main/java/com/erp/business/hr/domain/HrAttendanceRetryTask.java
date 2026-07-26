@@ -3,7 +3,9 @@ package com.erp.business.hr.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.erp.common.mybatis.BaseAuditEntity;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -12,8 +14,9 @@ import java.util.Date;
  * 出勤失败重试任务对象。
  */
 @Data
+@EqualsAndHashCode(callSuper = false)
 @TableName("hr_attendance_retry_task")
-public class HrAttendanceRetryTask implements Serializable {
+public class HrAttendanceRetryTask extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.AUTO)
@@ -24,9 +27,5 @@ public class HrAttendanceRetryTask implements Serializable {
     private Integer retryCount;
     private Date nextRetryTime;
     private String lastError;
-    private String createBy;
-    private Date createTime;
-    private String updateBy;
-    private Date updateTime;
 }
 

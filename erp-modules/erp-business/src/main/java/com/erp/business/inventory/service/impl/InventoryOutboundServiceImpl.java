@@ -108,10 +108,6 @@ public class InventoryOutboundServiceImpl implements IInventoryOutboundService {
         order.setIdempotencyNo(StringUtils.hasText(order.getIdempotencyNo()) ? trim(order.getIdempotencyNo()) : order.getBillNo());
         order.setVersionNo(1);
         order.setRemark(InventoryValueSupport.trimToNull(order.getRemark()));
-        order.setCreateBy(operator);
-        order.setUpdateBy(operator);
-        order.setCreateTime(now);
-        order.setUpdateTime(now);
         if (orderMapper.insert(order) <= 0) {
             return false;
         }
@@ -148,8 +144,6 @@ public class InventoryOutboundServiceImpl implements IInventoryOutboundService {
         updateEntity.setIdempotencyNo(StringUtils.hasText(order.getIdempotencyNo()) ? trim(order.getIdempotencyNo()) : existed.getIdempotencyNo());
         updateEntity.setRemark(InventoryValueSupport.trimToNull(order.getRemark()));
         updateEntity.setVersionNo((existed.getVersionNo() == null ? 1 : existed.getVersionNo()) + 1);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         int updated = orderMapper.update(updateEntity, new LambdaUpdateWrapper<InventoryOutboundOrder>()
                 .eq(InventoryOutboundOrder::getOrderId, existed.getOrderId())
                 .eq(InventoryOutboundOrder::getVersionNo, existed.getVersionNo()));
@@ -328,8 +322,6 @@ public class InventoryOutboundServiceImpl implements IInventoryOutboundService {
         updateEntity.setOrderId(existed.getOrderId());
         updateEntity.setStatus(status);
         updateEntity.setVersionNo((existed.getVersionNo() == null ? 1 : existed.getVersionNo()) + 1);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         int updated = orderMapper.update(updateEntity, new LambdaUpdateWrapper<InventoryOutboundOrder>()
                 .eq(InventoryOutboundOrder::getOrderId, existed.getOrderId())
                 .eq(InventoryOutboundOrder::getVersionNo, existed.getVersionNo()));

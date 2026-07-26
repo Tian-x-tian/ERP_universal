@@ -98,10 +98,6 @@ public class HrEmployeeContractServiceImpl implements IHrEmployeeContractService
         HrEmployeeContract contract = new HrEmployeeContract();
         contract.setTenantId(employee.getTenantId());
         contract.setEmployeeId(employee.getEmployeeId());
-        contract.setCreateBy(resolveOperator());
-        contract.setCreateTime(now);
-        contract.setUpdateBy(resolveOperator());
-        contract.setUpdateTime(now);
         applyBody(contract, body);
         contractMapper.insert(contract);
         return contractMapper.selectById(contract.getContractId());
@@ -122,8 +118,6 @@ public class HrEmployeeContractServiceImpl implements IHrEmployeeContractService
         updateEntity.setContractId(contractId);
         updateEntity.setTenantId(existed.getTenantId());
         updateEntity.setEmployeeId(existed.getEmployeeId());
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         applyBody(updateEntity, body);
         contractMapper.updateById(updateEntity);
         return contractMapper.selectById(contractId);
@@ -143,8 +137,6 @@ public class HrEmployeeContractServiceImpl implements IHrEmployeeContractService
         updateEntity.setContractId(contractId);
         updateEntity.setTenantId(existed.getTenantId());
         updateEntity.setStatus(CONTRACT_STATUS_DELETED);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return contractMapper.updateById(updateEntity) > 0;
     }
 
@@ -195,13 +187,4 @@ public class HrEmployeeContractServiceImpl implements IHrEmployeeContractService
         return securityUserResolver.getCurrentTenantId();
     }
 
-    /**
-     * 获取当前操作人。
-     *
-     * @return 操作人
-     */
-    private String resolveOperator() {
-        String username = securityUserResolver.getCurrentUsername();
-        return StringUtils.hasText(username) ? username.trim() : "system";
-    }
 }

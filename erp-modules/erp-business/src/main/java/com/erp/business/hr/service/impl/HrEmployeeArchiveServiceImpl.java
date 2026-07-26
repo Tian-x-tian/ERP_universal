@@ -64,10 +64,6 @@ public class HrEmployeeArchiveServiceImpl implements IHrEmployeeArchiveService {
         HrEmployeeArchive archive = new HrEmployeeArchive();
         archive.setEmployeeId(employeeId);
         archive.setTenantId(employee.getTenantId());
-        archive.setCreateBy(operator);
-        archive.setCreateTime(now);
-        archive.setUpdateBy(operator);
-        archive.setUpdateTime(now);
         applyArchiveBody(archive, archiveBody);
         archiveMapper.insert(archive);
         return archiveMapper.selectById(employeeId);
@@ -101,8 +97,6 @@ public class HrEmployeeArchiveServiceImpl implements IHrEmployeeArchiveService {
         HrEmployeeArchive archive = new HrEmployeeArchive();
         archive.setEmployeeId(employeeId);
         archive.setTenantId(employee.getTenantId());
-        archive.setUpdateBy(resolveOperator());
-        archive.setUpdateTime(new Date());
         applyArchiveBody(archive, archiveBody);
         archiveMapper.updateById(archive);
         return archiveMapper.selectById(employeeId);
@@ -135,7 +129,6 @@ public class HrEmployeeArchiveServiceImpl implements IHrEmployeeArchiveService {
         archive.setEmployeeId(employeeId);
         archive.setTenantId(employee.getTenantId());
         archive.setUpdateBy(StringUtils.hasText(operator) ? operator.trim() : resolveOperator());
-        archive.setUpdateTime(new Date());
         applyArchiveBody(archive, archiveBody);
         archiveMapper.updateById(archive);
         return archiveMapper.selectById(employeeId);

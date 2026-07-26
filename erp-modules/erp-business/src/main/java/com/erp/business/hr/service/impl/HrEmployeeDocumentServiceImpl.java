@@ -117,10 +117,6 @@ public class HrEmployeeDocumentServiceImpl implements IHrEmployeeDocumentService
                 HrEmployeeSupport.normalizeStatus(body == null ? null : body.getStatus()),
                 HrEmployeeSupport.DOCUMENT_STATUS_ACTIVE));
         document.setRemark(HrEmployeeSupport.trimToNull(body == null ? null : body.getRemark()));
-        document.setCreateBy(resolveOperator());
-        document.setCreateTime(now);
-        document.setUpdateBy(resolveOperator());
-        document.setUpdateTime(now);
         documentMapper.insert(document);
         return documentMapper.selectById(document.getDocumentId());
     }
@@ -146,8 +142,6 @@ public class HrEmployeeDocumentServiceImpl implements IHrEmployeeDocumentService
         updateEntity.setStatus(HrEmployeeSupport.defaultIfBlank(
                 HrEmployeeSupport.normalizeStatus(body == null ? null : body.getStatus()), existed.getStatus()));
         updateEntity.setRemark(HrEmployeeSupport.trimToNull(body == null ? null : body.getRemark()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         documentMapper.updateById(updateEntity);
         return documentMapper.selectById(documentId);
     }
@@ -166,8 +160,6 @@ public class HrEmployeeDocumentServiceImpl implements IHrEmployeeDocumentService
         updateEntity.setDocumentId(documentId);
         updateEntity.setTenantId(existed.getTenantId());
         updateEntity.setStatus(HrEmployeeSupport.DOCUMENT_STATUS_DELETED);
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return documentMapper.updateById(updateEntity) > 0;
     }
 
@@ -241,13 +233,4 @@ public class HrEmployeeDocumentServiceImpl implements IHrEmployeeDocumentService
         return securityUserResolver.getCurrentTenantId();
     }
 
-    /**
-     * 获取当前操作人。
-     *
-     * @return 操作人
-     */
-    private String resolveOperator() {
-        String username = securityUserResolver.getCurrentUsername();
-        return StringUtils.hasText(username) ? username.trim() : "system";
-    }
 }

@@ -3,7 +3,9 @@ package com.erp.business.hr.attendance.core.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.erp.common.mybatis.BaseAuditEntity;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -13,8 +15,9 @@ import java.util.Date;
  * 请假单据。
  */
 @Data
+@EqualsAndHashCode(callSuper = false)
 @TableName("hr_attendance_leave_order")
-public class HrAttendanceLeaveOrder implements Serializable {
+public class HrAttendanceLeaveOrder extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "order_id", type = IdType.AUTO)
@@ -34,8 +37,4 @@ public class HrAttendanceLeaveOrder implements Serializable {
     private String workflowInstanceNo;
     private String reason;
     private String remark;
-    private String createBy;
-    private Date createTime;
-    private String updateBy;
-    private Date updateTime;
 }

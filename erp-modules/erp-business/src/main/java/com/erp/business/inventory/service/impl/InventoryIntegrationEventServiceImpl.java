@@ -7,7 +7,6 @@ import com.erp.business.inventory.mapper.InventoryIntegrationEventMapper;
 import com.erp.business.inventory.service.IInventoryIntegrationEventService;
 import com.erp.business.inventory.service.InventoryFinanceVoucherFacade;
 import com.erp.business.inventory.service.InventorySourceIntegrationFacade;
-import com.erp.business.security.service.SecurityUserResolver;
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.core.exception.ServiceException;
@@ -30,16 +29,13 @@ public class InventoryIntegrationEventServiceImpl implements IInventoryIntegrati
     private final InventoryIntegrationEventMapper integrationEventMapper;
     private final InventorySourceIntegrationFacade sourceIntegrationFacade;
     private final InventoryFinanceVoucherFacade financeVoucherFacade;
-    private final SecurityUserResolver securityUserResolver;
 
     public InventoryIntegrationEventServiceImpl(InventoryIntegrationEventMapper integrationEventMapper,
             InventorySourceIntegrationFacade sourceIntegrationFacade,
-            InventoryFinanceVoucherFacade financeVoucherFacade,
-            SecurityUserResolver securityUserResolver) {
+            InventoryFinanceVoucherFacade financeVoucherFacade) {
         this.integrationEventMapper = integrationEventMapper;
         this.sourceIntegrationFacade = sourceIntegrationFacade;
         this.financeVoucherFacade = financeVoucherFacade;
-        this.securityUserResolver = securityUserResolver;
     }
 
     /**
@@ -142,8 +138,6 @@ public class InventoryIntegrationEventServiceImpl implements IInventoryIntegrati
         updateEntity.setEventStatus(success ? "SUCCESS" : "FAILED");
         updateEntity.setRetryCount((event.getRetryCount() == null ? 0 : event.getRetryCount()) + 1);
         updateEntity.setLastError(success ? null : safeText(errorMessage));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return integrationEventMapper.updateById(updateEntity) > 0;
     }
 
@@ -160,8 +154,6 @@ public class InventoryIntegrationEventServiceImpl implements IInventoryIntegrati
         updateEntity.setEventId(event.getEventId());
         updateEntity.setEventStatus(status);
         updateEntity.setLastError(safeText(message));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         return integrationEventMapper.updateById(updateEntity) > 0;
     }
 
@@ -208,10 +200,6 @@ public class InventoryIntegrationEventServiceImpl implements IInventoryIntegrati
         event.setBillNo(safeText(billNo));
         event.setPayloadJson(safeText(payloadJson));
         event.setRetryCount(0);
-        event.setCreateBy(resolveOperator());
-        event.setUpdateBy(resolveOperator());
-        event.setCreateTime(now);
-        event.setUpdateTime(now);
         integrationEventMapper.insert(event);
     }
 
@@ -244,15 +232,6 @@ public class InventoryIntegrationEventServiceImpl implements IInventoryIntegrati
         return tenantId.trim();
     }
 
-    /**
-     * 获取当前操作人。
-     *
-     * @return 操作人账号
-     */
-    private String resolveOperator() {
-        String username = securityUserResolver.getCurrentUsername();
-        return StringUtils.hasText(username) ? username.trim() : "system";
-    }
 
     /**
      * 安全规范化字符串。

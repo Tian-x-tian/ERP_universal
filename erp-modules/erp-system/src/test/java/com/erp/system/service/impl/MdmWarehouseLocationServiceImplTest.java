@@ -11,7 +11,6 @@ import com.erp.system.domain.MdmWarehouseLocation;
 import com.erp.system.mapper.MdmWarehouseAreaMapper;
 import com.erp.system.mapper.MdmWarehouseLocationMapper;
 import com.erp.system.mapper.MdmWarehouseMapper;
-import com.erp.system.security.service.SecurityUserResolver;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -45,9 +44,6 @@ class MdmWarehouseLocationServiceImplTest {
     @Mock
     private MdmWarehouseAreaMapper warehouseAreaMapper;
 
-    @Mock
-    private SecurityUserResolver securityUserResolver;
-
     private MdmWarehouseLocationServiceImpl warehouseLocationService;
 
     /**
@@ -56,9 +52,7 @@ class MdmWarehouseLocationServiceImplTest {
     @BeforeEach
     void setUp() {
         TenantContextHolder.setTenantId("000000");
-        when(securityUserResolver.getCurrentUsername()).thenReturn("tester");
-        warehouseLocationService = new MdmWarehouseLocationServiceImpl(warehouseMapper, warehouseAreaMapper,
-                securityUserResolver);
+        warehouseLocationService = new MdmWarehouseLocationServiceImpl(warehouseMapper, warehouseAreaMapper);
         ReflectionTestUtils.setField(warehouseLocationService, "baseMapper", warehouseLocationMapper);
         initTableInfoIfAbsent(MdmWarehouseLocation.class);
     }

@@ -103,10 +103,6 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
         uom.setStatus(MdmStatusSupport.DRAFT);
         uom.setVersionNo(1);
         uom.setDelFlag(DEL_FLAG_EXIST);
-        uom.setCreateBy(operator);
-        uom.setUpdateBy(operator);
-        uom.setCreateTime(now);
-        uom.setUpdateTime(now);
         boolean saved = save(uom);
         if (saved) {
             auditTrailService.record(MdmDomainTypeSupport.UOM,
@@ -162,8 +158,6 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
         }
         uom.setStatus(MdmStatusSupport.normalizeStatusForUpdate(uom.getStatus(), existed.getStatus()));
         uom.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        uom.setUpdateBy(resolveOperator());
-        uom.setUpdateTime(new Date());
         boolean updated = updateUomByVersion(uom, existed.getVersionNo());
         if (updated) {
             MdmUom after = getById(uom.getUomId());
@@ -212,8 +206,6 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
         updateEntity.setUomId(uomId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateUomByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmUom after = getById(uomId);
@@ -259,8 +251,6 @@ public class MdmUomServiceImpl extends ServiceImpl<MdmUomMapper, MdmUom> impleme
         updateEntity.setUomId(uomId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateUomByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.UOM,

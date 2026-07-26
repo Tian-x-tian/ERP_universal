@@ -340,7 +340,6 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
             updateEntity.setStatus(MdmStatusSupport.ACTIVE);
             updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmSettleMethod) before).getVersionNo()));
             updateEntity.setUpdateBy(resolveOperator(instance));
-            updateEntity.setUpdateTime(new Date());
             updateEntity.setCreateBy(null);
             updateEntity.setCreateTime(null);
             updateEntity.setDelFlag(null);
@@ -366,7 +365,6 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
             updateEntity.setStatus(MdmStatusSupport.ACTIVE);
             updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmTaxRate) before).getVersionNo()));
             updateEntity.setUpdateBy(resolveOperator(instance));
-            updateEntity.setUpdateTime(new Date());
             updateEntity.setCreateBy(null);
             updateEntity.setCreateTime(null);
             updateEntity.setDelFlag(null);
@@ -392,7 +390,6 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
             updateEntity.setStatus(MdmStatusSupport.ACTIVE);
             updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmCurrency) before).getVersionNo()));
             updateEntity.setUpdateBy(resolveOperator(instance));
-            updateEntity.setUpdateTime(new Date());
             updateEntity.setCreateBy(null);
             updateEntity.setCreateTime(null);
             updateEntity.setDelFlag(null);
@@ -418,7 +415,6 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
             updateEntity.setStatus(MdmStatusSupport.ACTIVE);
             updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmUom) before).getVersionNo()));
             updateEntity.setUpdateBy(resolveOperator(instance));
-            updateEntity.setUpdateTime(new Date());
             updateEntity.setCreateBy(null);
             updateEntity.setCreateTime(null);
             updateEntity.setDelFlag(null);
@@ -449,7 +445,6 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
             updateEntity.setStatus(MdmStatusSupport.DISABLED);
             updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmSettleMethod) before).getVersionNo()));
             updateEntity.setUpdateBy(resolveOperator(instance));
-            updateEntity.setUpdateTime(new Date());
             boolean updated = settleMethodMapper.update(updateEntity, new LambdaUpdateWrapper<MdmSettleMethod>()
                     .eq(MdmSettleMethod::getSettleMethodId, id)
                     .eq(MdmSettleMethod::getDelFlag, DEL_FLAG_EXIST)
@@ -468,7 +463,6 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
             updateEntity.setStatus(MdmStatusSupport.DISABLED);
             updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmTaxRate) before).getVersionNo()));
             updateEntity.setUpdateBy(resolveOperator(instance));
-            updateEntity.setUpdateTime(new Date());
             boolean updated = taxRateMapper.update(updateEntity, new LambdaUpdateWrapper<MdmTaxRate>()
                     .eq(MdmTaxRate::getTaxRateId, id)
                     .eq(MdmTaxRate::getDelFlag, DEL_FLAG_EXIST)
@@ -487,7 +481,6 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
             updateEntity.setStatus(MdmStatusSupport.DISABLED);
             updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmCurrency) before).getVersionNo()));
             updateEntity.setUpdateBy(resolveOperator(instance));
-            updateEntity.setUpdateTime(new Date());
             boolean updated = currencyMapper.update(updateEntity, new LambdaUpdateWrapper<MdmCurrency>()
                     .eq(MdmCurrency::getCurrencyId, id)
                     .eq(MdmCurrency::getDelFlag, DEL_FLAG_EXIST)
@@ -506,7 +499,6 @@ public class MdmDictionaryWorkflowCallbackServiceImpl implements IWorkflowBusine
             updateEntity.setStatus(MdmStatusSupport.DISABLED);
             updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(((MdmUom) before).getVersionNo()));
             updateEntity.setUpdateBy(resolveOperator(instance));
-            updateEntity.setUpdateTime(new Date());
             boolean updated = uomMapper.update(updateEntity, new LambdaUpdateWrapper<MdmUom>()
                     .eq(MdmUom::getUomId, id)
                     .eq(MdmUom::getDelFlag, DEL_FLAG_EXIST)

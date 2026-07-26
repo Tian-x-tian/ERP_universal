@@ -96,7 +96,6 @@ class InventoryOutboundServiceImplTest {
      */
     @Test
     void shouldSubmitOutboundOrderToApprovedWhenWorkflowMissing() {
-        when(securityUserResolver.getCurrentUsername()).thenReturn("tester");
         InventoryOutboundOrder existed = buildExistingOrder(10L, InventoryBillStatusSupport.DRAFT, "", 1);
         when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existed);
         when(orderMapper.update(any(InventoryOutboundOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
@@ -114,7 +113,6 @@ class InventoryOutboundServiceImplTest {
      */
     @Test
     void shouldExecuteOutboundOrderAndCallbackSourceProgress() {
-        when(securityUserResolver.getCurrentUsername()).thenReturn("tester");
         InventoryOutboundOrder approved = buildExistingOrder(20L, InventoryBillStatusSupport.APPROVED, "", 1);
         InventoryOutboundOrder latest = buildExistingOrder(20L, InventoryBillStatusSupport.EXECUTING, "", 2);
         InventoryOutboundOrder executing = buildExistingOrder(20L, InventoryBillStatusSupport.EXECUTING, "", 3);

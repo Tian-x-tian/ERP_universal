@@ -3,17 +3,19 @@ package com.erp.business.hr.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.erp.common.mybatis.BaseAuditEntity;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
-import java.util.Date;
 
 /**
  * 出勤同步日志对象。
  */
 @Data
+@EqualsAndHashCode(callSuper = false)
 @TableName("hr_attendance_sync_log")
-public class HrAttendanceSyncLog implements Serializable {
+public class HrAttendanceSyncLog extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.AUTO)
@@ -29,9 +31,5 @@ public class HrAttendanceSyncLog implements Serializable {
     private String externalStatus;
     private Integer retryCount;
     private String lastError;
-    private String createBy;
-    private Date createTime;
-    private String updateBy;
-    private Date updateTime;
 }
 

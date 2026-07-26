@@ -114,10 +114,8 @@ public class HrAttendanceAggregationServiceImpl implements IHrAttendanceAggregat
         summary.setAbsenteeismDays(absenteeismDays);
         summary.setAbnormalCount(exceptions.size());
         summary.setUpdateBy(resolveOperator(operator));
-        summary.setUpdateTime(new Date());
         if (existing == null) {
             summary.setCreateBy(resolveOperator(operator));
-            summary.setCreateTime(new Date());
             daySummaryMapper.insert(summary);
         } else {
             daySummaryMapper.updateById(summary);
@@ -177,10 +175,8 @@ public class HrAttendanceAggregationServiceImpl implements IHrAttendanceAggregat
                 .reduce(BigDecimal.ZERO, BigDecimal::add));
         monthSummary.setAbnormalCount(daySummaryList.stream().mapToInt(item -> nullSafeInt(item.getAbnormalCount())).sum());
         monthSummary.setUpdateBy(resolveOperator(operator));
-        monthSummary.setUpdateTime(new Date());
         if (existing == null) {
             monthSummary.setCreateBy(resolveOperator(operator));
-            monthSummary.setCreateTime(new Date());
             monthSummaryMapper.insert(monthSummary);
         } else {
             monthSummaryMapper.updateById(monthSummary);
@@ -348,9 +344,7 @@ public class HrAttendanceAggregationServiceImpl implements IHrAttendanceAggregat
         exception.setExceptionMessage(message);
         exception.setSourceType(primaryRecord == null ? null : primaryRecord.getSourceType());
         exception.setCreateBy(resolveOperator(operator));
-        exception.setCreateTime(new Date());
         exception.setUpdateBy(resolveOperator(operator));
-        exception.setUpdateTime(new Date());
         return exception;
     }
 

@@ -109,10 +109,6 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         supplier.setStatus(MdmStatusSupport.DRAFT);
         supplier.setVersionNo(1);
         supplier.setDelFlag(DEL_FLAG_EXIST);
-        supplier.setCreateBy(operator);
-        supplier.setUpdateBy(operator);
-        supplier.setCreateTime(now);
-        supplier.setUpdateTime(now);
         supplier.setEffectiveTime(null);
         boolean saved = save(supplier);
         if (saved) {
@@ -185,8 +181,6 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         if (MdmStatusSupport.isActive(newStatus) && existed.getEffectiveTime() == null) {
             supplier.setEffectiveTime(new Date());
         }
-        supplier.setUpdateBy(resolveOperator());
-        supplier.setUpdateTime(new Date());
         boolean updated = updateSupplierByVersion(supplier, expectedVersionNo);
         if (updated) {
             MdmSupplier after = getById(supplier.getSupplierId());
@@ -236,8 +230,6 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         updateEntity.setSupplierId(supplierId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateSupplierByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             MdmSupplier after = getById(supplierId);
@@ -281,8 +273,6 @@ public class MdmSupplierServiceImpl extends ServiceImpl<MdmSupplierMapper, MdmSu
         updateEntity.setSupplierId(supplierId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateSupplierByVersion(updateEntity, expectedVersionNo);
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.SUPPLIER,

@@ -1,5 +1,6 @@
 package com.erp.system.controller;
 
+import com.erp.common.logging.OperationLogRecorder;
 import com.erp.platform.contract.model.PlatformDeptView;
 import com.erp.platform.contract.model.PlatformAiActionPolicyItem;
 import com.erp.platform.contract.model.PlatformAiAuditView;
@@ -82,6 +83,8 @@ class SystemInternalControllerTest {
     private ISysUserPostService userPostService;
     @Mock
     private ISysNoticeService noticeService;
+    @Mock
+    private OperationLogRecorder operationLogRecorder;
 
     private SystemInternalController controller;
 
@@ -106,7 +109,8 @@ class SystemInternalControllerTest {
                 postService,
                 userRoleService,
                 userPostService,
-                noticeService);
+                noticeService,
+                operationLogRecorder);
     }
 
     /**

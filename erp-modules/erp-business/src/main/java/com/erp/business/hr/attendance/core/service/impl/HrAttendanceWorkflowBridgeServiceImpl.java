@@ -132,7 +132,6 @@ public class HrAttendanceWorkflowBridgeServiceImpl implements IHrAttendanceWorkf
         updateEntity.setOrderId(order.getOrderId());
         updateEntity.setStatus(status);
         updateEntity.setUpdateBy(StringUtils.hasText(operator) ? operator.trim() : "system");
-        updateEntity.setUpdateTime(new Date());
         leaveOrderMapper.updateById(updateEntity);
     }
 
@@ -151,7 +150,6 @@ public class HrAttendanceWorkflowBridgeServiceImpl implements IHrAttendanceWorkf
         updateEntity.setOrderId(order.getOrderId());
         updateEntity.setStatus(status);
         updateEntity.setUpdateBy(StringUtils.hasText(operator) ? operator.trim() : "system");
-        updateEntity.setUpdateTime(new Date());
         overtimeOrderMapper.updateById(updateEntity);
     }
 

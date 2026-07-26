@@ -42,7 +42,6 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
         dept.setDeptName(dept.getDeptName().trim());
         dept.setStatus(StatusFieldSupport.normalizeBinaryStatus(dept.getStatus()));
         dept.setDelFlag(StringUtils.hasText(dept.getDelFlag()) ? dept.getDelFlag() : "0");
-        dept.setCreateTime(new Date());
 
         if (parentId == 0L) {
             dept.setAncestors("0");
@@ -129,7 +128,6 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
             return false;
         }
         dept.setTenantId(tenantId);
-        dept.setUpdateTime(new Date());
 
         boolean updated = super.updateById(dept);
         if (!updated) {

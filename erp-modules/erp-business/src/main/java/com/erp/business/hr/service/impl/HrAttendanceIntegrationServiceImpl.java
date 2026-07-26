@@ -168,8 +168,6 @@ public class HrAttendanceIntegrationServiceImpl implements IHrAttendanceIntegrat
                 HrEmployeeSupport.ATTENDANCE_SYNC_STATUS_SUCCESS));
         updateEntity.setResponseJson(HrEmployeeSupport.trimToNull(body == null ? null : body.getPayloadJson()));
         updateEntity.setLastError(HrEmployeeSupport.trimToNull(body == null ? null : body.getResultMessage()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         syncLogMapper.updateById(updateEntity);
         synchronizeExternalAttendance(body);
         return syncLogMapper.selectById(log.getLogId());
@@ -220,17 +218,11 @@ public class HrAttendanceIntegrationServiceImpl implements IHrAttendanceIntegrat
         retryTask.setTaskStatus(HrEmployeeSupport.ATTENDANCE_SYNC_STATUS_RETRYING);
         retryTask.setRetryCount(log.getRetryCount() == null ? 1 : log.getRetryCount() + 1);
         retryTask.setNextRetryTime(new Date());
-        retryTask.setCreateBy(resolveOperator());
-        retryTask.setCreateTime(new Date());
-        retryTask.setUpdateBy(resolveOperator());
-        retryTask.setUpdateTime(new Date());
         retryTaskMapper.insert(retryTask);
         HrAttendanceSyncLog updateEntity = new HrAttendanceSyncLog();
         updateEntity.setLogId(logId);
         updateEntity.setSyncStatus(HrEmployeeSupport.ATTENDANCE_SYNC_STATUS_RETRYING);
         updateEntity.setRetryCount(retryTask.getRetryCount());
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         syncLogMapper.updateById(updateEntity);
         executePush(syncLogMapper.selectById(logId), null, null);
         return syncLogMapper.selectById(logId);
@@ -271,10 +263,6 @@ public class HrAttendanceIntegrationServiceImpl implements IHrAttendanceIntegrat
         log.setRequestNo("ATTENDANCE-" + employee.getEmployeeId() + "-" + System.currentTimeMillis());
         log.setPayloadJson(writePayload(buildPayload(employee, body)));
         log.setRetryCount(0);
-        log.setCreateBy(resolveOperator());
-        log.setCreateTime(now);
-        log.setUpdateBy(resolveOperator());
-        log.setUpdateTime(now);
         syncLogMapper.insert(log);
         return log;
     }
@@ -308,8 +296,6 @@ public class HrAttendanceIntegrationServiceImpl implements IHrAttendanceIntegrat
             updateEntity.setLogId(log.getLogId());
             updateEntity.setSyncStatus(HrEmployeeSupport.ATTENDANCE_SYNC_STATUS_SUCCESS);
             updateEntity.setResponseJson(HrEmployeeSupport.trimToNull(response));
-            updateEntity.setUpdateBy(resolveOperator());
-            updateEntity.setUpdateTime(new Date());
             syncLogMapper.updateById(updateEntity);
         } catch (Exception ex) {
             markLogFailed(log.getLogId(), ex.getMessage());
@@ -348,8 +334,6 @@ public class HrAttendanceIntegrationServiceImpl implements IHrAttendanceIntegrat
         updateEntity.setLogId(logId);
         updateEntity.setSyncStatus(HrEmployeeSupport.ATTENDANCE_SYNC_STATUS_FAILED);
         updateEntity.setLastError(HrEmployeeSupport.trimToNull(message));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         syncLogMapper.updateById(updateEntity);
     }
 

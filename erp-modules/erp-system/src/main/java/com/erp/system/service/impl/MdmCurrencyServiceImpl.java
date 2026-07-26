@@ -113,10 +113,6 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
         currency.setStatus(MdmStatusSupport.DRAFT);
         currency.setVersionNo(1);
         currency.setDelFlag(DEL_FLAG_EXIST);
-        currency.setCreateBy(operator);
-        currency.setUpdateBy(operator);
-        currency.setCreateTime(now);
-        currency.setUpdateTime(now);
         boolean saved = save(currency);
         if (saved) {
             auditTrailService.record(MdmDomainTypeSupport.CURRENCY,
@@ -178,8 +174,6 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
         }
         currency.setStatus(MdmStatusSupport.normalizeStatusForUpdate(currency.getStatus(), existed.getStatus()));
         currency.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        currency.setUpdateBy(resolveOperator());
-        currency.setUpdateTime(new Date());
         boolean updated = updateCurrencyByVersion(currency, existed.getVersionNo());
         if (updated) {
             MdmCurrency after = getById(currency.getCurrencyId());
@@ -228,8 +222,6 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
         updateEntity.setCurrencyId(currencyId);
         updateEntity.setStatus(MdmStatusSupport.DISABLED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateCurrencyByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             MdmCurrency after = getById(currencyId);
@@ -275,8 +267,6 @@ public class MdmCurrencyServiceImpl extends ServiceImpl<MdmCurrencyMapper, MdmCu
         updateEntity.setCurrencyId(currencyId);
         updateEntity.setDelFlag(DEL_FLAG_DELETED);
         updateEntity.setVersionNo(MdmValueSupport.resolveNextVersionNo(existed.getVersionNo()));
-        updateEntity.setUpdateBy(resolveOperator());
-        updateEntity.setUpdateTime(new Date());
         boolean updated = updateCurrencyByVersion(updateEntity, existed.getVersionNo());
         if (updated) {
             auditTrailService.record(MdmDomainTypeSupport.CURRENCY,

@@ -1,7 +1,7 @@
 package com.erp.system.audit;
 
+import com.erp.common.logging.OperationLogRecorder;
 import com.erp.system.security.service.SecurityUserResolver;
-import com.erp.system.service.ISysAuditLogService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -18,7 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class AuditLogAspectTest {
 
     @Mock
-    private ISysAuditLogService auditLogService;
+    private OperationLogRecorder operationLogRecorder;
 
     @Mock
     private SecurityUserResolver securityUserResolver;
@@ -28,7 +28,7 @@ class AuditLogAspectTest {
      */
     @Test
     void shouldSkipAuditLogEndpoints() {
-        AuditLogAspect aspect = new AuditLogAspect(auditLogService, securityUserResolver, new ObjectMapper());
+        AuditLogAspect aspect = newAspect();
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/system/audit/log/list");
 
         Boolean needRecord = ReflectionTestUtils.invokeMethod(aspect, "needRecord", request);
@@ -41,7 +41,7 @@ class AuditLogAspectTest {
      */
     @Test
     void shouldSkipOtherLogEndpoints() {
-        AuditLogAspect aspect = new AuditLogAspect(auditLogService, securityUserResolver, new ObjectMapper());
+        AuditLogAspect aspect = newAspect();
         MockHttpServletRequest loginLogRequest = new MockHttpServletRequest("GET", "/system/login/log/list");
         MockHttpServletRequest mdmTraceRequest = new MockHttpServletRequest("GET", "/system/mdm/trace/log/list");
 
@@ -57,11 +57,33 @@ class AuditLogAspectTest {
      */
     @Test
     void shouldRecordRegularQueryEndpoint() {
-        AuditLogAspect aspect = new AuditLogAspect(auditLogService, securityUserResolver, new ObjectMapper());
+        AuditLogAspect aspect = newAspect();
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/system/user/list");
 
         Boolean needRecord = ReflectionTestUtils.invokeMethod(aspect, "needRecord", request);
 
         Assertions.assertTrue(Boolean.TRUE.equals(needRecord));
+    }
+
+    /**
+     * 验证写操作不会进入审计日志，由操作日志拦截器单独记录。
+     */
+    @Test
+    void shouldSkipWriteRequest() {
+        AuditLogAspect aspect = newAspect();
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/system/user");
+
+        Boolean needRecord = ReflectionTestUtils.invokeMethod(aspect, "needRecord", request);
+
+        Assertions.assertFalse(Boolean.TRUE.equals(needRecord));
+    }
+
+    /**
+     * 构建待测切面。
+     *
+     * @return 审计日志切面
+     */
+    private AuditLogAspect newAspect() {
+        return new AuditLogAspect(operationLogRecorder, securityUserResolver, new ObjectMapper());
     }
 }

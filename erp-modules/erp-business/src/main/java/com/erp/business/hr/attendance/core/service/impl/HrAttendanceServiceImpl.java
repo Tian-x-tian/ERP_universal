@@ -148,8 +148,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
             record.setWorkDate(HrAttendanceSupport.toDate(signTime.toLocalDate()));
             record.setSourceType(HrAttendanceSupport.SOURCE_INTERNAL);
             record.setAuthorityFlag(HrAttendanceSupport.FLAG_NO);
-            record.setCreateBy(resolveOperator());
-            record.setCreateTime(new Date());
         }
         record.setSignInTime(HrAttendanceSupport.toDate(signTime));
         record.setSignInLatitude(body == null ? null : body.getLatitude());
@@ -158,8 +156,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
         record.setDeviceSource(body == null ? null : HrAttendanceSupport.trimToNull(body.getDeviceSource()));
         record.setRemark(body == null ? null : HrAttendanceSupport.trimToNull(body.getRemark()));
         record.setSignInInRange(resolveRangeFlag(employee, body == null ? null : body.getLatitude(), body == null ? null : body.getLongitude()));
-        record.setUpdateBy(resolveOperator());
-        record.setUpdateTime(new Date());
         if (newRecord) {
             recordMapper.insert(record);
         } else {
@@ -192,8 +188,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
             record.setWorkDate(HrAttendanceSupport.toDate(signTime.toLocalDate()));
             record.setSourceType(HrAttendanceSupport.SOURCE_INTERNAL);
             record.setAuthorityFlag(HrAttendanceSupport.FLAG_NO);
-            record.setCreateBy(resolveOperator());
-            record.setCreateTime(new Date());
         }
         record.setSignOutTime(HrAttendanceSupport.toDate(signTime));
         record.setSignOutLatitude(body == null ? null : body.getLatitude());
@@ -202,8 +196,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
         record.setDeviceSource(body == null ? null : HrAttendanceSupport.trimToNull(body.getDeviceSource()));
         record.setRemark(body == null ? null : HrAttendanceSupport.trimToNull(body.getRemark()));
         record.setSignOutInRange(resolveRangeFlag(employee, body == null ? null : body.getLatitude(), body == null ? null : body.getLongitude()));
-        record.setUpdateBy(resolveOperator());
-        record.setUpdateTime(new Date());
         if (newRecord) {
             recordMapper.insert(record);
         } else {
@@ -372,10 +364,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
         order.setOrderNo(HrAttendanceSupport.generateOrderNo("AL", LocalDateTime.now()));
         order.setStatus(HrAttendanceSupport.ORDER_STATUS_DRAFT);
         order.setProcessKey(HrAttendanceSupport.WORKFLOW_PROCESS_KEY_LEAVE);
-        order.setCreateBy(resolveOperator());
-        order.setCreateTime(new Date());
-        order.setUpdateBy(resolveOperator());
-        order.setUpdateTime(new Date());
         leaveOrderMapper.insert(order);
         return leaveOrderMapper.selectById(order.getOrderId());
     }
@@ -395,8 +383,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
             throw new ServiceException("仅草稿状态允许修改请假单", (int) ResultCode.CONFLICT.getCode());
         }
         fillLeaveOrder(existing, body, requireCurrentEmployee());
-        existing.setUpdateBy(resolveOperator());
-        existing.setUpdateTime(new Date());
         leaveOrderMapper.updateById(existing);
         return leaveOrderMapper.selectById(orderId);
     }
@@ -415,8 +401,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
             throw new ServiceException("仅草稿状态允许提交请假审批", (int) ResultCode.CONFLICT.getCode());
         }
         order.setStatus(HrAttendanceSupport.ORDER_STATUS_SUBMITTED);
-        order.setUpdateBy(resolveOperator());
-        order.setUpdateTime(new Date());
         leaveOrderMapper.updateById(order);
         if (!workflowGateway.startLeaveWorkflow(order)) {
             throw new ServiceException("请假流程发起失败", (int) ResultCode.ERROR.getCode());
@@ -461,10 +445,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
         order.setOrderNo(HrAttendanceSupport.generateOrderNo("AO", LocalDateTime.now()));
         order.setStatus(HrAttendanceSupport.ORDER_STATUS_DRAFT);
         order.setProcessKey(HrAttendanceSupport.WORKFLOW_PROCESS_KEY_OVERTIME);
-        order.setCreateBy(resolveOperator());
-        order.setCreateTime(new Date());
-        order.setUpdateBy(resolveOperator());
-        order.setUpdateTime(new Date());
         overtimeOrderMapper.insert(order);
         return overtimeOrderMapper.selectById(order.getOrderId());
     }
@@ -484,8 +464,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
             throw new ServiceException("仅草稿状态允许修改加班单", (int) ResultCode.CONFLICT.getCode());
         }
         fillOvertimeOrder(existing, body, requireCurrentEmployee());
-        existing.setUpdateBy(resolveOperator());
-        existing.setUpdateTime(new Date());
         overtimeOrderMapper.updateById(existing);
         return overtimeOrderMapper.selectById(orderId);
     }
@@ -504,8 +482,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
             throw new ServiceException("仅草稿状态允许提交加班审批", (int) ResultCode.CONFLICT.getCode());
         }
         order.setStatus(HrAttendanceSupport.ORDER_STATUS_SUBMITTED);
-        order.setUpdateBy(resolveOperator());
-        order.setUpdateTime(new Date());
         overtimeOrderMapper.updateById(order);
         if (!workflowGateway.startOvertimeWorkflow(order)) {
             throw new ServiceException("加班流程发起失败", (int) ResultCode.ERROR.getCode());
@@ -546,8 +522,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
             record.setDeptId(employee.getDeptId());
             record.setWorkDate(HrAttendanceSupport.toDate(workDate));
             record.setSourceType(HrAttendanceSupport.SOURCE_INTEGRATION);
-            record.setCreateBy(resolveOperator());
-            record.setCreateTime(new Date());
         }
         record.setAuthorityFlag(HrAttendanceSupport.FLAG_YES);
         record.setExternalBizNo(HrAttendanceSupport.trimToNull(body.getExternalBizNo()));
@@ -562,8 +536,6 @@ public class HrAttendanceServiceImpl implements IHrAttendanceService {
         record.setSignInInRange(HrAttendanceSupport.FLAG_YES);
         record.setSignOutInRange(HrAttendanceSupport.FLAG_YES);
         record.setRemark(HrAttendanceSupport.trimToNull(body.getRemark()));
-        record.setUpdateBy(resolveOperator());
-        record.setUpdateTime(new Date());
         if (newRecord) {
             recordMapper.insert(record);
         } else {
