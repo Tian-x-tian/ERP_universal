@@ -26,7 +26,7 @@ mvn -s project-settings.xml clean install -DskipTests
 
 - Run all tests: `mvn -s project-settings.xml test`
 - Test a single module: `mvn -s project-settings.xml -pl erp-modules/erp-system test`
-- Single test class: `mvn -s project-settings.xml -pl erp-modules/erp-system test -Dtest=SystemSqlUpgradeRunnerTest`
+- Single test class: `mvn -s project-settings.xml -pl erp-modules/erp-system test -Dtest=SystemInternalControllerTest`
 - Run one service after building: `mvn -s project-settings.xml -pl erp-modules/erp-system spring-boot:run`
 
 Requires JDK 17 and Maven 3.9+. Artifacts resolve through the Aliyun mirror configured in `pom.xml`.
@@ -62,7 +62,11 @@ system default ‹ tenant policy ‹ personal, with tenant-locked keys forced.
 
 ### Infrastructure prerequisites
 
-Services need **Nacos** (discovery + config, default `127.0.0.1:8848`), **MySQL 8** (default DB `erp_system`), and **Redis**. Local dev can disable Nacos with env `NACOS_DISCOVERY_ENABLED=false` / `NACOS_CONFIG_ENABLED=false`. `nacos-config-example.yml` shows the expected per-service Nacos config shape. Key env vars: `MYSQL_HOST/PORT/USERNAME/PASSWORD`, `NACOS_SERVER_ADDR`, `ERP_INTERNAL_AUTH_SIGNATURE_SECRET` (mandatory — see below), `ERP_JWT_SECRET`.
+Services need **Nacos** (discovery + config, default `127.0.0.1:8848`) and **MySQL 8**. **Redis is
+only required by `erp-auth`** (`LoginGuardService`, login throttling) — the other services do not use it.
+All services default to the **same database** (`erp_system`); they are separated by service boundary
+and ownership convention, not by schema, which is why a table must be declared in exactly one
+module's init script. Local dev can disable Nacos with env `NACOS_DISCOVERY_ENABLED=false` / `NACOS_CONFIG_ENABLED=false`. `nacos-config-example.yml` shows the expected per-service Nacos config shape. Key env vars: `MYSQL_HOST/PORT/USERNAME/PASSWORD`, `NACOS_SERVER_ADDR`, `ERP_INTERNAL_AUTH_SIGNATURE_SECRET` (mandatory — see below), `ERP_JWT_SECRET`.
 
 ## Services & ports
 
@@ -88,7 +92,16 @@ All traffic enters through the gateway (9090). Path prefix routing is defined in
 - `erp-*-client` (`erp-platform-client`, `erp-workflow-client`, `erp-business-client`) — typed clients wrapping the internal HTTP endpoints, returning contract types. A service calls another service **only through these clients**, never by hand-building HTTP.
 - `erp-system`, `erp-business`, `erp-workflow`, `erp-ai` — deployable Spring Boot apps.
 
-Each deployable module follows: `controller/` (REST) → `service/` (`I*Service` interface + `service/impl/*ServiceImpl`) → `mapper/` (MyBatis-Plus) with `domain/entity` and `domain/vo`. XML mappers live under `src/main/resources/mapper/**/*.xml`.
+Note the reactor has two levels: `erp-common`, `erp-gateway` and `erp-auth` sit at the top level as
+siblings of `erp-modules`, not inside it. `erp-gateway` and `erp-auth` are deployable too, so there
+are six runnable services in total — the four listed above plus those two.
+
+Each deployable module follows: `controller/` (REST) → `service/` (`I*Service` interface + `service/impl/*ServiceImpl`) → `mapper/` (MyBatis-Plus), with entities directly under `domain/` and view objects under `domain/vo/`.
+
+Persistence is **entirely annotation-driven — there are currently no XML mapper files anywhere in the
+repo**, despite `mybatis-plus.mapper-locations` pointing at `classpath:mapper/**/*.xml`. Queries use
+MyBatis-Plus wrappers, with `@Select`/`@Update`-style annotations on the mapper interface (~33 files)
+where a wrapper is not enough. Follow that pattern rather than introducing XML.
 
 ### Authentication & cross-service trust (important)
 
@@ -123,8 +136,42 @@ central to this repo — follow it strictly.
 - **Locations:** system → `erp-modules/erp-system/src/main/resources/sql/upgrade/system/`; business → `erp-modules/erp-business/src/main/resources/sql/upgrade/business/`; workflow → `.../erp-workflow/.../sql/upgrade/workflow/`.
 - **Idempotent & repeatable:** scripts must be safe to re-run and must not assume a clean database (use `IF NOT EXISTS`, guarded inserts, etc.).
 - **Keep full-init in sync:** append the same structure/base data to the module's total init script (`init_system.sql`, `init_business.sql`, `init_workflow.sql`) so a fresh environment initializes in one shot.
-- **Auto-execution:** each module has an `ApplicationRunner` (`SystemSqlUpgradeRunner`, `BusinessSchemaUpgradeRunner`, `WorkflowSqlUpgradeRunner`) that on startup runs only not-yet-applied upgrade scripts (in filename order) and records them in `sys_sql_upgrade_log`. This is why filenames must sort correctly and scripts must be idempotent. Toggle with `erp.sql.upgrade.enabled`.
+- **Auto-execution:** each module has an `ApplicationRunner` (`SystemSqlUpgradeRunner`, `BusinessSchemaUpgradeRunner`, `WorkflowSqlUpgradeRunner`) that on startup runs only not-yet-applied upgrade scripts (in filename order) and records them. This is why filenames must sort correctly and scripts must be idempotent. Toggle with `erp.sql.upgrade.enabled`. The bookkeeping table differs: **erp-business uses `biz_sql_upgrade_log`; erp-system and erp-workflow both use `sys_sql_upgrade_log`** (and, on a shared database, share that one table — script filenames must not collide across those two modules).
 - When a legacy DB throws "table/field/menu/permission does not exist", fix it by adding an upgrade script — do not work around it in business code.
+
+### Running scripts against the real DB
+
+`AGENTS.md` rules 7/10 require every migration to be executed and verified against a real database
+before delivery, and give the connection details. The values that actually apply at runtime come
+from **Nacos** (`erp-business.yml` and friends), not from the repo's `application.yml` — read them
+from there rather than assuming, and never hardcode a password into a script or a committed file.
+`192.168.0.22` is a **shared internal database**: DDL affects other people, so get explicit
+confirmation from the user before running it.
+
+Two tools, two different jobs — they are not interchangeable:
+
+- **`mysqlsh`** (MySQL Shell, on PATH) for ad-hoc queries and inspection:
+
+  ```bash
+  mysqlsh --no-wizard --quiet-start=2 --sql --uri root:<pwd>@192.168.0.22:3306/erp_system --result-format=table -e "SELECT 1"
+  ```
+
+  It **ignores `MYSQL_PWD`** — with no password in the URI it blocks on an interactive prompt and
+  hangs any non-interactive shell (`taskkill /IM mysqlsh.exe /F` to recover). `--no-wizard` is mandatory.
+  Use `-f script.sql` to run a file.
+
+- **JDBC + Spring `ScriptUtils`** to *verify an upgrade script*, because that is the same statement
+  splitter `BusinessSchemaUpgradeRunner` / `SystemSqlUpgradeRunner` use. `mysqlsh` splits differently,
+  so a script passing under `mysqlsh` does **not** prove the runner can execute it — the
+  `SET @sql` + `PREPARE` idempotency idiom is where they diverge. Get the classpath from
+  `mvn -s project-settings.xml -pl erp-modules/erp-business dependency:build-classpath -Dmdep.outputFile=…`
+  (it already carries `mysql-connector-j` and `spring-jdbc`) and drive `ScriptUtils.executeSqlScript`
+  from a throwaway class.
+
+Verification checklist: diff `information_schema.COLUMNS` before/after; run the script a second time to
+prove idempotency; if it backfills existing rows, compare against the source table (`<=>` to handle
+NULLs) to confirm real values landed rather than the ALTER-time default; then insert the script's row
+into `biz_sql_upgrade_log` / `sys_sql_upgrade_log` the way the runner does, so startup won't replay it.
 
 ## Conventions
 
@@ -142,8 +189,8 @@ fills them on insert/update, so **do not hand-write `setCreateBy` / `setUpdateTi
 filling only happens when the field is null, so an explicit value (data import keeping the original
 operator, workflow callbacks resolving the approver) still wins.
 
-Two limits worth knowing: auto-fill needs an entity parameter, so pure `UpdateWrapper` and
-hand-written XML updates are not covered — new tables should declare
+Two limits worth knowing: auto-fill needs an entity parameter, so a pure `UpdateWrapper` and
+hand-written `@Update` statements on mapper interfaces are not covered — new tables should declare
 `DEFAULT CURRENT_TIMESTAMP` / `ON UPDATE CURRENT_TIMESTAMP` as the DB-level backstop.
 `erp-workflow-contract` cannot depend on `erp-common`, so its two entities carry
 `@TableField(fill = ...)` on their own fields instead.
