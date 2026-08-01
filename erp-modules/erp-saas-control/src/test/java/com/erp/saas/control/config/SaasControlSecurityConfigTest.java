@@ -13,6 +13,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -21,6 +24,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.sql.DataSource;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -35,9 +41,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "erp.internal.auth-signature-secret=test-only-internal-secret"
 })
 @AutoConfigureMockMvc
-@Import(SaasControlSecurityConfigTest.TestController.class)
+@Import({SaasControlSecurityConfigTest.TestController.class, SaasControlSecurityConfigTest.FixedClockConfig.class})
 class SaasControlSecurityConfigTest {
     private static final String SECRET = "test-only-internal-secret";
+    private static final Instant NOW = Instant.parse("2026-08-01T12:00:00Z");
 
     @MockBean
     private DataSource dataSource;
@@ -70,6 +77,17 @@ class SaasControlSecurityConfigTest {
         performSigned("/saas/ping", "invalid-signature")
                 .andExpect(status().isUnauthorized());
         performSigned("/internal/saas/ping", "invalid-signature")
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldRejectExpiredSignedPrincipalForBothRouteGroups() throws Exception {
+        AuthenticatedUserPrincipal expired = principal(NOW.toEpochMilli() - 1);
+        String signature = InternalAuthSignatureUtils.sign(SECRET, expired);
+
+        performSigned("/saas/ping", expired, signature)
+                .andExpect(status().isUnauthorized());
+        performSigned("/internal/saas/ping", expired, signature)
                 .andExpect(status().isUnauthorized());
     }
 
@@ -122,8 +140,11 @@ class SaasControlSecurityConfigTest {
     }
 
     private AuthenticatedUserPrincipal principal() {
-        return new AuthenticatedUserPrincipal(1L, "admin", "000000", 0,
-                System.currentTimeMillis() + 60_000L);
+        return principal(NOW.toEpochMilli() + 60_000L);
+    }
+
+    private AuthenticatedUserPrincipal principal(long expiresAt) {
+        return new AuthenticatedUserPrincipal(1L, "admin", "000000", 0, expiresAt);
     }
 
     private boolean requiresAuth(String requestUri, String contextPath) {
@@ -143,6 +164,15 @@ class SaasControlSecurityConfigTest {
         }, produces = MediaType.APPLICATION_JSON_VALUE)
         R<String> ping() {
             return R.success("ok");
+        }
+    }
+
+    @TestConfiguration
+    static class FixedClockConfig {
+        @Bean
+        @Primary
+        Clock fixedClock() {
+            return Clock.fixed(NOW, ZoneOffset.UTC);
         }
     }
 }

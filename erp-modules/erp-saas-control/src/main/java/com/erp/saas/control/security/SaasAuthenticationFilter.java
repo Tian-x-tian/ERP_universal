@@ -7,12 +7,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
+
 @Component
 public class SaasAuthenticationFilter extends InternalAuthenticationFilterSupport {
 
     public SaasAuthenticationFilter(ObjectMapper objectMapper,
-            @Value("${erp.internal.auth-signature-secret:}") String internalSignatureSecret) {
-        super(objectMapper, internalSignatureSecret, "/__saas_control__", "SaaS control plane");
+            @Value("${erp.internal.auth-signature-secret:}") String internalSignatureSecret,
+            Clock clock) {
+        super(objectMapper, internalSignatureSecret, "/__saas_control__", "SaaS control plane", clock);
     }
 
     @Override

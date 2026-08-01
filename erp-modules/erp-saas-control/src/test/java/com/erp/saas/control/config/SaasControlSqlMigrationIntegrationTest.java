@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.EncodedResource;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -11,6 +12,10 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.net.InetAddress;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -20,8 +25,13 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SaasControlSqlMigrationIntegrationTest {
     private static final String JDBC_URL_ENV = "ERP_SAAS_TEST_JDBC_URL";
@@ -39,6 +49,8 @@ class SaasControlSqlMigrationIntegrationTest {
         String password = System.getenv(DB_PASSWORD_ENV);
         Assumptions.assumeTrue(hasText(jdbcUrl) && hasText(username) && password != null,
                 "Isolated MySQL environment variables are required");
+
+        validateIsolatedDatabase(jdbcUrl, username, password);
 
         DriverManagerDataSource dataSource = new DriverManagerDataSource(jdbcUrl, username, password);
 
@@ -77,6 +89,59 @@ class SaasControlSqlMigrationIntegrationTest {
         assertThat(upgradeSignature).isEqualTo(runnerSignature);
     }
 
+    @Test
+    void shouldSerializeConcurrentRunnersOnRealMySql() throws Exception {
+        String jdbcUrl = System.getenv(JDBC_URL_ENV);
+        String username = System.getenv(DB_USER_ENV);
+        String password = System.getenv(DB_PASSWORD_ENV);
+        Assumptions.assumeTrue(hasText(jdbcUrl) && hasText(username) && password != null,
+                "Isolated MySQL environment variables are required");
+        validateIsolatedDatabase(jdbcUrl, username, password);
+        resetTable(jdbcUrl, username, password);
+        DriverManagerDataSource dataSource = new DriverManagerDataSource(jdbcUrl, username, password);
+        Resource delayedScript = new ByteArrayResource(
+                "DO SLEEP(1); CREATE TABLE IF NOT EXISTS `saas_concurrency_probe` (`id` INT PRIMARY KEY);"
+                        .getBytes(StandardCharsets.UTF_8), "20260801_99_concurrent.sql") {
+            @Override public String getFilename() { return "20260801_99_concurrent.sql"; }
+        };
+        var resolver = new org.springframework.core.io.support.ResourcePatternResolver() {
+            @Override public Resource[] getResources(String pattern) { return new Resource[]{delayedScript}; }
+            @Override public Resource getResource(String location) { return delayedScript; }
+            @Override public ClassLoader getClassLoader() { return getClass().getClassLoader(); }
+        };
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = executor.submit(() -> runAfter(start, new SaasControlSqlUpgradeRunner(dataSource, resolver)));
+            Future<?> second = executor.submit(() -> runAfter(start, new SaasControlSqlUpgradeRunner(dataSource, resolver)));
+            start.countDown();
+            first.get();
+            second.get();
+            try (Connection connection = dataSource.getConnection()) {
+                assertThat(historyCount(connection)).isEqualTo(1);
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void shouldRejectUnsafeJdbcTargetsBeforeConnecting() {
+        assertThatThrownBy(() -> validateJdbcUrl("jdbc:mysql://192.168.0.22:3306/erp_saas_control_test"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> validateJdbcUrl("jdbc:mysql://127.0.0.1:3306/erp_saas_control"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    private void runAfter(CountDownLatch start, SaasControlSqlUpgradeRunner runner) {
+        try {
+            start.await();
+            runner.run(new DefaultApplicationArguments(new String[0]));
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
     private void executeTwice(Connection connection, Resource resource) {
         EncodedResource encoded = new EncodedResource(resource, StandardCharsets.UTF_8);
         ScriptUtils.executeSqlScript(connection, encoded);
@@ -86,8 +151,61 @@ class SaasControlSqlMigrationIntegrationTest {
     private void resetTable(String jdbcUrl, String username, String password) throws Exception {
         try (Connection connection = DriverManager.getConnection(jdbcUrl, username, password);
                 Statement statement = connection.createStatement()) {
+            validateConnectedDatabase(connection);
+            statement.execute("DROP TABLE IF EXISTS `saas_concurrency_probe`");
             statement.execute("DROP TABLE IF EXISTS `saas_sql_upgrade_log`");
         }
+    }
+
+    private void validateIsolatedDatabase(String jdbcUrl, String username, String password) throws Exception {
+        validateJdbcUrl(jdbcUrl);
+        try (Connection connection = DriverManager.getConnection(jdbcUrl, username, password)) {
+            validateConnectedDatabase(connection);
+        }
+    }
+
+    private void validateJdbcUrl(String jdbcUrl) throws Exception {
+        if (!hasText(jdbcUrl) || !jdbcUrl.startsWith("jdbc:mysql://")) {
+            throw new IllegalStateException("Integration test requires a MySQL JDBC URL");
+        }
+        URI uri = URI.create(jdbcUrl.substring("jdbc:".length()));
+        if (uri.getHost() == null || !InetAddress.getByName(uri.getHost()).isLoopbackAddress()) {
+            throw new IllegalStateException("Integration test requires a loopback database host");
+        }
+        if (!"/erp_saas_control_test".equals(uri.getPath())) {
+            throw new IllegalStateException("Integration test requires database erp_saas_control_test");
+        }
+    }
+
+    private void validateConnectedDatabase(Connection connection) throws Exception {
+        try (Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery("SELECT DATABASE(), VERSION(), @@datadir")) {
+            assertThat(resultSet.next()).isTrue();
+            if (!"erp_saas_control_test".equals(resultSet.getString(1))) {
+                throw new IllegalStateException("Connected database is not the isolated SaaS test database");
+            }
+            if (!resultSet.getString(2).startsWith("8.0.17")) {
+                throw new IllegalStateException("Integration test requires MySQL 8.0.17");
+            }
+            Path worktree = findWorktreeRoot();
+            Path expected = worktree.resolve(".tmp/saas-mysql-8017").toRealPath();
+            Path actual = Path.of(resultSet.getString(3)).toRealPath();
+            if (!actual.startsWith(expected)) {
+                throw new IllegalStateException("MySQL data directory is outside the isolated worktree directory");
+            }
+        }
+    }
+
+    private Path findWorktreeRoot() throws Exception {
+        Path current = Path.of(SaasControlSqlMigrationIntegrationTest.class.getProtectionDomain()
+                .getCodeSource().getLocation().toURI()).toAbsolutePath().normalize();
+        while (current != null && !Files.exists(current.resolve(".git"))) {
+            current = current.getParent();
+        }
+        if (current == null) {
+            throw new IllegalStateException("Unable to resolve Git worktree root");
+        }
+        return current.toRealPath();
     }
 
     private int historyCount(Connection connection) throws Exception {

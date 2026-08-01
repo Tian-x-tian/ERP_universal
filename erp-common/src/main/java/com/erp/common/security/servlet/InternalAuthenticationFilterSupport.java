@@ -18,6 +18,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.ArrayList;
 
 /**
@@ -29,6 +30,7 @@ public class InternalAuthenticationFilterSupport extends OncePerRequestFilter {
     private final ObjectMapper objectMapper;
     private final String internalSignatureSecret;
     private final String protectedPathPrefix;
+    private final Clock clock;
 
     /**
      * 创建内部认证过滤器。
@@ -42,9 +44,18 @@ public class InternalAuthenticationFilterSupport extends OncePerRequestFilter {
             String internalSignatureSecret,
             String protectedPathPrefix,
             String moduleName) {
+        this(objectMapper, internalSignatureSecret, protectedPathPrefix, moduleName, Clock.systemUTC());
+    }
+
+    protected InternalAuthenticationFilterSupport(ObjectMapper objectMapper,
+            String internalSignatureSecret,
+            String protectedPathPrefix,
+            String moduleName,
+            Clock clock) {
         this.objectMapper = objectMapper;
         this.internalSignatureSecret = internalSignatureSecret == null ? "" : internalSignatureSecret.trim();
         this.protectedPathPrefix = protectedPathPrefix == null ? "" : protectedPathPrefix.trim();
+        this.clock = java.util.Objects.requireNonNull(clock, "clock");
         if (!StringUtils.hasText(this.internalSignatureSecret)) {
             throw new IllegalStateException("erp.internal.auth-signature-secret 未配置，" + moduleName + "无法校验内部身份头");
         }
@@ -121,6 +132,9 @@ public class InternalAuthenticationFilterSupport extends OncePerRequestFilter {
         }
         if (StringUtils.hasText(tenantIdFromHeader) && !tenantIdFromHeader.equals(tenantId)) {
             throw new IllegalArgumentException("租户与令牌不匹配");
+        }
+        if (expiresAt <= clock.millis()) {
+            throw new IllegalArgumentException("Token无效或已过期");
         }
 
         AuthenticatedUserPrincipal principal = new AuthenticatedUserPrincipal(userId, userName, tenantId,
