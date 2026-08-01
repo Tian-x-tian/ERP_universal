@@ -5,9 +5,11 @@ import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.http.HttpClient;
 import java.time.Duration;
 
 /**
@@ -19,9 +21,14 @@ public class SaasInternalClientConfig {
     @LoadBalanced
     public RestTemplate saasInternalRestTemplate(RestTemplateBuilder builder,
             InternalSystemClientProperties properties) {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(properties.resolveSaasConnectTimeoutMs()))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofMillis(properties.resolveSaasReadTimeoutMs()));
         return builder
-                .setConnectTimeout(Duration.ofMillis(properties.resolveSaasConnectTimeoutMs()))
-                .setReadTimeout(Duration.ofMillis(properties.resolveSaasReadTimeoutMs()))
+                .requestFactory(() -> requestFactory)
                 .errorHandler(new DefaultResponseErrorHandler() {
                     @Override
                     protected boolean hasError(HttpStatusCode statusCode) {
