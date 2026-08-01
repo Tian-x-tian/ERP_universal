@@ -1,7 +1,10 @@
 package com.erp.workflow.config;
 
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
+import com.erp.common.mybatis.TenantGlobalTables;
 import com.erp.common.mybatis.TenantMybatisPlusConfigurationSupport;
+import com.erp.common.mybatis.TenantSchemaReadinessFilter;
+import com.erp.common.mybatis.TenantSchemaReadinessGate;
 import com.erp.common.mybatis.TenantSchemaValidationRunner;
 import com.erp.common.mybatis.TenantSchemaValidator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,14 +20,6 @@ import java.util.Set;
  */
 @Configuration
 public class MyBatisPlusConfig extends TenantMybatisPlusConfigurationSupport {
-    private static final Set<String> GLOBAL_TABLE_CANDIDATES = Set.of(
-            "sys_tenant",
-            "sys_menu",
-            "sys_dict_type",
-            "sys_dict_data",
-            "sys_config",
-            "sys_sql_upgrade_log",
-            "biz_sql_upgrade_log");
 
     public MyBatisPlusConfig(DataSource dataSource) {
         super(dataSource);
@@ -40,9 +35,23 @@ public class MyBatisPlusConfig extends TenantMybatisPlusConfigurationSupport {
 
     @Bean
     @ConditionalOnProperty(name = "erp.tenant.schema-validation.enabled", havingValue = "true", matchIfMissing = true)
-    public TenantSchemaValidationRunner tenantSchemaValidationRunner(DataSource dataSource) {
-        return new TenantSchemaValidationRunner(new TenantSchemaValidator(
-                new JdbcTemplate(dataSource), GLOBAL_TABLE_CANDIDATES));
+    public TenantSchemaReadinessGate tenantSchemaReadinessGate() {
+        return new TenantSchemaReadinessGate();
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "erp.tenant.schema-validation.enabled", havingValue = "true", matchIfMissing = true)
+    public TenantSchemaReadinessFilter tenantSchemaReadinessFilter(TenantSchemaReadinessGate readinessGate) {
+        return new TenantSchemaReadinessFilter(readinessGate);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "erp.tenant.schema-validation.enabled", havingValue = "true", matchIfMissing = true)
+    public TenantSchemaValidationRunner tenantSchemaValidationRunner(
+            DataSource dataSource, TenantSchemaReadinessGate readinessGate) {
+        return new TenantSchemaValidationRunner(
+                new TenantSchemaValidator(new JdbcTemplate(dataSource), TenantGlobalTables.TABLES),
+                readinessGate);
     }
 
     /**
@@ -52,7 +61,6 @@ public class MyBatisPlusConfig extends TenantMybatisPlusConfigurationSupport {
      */
     @Override
     protected Set<String> globalTableCandidates() {
-        return GLOBAL_TABLE_CANDIDATES;
+        return TenantGlobalTables.TABLES;
     }
 }
-

@@ -90,12 +90,7 @@ public abstract class TenantMybatisPlusConfigurationSupport {
      * @return 规范化表名
      */
     protected String normalizeTableName(String tableName) {
-        String normalized = tableName.replace("`", "").trim().toLowerCase(Locale.ROOT);
-        int separatorIndex = normalized.lastIndexOf('.');
-        if (separatorIndex >= 0 && separatorIndex < normalized.length() - 1) {
-            normalized = normalized.substring(separatorIndex + 1);
-        }
-        return normalized;
+        return tableName.replace("`", "").trim().toLowerCase(Locale.ROOT);
     }
 
     /**
