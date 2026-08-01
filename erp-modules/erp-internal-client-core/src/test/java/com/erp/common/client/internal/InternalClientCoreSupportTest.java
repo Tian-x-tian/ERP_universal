@@ -1,8 +1,17 @@
 package com.erp.common.client.internal;
 
+import com.erp.common.core.context.TenantContextHolder;
+import com.erp.common.security.AuthHeaders;
+import com.erp.common.security.AuthenticatedUserPrincipal;
+import com.erp.common.security.InternalAuthSignatureUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.HttpHeaders;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
 
@@ -80,5 +89,43 @@ class InternalClientCoreSupportTest {
         Method method = InternalSystemClientConfig.class.getMethod("internalSystemRestTemplate");
 
         Assertions.assertTrue(method.isAnnotationPresent(LoadBalanced.class));
+        Assertions.assertTrue(method.isAnnotationPresent(Primary.class));
+    }
+
+    @Test
+    void shouldBuildConfiguredServicePrincipalHeadersIgnoringRequestAndTenantContexts() {
+        InternalSystemClientProperties properties = new InternalSystemClientProperties();
+        properties.setAuthSignatureSecret("service-signature-secret");
+        properties.setServiceUserId(99L);
+        properties.setServiceUserName("saas-service");
+        properties.setServiceTenantId("000000");
+        properties.setServiceTokenVersion(7);
+        properties.setServiceExpiresAt(4_102_444_800_000L);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader(AuthHeaders.USER_ID, "123");
+        request.addHeader(AuthHeaders.USER_NAME, "interactive-user");
+        request.addHeader(AuthHeaders.TENANT_ID, "attacker-tenant");
+        request.addHeader(AuthHeaders.EXPIRES_AT, "9999999999999");
+        request.addHeader(AuthHeaders.SIGNATURE, "attacker-signature");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        TenantContextHolder.setTenantId("thread-tenant");
+
+        try {
+            HttpHeaders headers = new InternalRequestHeaderFactory(properties).buildServiceHeaders();
+            AuthenticatedUserPrincipal expected = new AuthenticatedUserPrincipal(99L, "saas-service", "000000", 7,
+                    4_102_444_800_000L);
+
+            Assertions.assertEquals("99", headers.getFirst(AuthHeaders.USER_ID));
+            Assertions.assertEquals("saas-service", headers.getFirst(AuthHeaders.USER_NAME));
+            Assertions.assertEquals("000000", headers.getFirst(AuthHeaders.TENANT_ID));
+            Assertions.assertEquals("000000", headers.getFirst("tenantId"));
+            Assertions.assertEquals("7", headers.getFirst(AuthHeaders.TOKEN_VERSION));
+            Assertions.assertEquals("4102444800000", headers.getFirst(AuthHeaders.EXPIRES_AT));
+            Assertions.assertTrue(InternalAuthSignatureUtils.matches("service-signature-secret", expected,
+                    headers.getFirst(AuthHeaders.SIGNATURE)));
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+            TenantContextHolder.clear();
+        }
     }
 }

@@ -40,6 +40,41 @@ class ResolvedTenantAssertionSignatureUtilsTest {
     }
 
     @Test
+    void shouldRejectEveryModifiedSignedField() {
+        ResolvedTenantAssertion assertion = assertion(NOW);
+        String signature = ResolvedTenantAssertionSignatureUtils.sign(SECRET, assertion);
+        List<ResolvedTenantAssertion> modifiedAssertions = List.of(
+                new ResolvedTenantAssertion("tenant-b", "example.com", "GET", "/auth/login", NOW, "nonce-a"),
+                new ResolvedTenantAssertion("tenant-a", "other.example", "GET", "/auth/login", NOW, "nonce-a"),
+                new ResolvedTenantAssertion("tenant-a", "example.com", "POST", "/auth/login", NOW, "nonce-a"),
+                new ResolvedTenantAssertion("tenant-a", "example.com", "GET", "/auth/other", NOW, "nonce-a"),
+                new ResolvedTenantAssertion("tenant-a", "example.com", "GET", "/auth/login", NOW + 1, "nonce-a"),
+                new ResolvedTenantAssertion("tenant-a", "example.com", "GET", "/auth/login", NOW, "nonce-b"));
+
+        for (ResolvedTenantAssertion modified : modifiedAssertions) {
+            Assertions.assertFalse(ResolvedTenantAssertionSignatureUtils.verify(SECRET, modified, signature, NOW));
+        }
+    }
+
+    @Test
+    void shouldMatchCanonicalHmacGoldenVector() {
+        Assertions.assertEquals("RkIvgOGmMar5g_2w7ATozbT79KbmYjqsKVmfotSwwbw",
+                ResolvedTenantAssertionSignatureUtils.sign("golden-secret", assertion(NOW)));
+    }
+
+    @Test
+    void shouldUseNonBlankSecretBytesWithoutTrimming() {
+        String spaced = ResolvedTenantAssertionSignatureUtils.sign(" golden-secret ", assertion(NOW));
+        String trimmed = ResolvedTenantAssertionSignatureUtils.sign("golden-secret", assertion(NOW));
+
+        Assertions.assertNotEquals(trimmed, spaced);
+        Assertions.assertTrue(ResolvedTenantAssertionSignatureUtils.verify(
+                " golden-secret ", assertion(NOW), spaced, NOW));
+        Assertions.assertFalse(ResolvedTenantAssertionSignatureUtils.verify("golden-secret", assertion(NOW), spaced,
+                NOW));
+    }
+
+    @Test
     void shouldRejectExpiredAssertion() {
         ResolvedTenantAssertion assertion = assertion(NOW - 30_001L);
         String signature = ResolvedTenantAssertionSignatureUtils.sign(SECRET, assertion);

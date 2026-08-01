@@ -46,7 +46,7 @@ public final class ResolvedTenantAssertionSignatureUtils {
         }
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);
-            mac.init(new SecretKeySpec(secret.trim().getBytes(StandardCharsets.UTF_8), HMAC_ALGORITHM));
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_ALGORITHM));
             return mac.doFinal(canonicalPayload(assertion).getBytes(StandardCharsets.UTF_8));
         } catch (GeneralSecurityException ex) {
             throw new IllegalStateException("Failed to calculate tenant assertion signature", ex);

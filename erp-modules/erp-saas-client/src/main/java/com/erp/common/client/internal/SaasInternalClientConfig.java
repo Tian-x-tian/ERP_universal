@@ -4,6 +4,8 @@ import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
@@ -20,6 +22,12 @@ public class SaasInternalClientConfig {
         return builder
                 .setConnectTimeout(Duration.ofMillis(properties.resolveSaasConnectTimeoutMs()))
                 .setReadTimeout(Duration.ofMillis(properties.resolveSaasReadTimeoutMs()))
+                .errorHandler(new DefaultResponseErrorHandler() {
+                    @Override
+                    protected boolean hasError(HttpStatusCode statusCode) {
+                        return !statusCode.is2xxSuccessful();
+                    }
+                })
                 .build();
     }
 }

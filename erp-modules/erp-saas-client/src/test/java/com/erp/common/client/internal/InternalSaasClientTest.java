@@ -20,8 +20,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
@@ -29,7 +32,12 @@ import java.net.URI;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.client.ExpectedCount.once;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 @ExtendWith(MockitoExtension.class)
 class InternalSaasClientTest {
@@ -44,7 +52,7 @@ class InternalSaasClientTest {
     @BeforeEach
     void setUp() {
         headers = new HttpHeaders();
-        org.mockito.Mockito.lenient().when(headerFactory.buildHeaders()).thenReturn(headers);
+        org.mockito.Mockito.lenient().when(headerFactory.buildServiceHeaders()).thenReturn(headers);
         client = new InternalSaasClient(restTemplate, headerFactory, new InternalSystemClientProperties());
     }
 
@@ -65,7 +73,8 @@ class InternalSaasClientTest {
         Assertions.assertEquals("http://erp-saas-control/internal/saas/hosts/resolve?host=acme.example",
                 uri.getValue().toASCIIString());
         Assertions.assertEquals(headers, entity.getValue().getHeaders());
-        verify(headerFactory).buildHeaders();
+        verify(headerFactory).buildServiceHeaders();
+        verify(headerFactory, never()).buildHeaders();
     }
 
     @Test
@@ -113,6 +122,8 @@ class InternalSaasClientTest {
         Assertions.assertSame(event, entity.getValue().getBody());
         Assertions.assertEquals("event-a", entity.getValue().getBody().getIdempotencyKey());
         Assertions.assertEquals(headers, entity.getValue().getHeaders());
+        verify(headerFactory).buildServiceHeaders();
+        verify(headerFactory, never()).buildHeaders();
     }
 
     @Test
@@ -178,6 +189,38 @@ class InternalSaasClientTest {
 
         Assertions.assertSame(exception, Assertions.assertThrows(HttpServerErrorException.class,
                 () -> client.reportUsage(usageEvent())));
+    }
+
+    @Test
+    void shouldRejectRedirectOnGet() {
+        InternalSystemClientProperties properties = new InternalSystemClientProperties();
+        RestTemplate strictTemplate = new SaasInternalClientConfig().saasInternalRestTemplate(
+                new RestTemplateBuilder(), properties);
+        MockRestServiceServer server = MockRestServiceServer.bindTo(strictTemplate).build();
+        server.expect(once(), requestTo(
+                        "http://erp-saas-control/internal/saas/hosts/resolve?host=acme.example"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withStatus(HttpStatus.FOUND));
+        InternalSaasClient strictClient = new InternalSaasClient(strictTemplate, headerFactory, properties);
+
+        Assertions.assertThrows(RestClientResponseException.class,
+                () -> strictClient.resolveTenantByHost("acme.example"));
+        server.verify();
+    }
+
+    @Test
+    void shouldRejectRedirectOnPost() {
+        InternalSystemClientProperties properties = new InternalSystemClientProperties();
+        RestTemplate strictTemplate = new SaasInternalClientConfig().saasInternalRestTemplate(
+                new RestTemplateBuilder(), properties);
+        MockRestServiceServer server = MockRestServiceServer.bindTo(strictTemplate).build();
+        server.expect(once(), requestTo("http://erp-saas-control/internal/saas/usage-events"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.TEMPORARY_REDIRECT));
+        InternalSaasClient strictClient = new InternalSaasClient(strictTemplate, headerFactory, properties);
+
+        Assertions.assertThrows(RestClientResponseException.class, () -> strictClient.reportUsage(usageEvent()));
+        server.verify();
     }
 
     private SaasUsageEvent usageEvent() {

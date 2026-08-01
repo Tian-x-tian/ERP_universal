@@ -5,13 +5,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Modifier;
 import java.io.Serializable;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -54,11 +58,10 @@ class SaasContractTest {
             Assertions.assertTrue(annotation.ignoreUnknown(), type.getSimpleName());
             Assertions.assertNotNull(type.getDeclaredConstructor().newInstance());
             Assertions.assertTrue(Serializable.class.isAssignableFrom(type), type.getSimpleName());
-            for (Annotation declared : type.getAnnotations()) {
-                String annotationName = declared.annotationType().getName();
-                Assertions.assertFalse(annotationName.startsWith("org.springframework"), annotationName);
-                Assertions.assertFalse(annotationName.startsWith("com.baomidou"), annotationName);
-            }
+            assertNoFrameworkAnnotations(type);
+            Arrays.stream(type.getDeclaredFields()).forEach(this::assertNoFrameworkAnnotations);
+            Arrays.stream(type.getDeclaredMethods()).forEach(this::assertNoFrameworkAnnotations);
+            Arrays.stream(type.getDeclaredConstructors()).forEach(this::assertNoFrameworkAnnotations);
         }
 
         SaasHostResolution decoded = objectMapper.readValue("{\"host\":\"acme.example\",\"tenantId\":\"t1\","
@@ -68,6 +71,47 @@ class SaasContractTest {
         Assertions.assertEquals("t2", decoded.getTenantId());
         Assertions.assertEquals("acme.example", decoded.getHost());
         Assertions.assertTrue(decoded.isVerified());
+    }
+
+    @Test
+    void shouldExposeOnlyTheFrozenContractFields() {
+        Map<Class<?>, Map<String, Class<?>>> expected = Map.of(
+                SaasFeatureGrant.class, Map.of("featureKey", String.class, "granted", boolean.class),
+                SaasQuotaLimit.class, Map.of("quotaKey", String.class, "limit", Long.class),
+                SaasQuotaUsage.class, Map.of("quotaKey", String.class, "used", long.class, "reserved", long.class,
+                        "periodStartEpochMs", Long.class),
+                SaasHostResolution.class, Map.of("host", String.class, "tenantId", String.class,
+                        "deploymentMode", DeploymentMode.class, "lifecycleState", TenantLifecycleState.class,
+                        "verified", boolean.class),
+                SaasUsageEvent.class, Map.of("idempotencyKey", String.class, "tenantId", String.class,
+                        "metricKey", String.class, "operation", SaasUsageOperation.class,
+                        "referenceKey", String.class, "amount", Long.class, "periodStartEpochMs", Long.class,
+                        "occurredAtEpochMs", long.class),
+                SaasProvisioningRequest.class, Map.of("requestId", String.class, "tenantId", String.class,
+                        "deploymentMode", DeploymentMode.class, "planCode", String.class),
+                SaasProvisioningResult.class, Map.of("requestId", String.class, "tenantId", String.class,
+                        "success", boolean.class, "message", String.class, "activationRequired", boolean.class,
+                        "completedAtEpochMs", long.class),
+                SaasEntitlementSnapshot.class, Map.ofEntries(
+                        Map.entry("tenantId", String.class),
+                        Map.entry("lifecycleState", TenantLifecycleState.class),
+                        Map.entry("deploymentMode", DeploymentMode.class),
+                        Map.entry("subscriptionState", SubscriptionState.class),
+                        Map.entry("planCode", String.class),
+                        Map.entry("version", long.class),
+                        Map.entry("issuedAtEpochMs", long.class),
+                        Map.entry("expiresAtEpochMs", long.class),
+                        Map.entry("featureGrants", List.class),
+                        Map.entry("quotaLimits", List.class),
+                        Map.entry("signatureKeyId", String.class),
+                        Map.entry("signature", String.class)));
+
+        expected.forEach((type, fields) -> {
+            Map<String, Class<?>> actual = Arrays.stream(type.getDeclaredFields())
+                    .filter(field -> !Modifier.isStatic(field.getModifiers()))
+                    .collect(Collectors.toMap(Field::getName, Field::getType));
+            Assertions.assertEquals(fields, actual, type.getSimpleName());
+        });
     }
 
     @Test
@@ -163,5 +207,13 @@ class SaasContractTest {
             Long period) {
         return new SaasUsageEvent("event-a", "tenant-a", metric, operation, reference, amount, period,
                 Instant.parse("2026-08-01T00:00:00Z").toEpochMilli());
+    }
+
+    private void assertNoFrameworkAnnotations(AnnotatedElement element) {
+        for (Annotation declared : element.getAnnotations()) {
+            String annotationName = declared.annotationType().getName();
+            Assertions.assertFalse(annotationName.startsWith("org.springframework"), annotationName);
+            Assertions.assertFalse(annotationName.startsWith("com.baomidou"), annotationName);
+        }
     }
 }

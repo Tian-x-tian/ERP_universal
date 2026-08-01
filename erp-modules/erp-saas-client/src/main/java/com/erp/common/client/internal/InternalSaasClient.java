@@ -66,7 +66,7 @@ public class InternalSaasClient {
 
     private <T> T exchangeRequired(URI uri, Class<T> responseType) {
         ResponseEntity<T> response = restTemplate.exchange(uri, HttpMethod.GET,
-                new HttpEntity<>(headerFactory.buildHeaders()), responseType);
+                new HttpEntity<>(headerFactory.buildServiceHeaders()), responseType);
         if (response.getBody() == null) {
             throw new IllegalStateException("SaaS control-plane response body must not be empty");
         }
@@ -74,7 +74,8 @@ public class InternalSaasClient {
     }
 
     private void post(URI uri, Object body) {
-        restTemplate.exchange(uri, HttpMethod.POST, new HttpEntity<>(body, headerFactory.buildHeaders()), Void.class);
+        restTemplate.exchange(uri, HttpMethod.POST, new HttpEntity<>(body, headerFactory.buildServiceHeaders()),
+                Void.class);
     }
 
     private URI buildUri(String path) {

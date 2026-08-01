@@ -30,9 +30,7 @@ public class InternalRequestHeaderFactory {
      * @return 请求头
      */
     public HttpHeaders buildHeaders() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setAccept(MediaType.parseMediaTypes(MediaType.APPLICATION_JSON_VALUE));
+        HttpHeaders headers = createJsonHeaders();
 
         HttpServletRequest currentRequest = currentRequest();
         if (hasForwardableAuthHeaders(currentRequest)) {
@@ -40,7 +38,31 @@ public class InternalRequestHeaderFactory {
             return headers;
         }
 
-        AuthenticatedUserPrincipal principal = buildServicePrincipal();
+        AuthenticatedUserPrincipal principal = buildContextualServicePrincipal();
+        writePrincipal(headers, principal);
+        return headers;
+    }
+
+    /**
+     * Builds headers for control-plane calls using only the configured service principal.
+     * Interactive request headers and thread tenant context are deliberately ignored.
+     *
+     * @return signed service-principal headers
+     */
+    public HttpHeaders buildServiceHeaders() {
+        HttpHeaders headers = createJsonHeaders();
+        writePrincipal(headers, buildConfiguredServicePrincipal());
+        return headers;
+    }
+
+    private HttpHeaders createJsonHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(MediaType.parseMediaTypes(MediaType.APPLICATION_JSON_VALUE));
+        return headers;
+    }
+
+    private void writePrincipal(HttpHeaders headers, AuthenticatedUserPrincipal principal) {
         headers.set(AuthHeaders.USER_ID, String.valueOf(principal.getUserId()));
         headers.set(AuthHeaders.USER_NAME, principal.getUserName());
         headers.set(AuthHeaders.TENANT_ID, principal.getTenantId());
@@ -54,7 +76,6 @@ public class InternalRequestHeaderFactory {
                         principal.getTokenVersion(),
                         principal.getExpiresAt()));
         headers.set("tenantId", principal.getTenantId());
-        return headers;
     }
 
     /**
@@ -62,11 +83,19 @@ public class InternalRequestHeaderFactory {
      *
      * @return 服务主体
      */
-    private AuthenticatedUserPrincipal buildServicePrincipal() {
+    private AuthenticatedUserPrincipal buildContextualServicePrincipal() {
         String tenantId = TenantContextHolder.getTenantId();
         if (!StringUtils.hasText(tenantId)) {
             tenantId = properties.getServiceTenantId();
         }
+        return buildServicePrincipal(tenantId);
+    }
+
+    private AuthenticatedUserPrincipal buildConfiguredServicePrincipal() {
+        return buildServicePrincipal(properties.getServiceTenantId());
+    }
+
+    private AuthenticatedUserPrincipal buildServicePrincipal(String tenantId) {
         return new AuthenticatedUserPrincipal(
                 properties.getServiceUserId(),
                 properties.getServiceUserName(),
