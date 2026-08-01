@@ -2,8 +2,12 @@ package com.erp.business.config;
 
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.erp.common.mybatis.TenantMybatisPlusConfigurationSupport;
+import com.erp.common.mybatis.TenantSchemaValidationRunner;
+import com.erp.common.mybatis.TenantSchemaValidator;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
 import java.util.Set;
@@ -18,7 +22,9 @@ public class MyBatisPlusConfig extends TenantMybatisPlusConfigurationSupport {
             "sys_menu",
             "sys_dict_type",
             "sys_dict_data",
-            "sys_config");
+            "sys_config",
+            "sys_sql_upgrade_log",
+            "biz_sql_upgrade_log");
 
     public MyBatisPlusConfig(DataSource dataSource) {
         super(dataSource);
@@ -32,6 +38,13 @@ public class MyBatisPlusConfig extends TenantMybatisPlusConfigurationSupport {
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         return buildInterceptor();
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "erp.tenant.schema-validation.enabled", havingValue = "true", matchIfMissing = true)
+    public TenantSchemaValidationRunner tenantSchemaValidationRunner(DataSource dataSource) {
+        return new TenantSchemaValidationRunner(new TenantSchemaValidator(
+                new JdbcTemplate(dataSource), GLOBAL_TABLE_CANDIDATES));
     }
 
     /**

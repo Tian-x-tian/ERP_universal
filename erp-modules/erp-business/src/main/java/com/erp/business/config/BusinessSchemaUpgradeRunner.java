@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.Ordered;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.EncodedResource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -33,7 +34,7 @@ import java.util.List;
  * 仅执行未执行过的历史兼容脚本和日期版本脚本，避免每次启动重复执行。
  */
 @Component
-public class BusinessSchemaUpgradeRunner implements ApplicationRunner {
+public class BusinessSchemaUpgradeRunner implements ApplicationRunner, Ordered {
     private static final Logger log = LoggerFactory.getLogger(BusinessSchemaUpgradeRunner.class);
     private static final String DEFAULT_LEGACY_SCRIPT_LOCATION = "classpath:sql/upgrade_business.sql";
     private static final String DEFAULT_VERSIONED_SCRIPT_LOCATION = "classpath*:sql/upgrade/business/*.sql";
@@ -86,6 +87,11 @@ public class BusinessSchemaUpgradeRunner implements ApplicationRunner {
             }
             log.info("业务增量 SQL 执行完成，执行数量：{}，扫描数量：{}", executedCount, scriptList.size());
         }
+    }
+
+    @Override
+    public int getOrder() {
+        return 100;
     }
 
     /**

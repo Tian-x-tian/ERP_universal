@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.Ordered;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternResolver;
@@ -33,7 +34,7 @@ import java.util.List;
  * 仅执行未执行过的日期脚本，避免每次启动全量初始化。
  */
 @Component
-public class WorkflowSqlUpgradeRunner implements ApplicationRunner {
+public class WorkflowSqlUpgradeRunner implements ApplicationRunner, Ordered {
     private static final Logger log = LoggerFactory.getLogger(WorkflowSqlUpgradeRunner.class);
     private static final String DEFAULT_SQL_LOCATION = "classpath:sql/upgrade/workflow/*.sql";
 
@@ -87,6 +88,11 @@ public class WorkflowSqlUpgradeRunner implements ApplicationRunner {
             }
             log.info("工作流增量 SQL 执行完成，执行数量：{}，扫描数量：{}", executedCount, scriptList.size());
         }
+    }
+
+    @Override
+    public int getOrder() {
+        return 100;
     }
 
     /**

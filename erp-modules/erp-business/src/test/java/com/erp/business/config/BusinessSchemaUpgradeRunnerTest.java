@@ -2,6 +2,7 @@ package com.erp.business.config;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.Ordered;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -26,6 +27,13 @@ import java.util.logging.Logger;
 class BusinessSchemaUpgradeRunnerTest {
 
     private static final String TEST_MARKER = "business_schema_upgrade_runner_test";
+
+    @Test
+    void shouldRunBeforeTenantSchemaValidation() {
+        BusinessSchemaUpgradeRunner runner = new BusinessSchemaUpgradeRunner(new TrackingDataSource());
+
+        Assertions.assertEquals(100, ((Ordered) runner).getOrder());
+    }
 
     /**
      * 验证已执行过的版本化脚本不会在二次启动时重复执行。

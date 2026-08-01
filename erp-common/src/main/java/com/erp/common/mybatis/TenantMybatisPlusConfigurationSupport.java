@@ -8,16 +8,13 @@ import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerIntercept
 import com.erp.common.core.context.TenantContextHolder;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.StringValue;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * MyBatis Plus 多租户配置基类。
@@ -25,16 +22,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public abstract class TenantMybatisPlusConfigurationSupport {
     private static final String TENANT_COLUMN_NAME = "tenant_id";
 
-    private final JdbcTemplate jdbcTemplate;
-    private final Map<String, Boolean> tenantColumnCache = new ConcurrentHashMap<>();
-
     /**
      * 创建 MyBatis 多租户配置。
      *
      * @param dataSource 数据源
      */
     protected TenantMybatisPlusConfigurationSupport(DataSource dataSource) {
-        this.jdbcTemplate = new JdbcTemplate(dataSource);
     }
 
     /**
@@ -44,7 +37,18 @@ public abstract class TenantMybatisPlusConfigurationSupport {
      */
     protected MybatisPlusInterceptor buildInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        interceptor.addInnerInterceptor(new TenantLineInnerInterceptor(new TenantLineHandler() {
+        interceptor.addInnerInterceptor(new TenantLineInnerInterceptor(buildTenantLineHandler()));
+        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
+        return interceptor;
+    }
+
+    /**
+     * 构建默认租户处理器。
+     *
+     * @return 租户处理器
+     */
+    protected TenantLineHandler buildTenantLineHandler() {
+        return new TenantLineHandler() {
             @Override
             public Expression getTenantId() {
                 String tenantId = normalizeTenantId(TenantContextHolder.getTenantId());
@@ -61,18 +65,13 @@ public abstract class TenantMybatisPlusConfigurationSupport {
 
             @Override
             public boolean ignoreTable(String tableName) {
-                if (tableName == null) {
-                    return true;
+                if (!StringUtils.hasText(tableName)) {
+                    return false;
                 }
                 String normalizedTableName = normalizeTableName(tableName);
-                if (globalTableCandidates().contains(normalizedTableName)) {
-                    return true;
-                }
-                return !hasTenantColumn(normalizedTableName);
+                return globalTableCandidates().contains(normalizedTableName);
             }
-        }));
-        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
-        return interceptor;
+        };
     }
 
     /**
@@ -82,32 +81,6 @@ public abstract class TenantMybatisPlusConfigurationSupport {
      */
     protected Set<String> globalTableCandidates() {
         return Collections.emptySet();
-    }
-
-    /**
-     * 判断数据表是否包含租户字段。
-     *
-     * @param tableName 表名
-     * @return true 表示存在 tenant_id 列
-     */
-    protected boolean hasTenantColumn(String tableName) {
-        return tenantColumnCache.computeIfAbsent(tableName, this::queryTenantColumn);
-    }
-
-    /**
-     * 查询元数据确认租户字段是否存在。
-     *
-     * @param tableName 表名
-     * @return true 表示存在 tenant_id 列
-     */
-    protected boolean queryTenantColumn(String tableName) {
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(1) FROM information_schema.COLUMNS "
-                        + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
-                Integer.class,
-                tableName,
-                TENANT_COLUMN_NAME);
-        return count != null && count > 0;
     }
 
     /**
@@ -148,7 +121,7 @@ public abstract class TenantMybatisPlusConfigurationSupport {
         }
         for (String table : tables) {
             if (StringUtils.hasText(table)) {
-                candidates.add(table.trim().toLowerCase(Locale.ROOT));
+                candidates.add(normalizeTableName(table));
             }
         }
         return candidates;
