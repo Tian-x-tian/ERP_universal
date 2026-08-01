@@ -20,10 +20,30 @@ class InternalClientCoreSupportTest {
         properties.setSystemBaseUrl("  ");
         properties.setWorkflowBaseUrl(null);
         properties.setBusinessBaseUrl("");
+        properties.setSaasBaseUrl("  ");
 
         Assertions.assertEquals("http://erp-system", properties.resolveSystemBaseUrl());
         Assertions.assertEquals("http://erp-workflow", properties.resolveWorkflowBaseUrl());
         Assertions.assertEquals("http://erp-business", properties.resolveBusinessBaseUrl());
+        Assertions.assertEquals("http://erp-saas-control", properties.resolveSaasBaseUrl());
+    }
+
+    @Test
+    void shouldUseFiniteSaasTimeoutDefaults() {
+        InternalSystemClientProperties properties = new InternalSystemClientProperties();
+
+        Assertions.assertEquals(2000, properties.resolveSaasConnectTimeoutMs());
+        Assertions.assertEquals(5000, properties.resolveSaasReadTimeoutMs());
+    }
+
+    @Test
+    void shouldRejectNonPositiveSaasTimeouts() {
+        InternalSystemClientProperties properties = new InternalSystemClientProperties();
+        properties.setSaasConnectTimeoutMs(0);
+        properties.setSaasReadTimeoutMs(-1);
+
+        Assertions.assertThrows(IllegalArgumentException.class, properties::resolveSaasConnectTimeoutMs);
+        Assertions.assertThrows(IllegalArgumentException.class, properties::resolveSaasReadTimeoutMs);
     }
 
     /**

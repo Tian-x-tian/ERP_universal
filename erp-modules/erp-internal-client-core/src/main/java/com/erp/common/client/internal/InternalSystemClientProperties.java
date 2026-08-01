@@ -10,11 +10,17 @@ public class InternalSystemClientProperties {
     private static final String DEFAULT_SYSTEM_BASE_URL = "http://erp-system";
     private static final String DEFAULT_WORKFLOW_BASE_URL = "http://erp-workflow";
     private static final String DEFAULT_BUSINESS_BASE_URL = "http://erp-business";
+    private static final String DEFAULT_SAAS_BASE_URL = "http://erp-saas-control";
+    private static final int DEFAULT_SAAS_CONNECT_TIMEOUT_MS = 2000;
+    private static final int DEFAULT_SAAS_READ_TIMEOUT_MS = 5000;
 
     private String authSignatureSecret;
     private String systemBaseUrl = DEFAULT_SYSTEM_BASE_URL;
     private String workflowBaseUrl = DEFAULT_WORKFLOW_BASE_URL;
     private String businessBaseUrl = DEFAULT_BUSINESS_BASE_URL;
+    private String saasBaseUrl = DEFAULT_SAAS_BASE_URL;
+    private Integer saasConnectTimeoutMs = DEFAULT_SAAS_CONNECT_TIMEOUT_MS;
+    private Integer saasReadTimeoutMs = DEFAULT_SAAS_READ_TIMEOUT_MS;
     private Long serviceUserId = 0L;
     private String serviceUserName = "erp-service";
     private String serviceTenantId = "000000";
@@ -77,6 +83,42 @@ public class InternalSystemClientProperties {
         return hasText(businessBaseUrl) ? businessBaseUrl.trim() : DEFAULT_BUSINESS_BASE_URL;
     }
 
+    public String getSaasBaseUrl() {
+        return saasBaseUrl;
+    }
+
+    public void setSaasBaseUrl(String saasBaseUrl) {
+        this.saasBaseUrl = saasBaseUrl;
+    }
+
+    public String resolveSaasBaseUrl() {
+        return hasText(saasBaseUrl) ? saasBaseUrl.trim() : DEFAULT_SAAS_BASE_URL;
+    }
+
+    public Integer getSaasConnectTimeoutMs() {
+        return saasConnectTimeoutMs;
+    }
+
+    public void setSaasConnectTimeoutMs(Integer saasConnectTimeoutMs) {
+        this.saasConnectTimeoutMs = saasConnectTimeoutMs;
+    }
+
+    public int resolveSaasConnectTimeoutMs() {
+        return requirePositive(saasConnectTimeoutMs, "saasConnectTimeoutMs");
+    }
+
+    public Integer getSaasReadTimeoutMs() {
+        return saasReadTimeoutMs;
+    }
+
+    public void setSaasReadTimeoutMs(Integer saasReadTimeoutMs) {
+        this.saasReadTimeoutMs = saasReadTimeoutMs;
+    }
+
+    public int resolveSaasReadTimeoutMs() {
+        return requirePositive(saasReadTimeoutMs, "saasReadTimeoutMs");
+    }
+
     public Long getServiceUserId() {
         return serviceUserId;
     }
@@ -119,5 +161,12 @@ public class InternalSystemClientProperties {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private int requirePositive(Integer value, String field) {
+        if (value == null || value <= 0) {
+            throw new IllegalArgumentException(field + " must be positive");
+        }
+        return value;
     }
 }
