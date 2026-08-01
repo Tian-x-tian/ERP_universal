@@ -37,9 +37,18 @@ public abstract class TenantMybatisPlusConfigurationSupport {
      */
     protected MybatisPlusInterceptor buildInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        interceptor.addInnerInterceptor(new TenantLineInnerInterceptor(buildTenantLineHandler()));
+        interceptor.addInnerInterceptor(buildTenantLineInnerInterceptor());
         interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
         return interceptor;
+    }
+
+    /**
+     * 构建 fail-closed 租户拦截器。
+     *
+     * @return 租户拦截器
+     */
+    protected TenantLineInnerInterceptor buildTenantLineInnerInterceptor() {
+        return new FailClosedTenantLineInnerInterceptor(buildTenantLineHandler());
     }
 
     /**

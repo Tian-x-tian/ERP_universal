@@ -1,6 +1,7 @@
 package com.erp.common.mybatis;
 
 import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
+import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
 import org.junit.jupiter.api.Test;
 
 import javax.sql.DataSource;
@@ -43,6 +44,29 @@ class TenantMybatisPlusConfigurationSupportTest {
     }
 
     @Test
+    void shouldRejectQualifiedSelectThroughRealParser() {
+        assertQualifiedSqlRejected("SELECT * FROM other_schema.sys_menu");
+    }
+
+    @Test
+    void shouldRejectQualifiedInsertThroughRealParser() {
+        assertQualifiedSqlRejected(
+                "INSERT INTO other_schema.sys_menu (menu_id) VALUES (1)");
+    }
+
+    @Test
+    void shouldRejectQualifiedUpdateThroughRealParser() {
+        assertQualifiedSqlRejected(
+                "UPDATE other_schema.sys_menu SET menu_name = 'updated'");
+    }
+
+    @Test
+    void shouldRejectQualifiedDeleteThroughRealParser() {
+        assertQualifiedSqlRejected(
+                "DELETE FROM other_schema.sys_menu WHERE menu_id = 1");
+    }
+
+    @Test
     void shouldExposeExactImmutableGlobalTableAllowlist() {
         Set<String> expectedTables = Set.of(
                 "sys_tenant",
@@ -80,6 +104,17 @@ class TenantMybatisPlusConfigurationSupportTest {
         verifyNoInteractions(dataSource);
     }
 
+    private void assertQualifiedSqlRejected(String sql) {
+        DataSource dataSource = mock(DataSource.class);
+        TenantLineInnerInterceptor interceptor = new TestConfiguration(dataSource).tenantLineInterceptor();
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class, () -> interceptor.parserSingle(sql, null));
+
+        assertTrue(exception.getMessage().contains("other_schema.sys_menu"));
+        verifyNoInteractions(dataSource);
+    }
+
     private static final class TestConfiguration extends TenantMybatisPlusConfigurationSupport {
         private TestConfiguration(DataSource dataSource) {
             super(dataSource);
@@ -87,6 +122,10 @@ class TenantMybatisPlusConfigurationSupportTest {
 
         private TenantLineHandler tenantLineHandler() {
             return buildTenantLineHandler();
+        }
+
+        private TenantLineInnerInterceptor tenantLineInterceptor() {
+            return buildTenantLineInnerInterceptor();
         }
 
         @Override
