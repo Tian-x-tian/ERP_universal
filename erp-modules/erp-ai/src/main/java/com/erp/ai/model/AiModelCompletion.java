@@ -20,6 +20,16 @@ public class AiModelCompletion implements Serializable {
      */
     private List<AiToolCall> toolCalls = new ArrayList<>();
 
+    /**
+     * 本次调用的 token 用量。
+     */
+    private AiTokenUsage usage = new AiTokenUsage();
+
+    /**
+     * 模型返回的结束原因（stop/tool_calls/length…）。
+     */
+    private String finishReason;
+
     public String getContent() {
         return content;
     }
@@ -33,6 +43,22 @@ public class AiModelCompletion implements Serializable {
     }
 
     public void setToolCalls(List<AiToolCall> toolCalls) {
-        this.toolCalls = toolCalls;
+        this.toolCalls = toolCalls == null ? new ArrayList<>() : toolCalls;
+    }
+
+    public AiTokenUsage getUsage() {
+        return usage;
+    }
+
+    public void setUsage(AiTokenUsage usage) {
+        this.usage = usage == null ? new AiTokenUsage() : usage;
+    }
+
+    public String getFinishReason() {
+        return finishReason;
+    }
+
+    public void setFinishReason(String finishReason) {
+        this.finishReason = finishReason;
     }
 }

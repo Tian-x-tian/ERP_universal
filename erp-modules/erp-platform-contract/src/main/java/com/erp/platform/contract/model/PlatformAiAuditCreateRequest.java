@@ -18,6 +18,20 @@ public class PlatformAiAuditCreateRequest implements Serializable {
     private String requestExcerpt;
     private String responseExcerpt;
     private Long durationMs;
+    /** 本次交互实际使用的模型编号 */
+    private String model;
+    /** 输入 token 数 */
+    private Integer promptTokens;
+    /** 输出 token 数 */
+    private Integer completionTokens;
+    /** 总 token 数 */
+    private Integer totalTokens;
+    /** 工具调用轮次 */
+    private Integer toolRounds;
+    /** 本次交互调用到的只读工具，逗号分隔 */
+    private String toolKeys;
+    /** 关联会话ID */
+    private Long sessionId;
 
     public String getQuestionType() {
         return questionType;
@@ -97,5 +111,61 @@ public class PlatformAiAuditCreateRequest implements Serializable {
 
     public void setDurationMs(Long durationMs) {
         this.durationMs = durationMs;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
+    }
+
+    public Integer getPromptTokens() {
+        return promptTokens;
+    }
+
+    public void setPromptTokens(Integer promptTokens) {
+        this.promptTokens = promptTokens;
+    }
+
+    public Integer getCompletionTokens() {
+        return completionTokens;
+    }
+
+    public void setCompletionTokens(Integer completionTokens) {
+        this.completionTokens = completionTokens;
+    }
+
+    public Integer getTotalTokens() {
+        return totalTokens;
+    }
+
+    public void setTotalTokens(Integer totalTokens) {
+        this.totalTokens = totalTokens;
+    }
+
+    public Integer getToolRounds() {
+        return toolRounds;
+    }
+
+    public void setToolRounds(Integer toolRounds) {
+        this.toolRounds = toolRounds;
+    }
+
+    public String getToolKeys() {
+        return toolKeys;
+    }
+
+    public void setToolKeys(String toolKeys) {
+        this.toolKeys = toolKeys;
+    }
+
+    public Long getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(Long sessionId) {
+        this.sessionId = sessionId;
     }
 }

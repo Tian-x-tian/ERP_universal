@@ -1,28 +1,38 @@
 package com.erp.ai.service.impl;
 
+import com.erp.ai.config.ErpAiProperties;
 import com.erp.ai.model.AiActionConfirmRequest;
 import com.erp.ai.model.AiActionDescriptor;
 import com.erp.ai.model.AiActionHandleResult;
 import com.erp.ai.model.AiActionResultVO;
 import com.erp.ai.model.AiChatMessage;
 import com.erp.ai.model.AiChatRequest;
+import com.erp.ai.model.AiConversationTelemetry;
 import com.erp.ai.model.AiMetaVO;
 import com.erp.ai.model.AiModelCompletion;
 import com.erp.ai.model.AiPageContext;
 import com.erp.ai.model.AiPendingAction;
 import com.erp.ai.model.AiPolicySummaryVO;
 import com.erp.ai.model.AiPromptContext;
+import com.erp.ai.model.AiReadToolResult;
 import com.erp.ai.model.AiRoleProfileVO;
 import com.erp.ai.model.AiRuntimeConfig;
+import com.erp.ai.model.AiStructuredBlock;
+import com.erp.ai.model.AiTokenUsage;
+import com.erp.ai.model.AiToolCall;
 import com.erp.ai.model.AiToolDefinition;
 import com.erp.ai.service.AiActionService;
 import com.erp.ai.service.AiChatService;
 import com.erp.ai.service.AiContextService;
 import com.erp.ai.service.AiModelClient;
+import com.erp.ai.service.AiReadToolService;
 import com.erp.ai.service.AiRoleGuideService;
+import com.erp.ai.service.AiSessionService;
 import com.erp.ai.service.AiStreamListener;
 import com.erp.ai.service.AiTenantConfigService;
 import com.erp.platform.contract.model.PlatformAiAuditCreateRequest;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -51,24 +61,41 @@ public class AiChatServiceImpl implements AiChatService {
             "todo_summary",
             "notice_summary",
             "permission_scoped_actions",
-            "confirm_action"));
+            "confirm_action",
+            "read_tools",
+            "agent_loop",
+            "structured_blocks",
+            "session_history",
+            "token_usage"));
 
     private final AiContextService aiContextService;
     private final AiModelClient aiModelClient;
     private final AiActionService aiActionService;
     private final AiTenantConfigService aiTenantConfigService;
     private final AiRoleGuideService aiRoleGuideService;
+    private final AiReadToolService aiReadToolService;
+    private final AiSessionService aiSessionService;
+    private final ErpAiProperties erpAiProperties;
+    private final ObjectMapper objectMapper;
 
     public AiChatServiceImpl(AiContextService aiContextService,
             AiModelClient aiModelClient,
             AiActionService aiActionService,
             AiTenantConfigService aiTenantConfigService,
-            AiRoleGuideService aiRoleGuideService) {
+            AiRoleGuideService aiRoleGuideService,
+            AiReadToolService aiReadToolService,
+            AiSessionService aiSessionService,
+            ErpAiProperties erpAiProperties,
+            ObjectMapper objectMapper) {
         this.aiContextService = aiContextService;
         this.aiModelClient = aiModelClient;
         this.aiActionService = aiActionService;
         this.aiTenantConfigService = aiTenantConfigService;
         this.aiRoleGuideService = aiRoleGuideService;
+        this.aiReadToolService = aiReadToolService;
+        this.aiSessionService = aiSessionService;
+        this.erpAiProperties = erpAiProperties;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -123,16 +150,18 @@ public class AiChatServiceImpl implements AiChatService {
         }
         listener.onReady(runtimeConfig.getModel());
 
+        AiConversationTelemetry telemetry = new AiConversationTelemetry(runtimeConfig.getModel());
+
         AiPromptContext promptContext;
         try {
             promptContext = aiContextService.buildPromptContext(request);
         } catch (Exception ex) {
             List<AiChatMessage> rawMessages = request == null ? null : request.getMessages();
             String latestUserMessage = getLatestUserMessage(rawMessages);
+            String errorMessage = resolveFriendlyErrorMessage(ex, "当前无法装载 ERP 上下文，请稍后重试");
             recordAudit(resolveQuestionType(latestUserMessage), "L1", null, false, false,
-                    latestUserMessage, resolveFriendlyErrorMessage(ex, "当前无法装载 ERP 上下文，请稍后重试"),
-                    System.currentTimeMillis() - startTime);
-            listener.onError(resolveFriendlyErrorMessage(ex, "当前无法装载 ERP 上下文，请稍后重试"));
+                    latestUserMessage, errorMessage, System.currentTimeMillis() - startTime, telemetry);
+            listener.onError(errorMessage);
             return;
         }
 
@@ -145,95 +174,177 @@ public class AiChatServiceImpl implements AiChatService {
             return;
         }
         String latestUserMessage = getLatestUserMessage(conversationHistory);
-        String contextFallbackReply = buildContextFallbackReply(promptContext, conversationHistory);
-        if (StringUtils.hasText(contextFallbackReply)) {
-            emitText(contextFallbackReply, listener);
-            listener.onDone(contextFallbackReply);
-            recordAudit(resolveQuestionType(latestUserMessage), resolveInteractionLevel(latestUserMessage, null), null,
-                    false, true, latestUserMessage, contextFallbackReply, System.currentTimeMillis() - startTime);
-            return;
-        }
+
+        Long sessionId = aiSessionService.recordUserMessage(
+                request == null ? null : request.getSessionId(), latestUserMessage, runtimeConfig.getModel());
+        telemetry.setSessionId(sessionId);
+        listener.onSession(sessionId);
 
         List<AiActionDescriptor> availableActions = aiActionService.listAvailableActions();
         List<AiChatMessage> modelMessages = new ArrayList<>();
         modelMessages.add(new AiChatMessage("system",
                 buildSystemPrompt(promptContext, availableActions, roleProfile, runtimeConfig.getPromptTemplate())));
         modelMessages.addAll(conversationHistory);
-        List<AiToolDefinition> availableTools = aiActionService.buildAvailableTools();
+
+        List<AiToolDefinition> availableTools = new ArrayList<>(aiActionService.buildAvailableTools());
+        availableTools.addAll(aiReadToolService.buildAvailableTools());
 
         try {
-            AiModelCompletion completion = requestCompletionWithFallback(runtimeConfig.getModel(), modelMessages, availableTools);
-            if (completion != null && completion.getToolCalls() != null && !completion.getToolCalls().isEmpty()) {
-                handleToolCall(promptContext, completion, listener);
-                String toolCallActionKey = completion.getToolCalls().get(0).getName();
-                recordAudit(resolveQuestionType(latestUserMessage), "L3", toolCallActionKey, false, true,
-                        latestUserMessage, resolveToolCallResponse(toolCallActionKey),
-                        System.currentTimeMillis() - startTime);
-                return;
-            }
-            String content = completion == null ? null : completion.getContent();
-            if (StringUtils.hasText(content)) {
-                emitText(content, listener);
-                listener.onDone(content);
-                recordAudit(resolveQuestionType(latestUserMessage), resolveInteractionLevel(latestUserMessage, null), null,
-                        false, true, latestUserMessage, content, System.currentTimeMillis() - startTime);
-                return;
-            }
-            String streamedFallbackContent = requestStreamingFallback(runtimeConfig.getModel(), modelMessages, listener);
-            if (StringUtils.hasText(streamedFallbackContent)) {
-                listener.onDone(streamedFallbackContent);
-                recordAudit(resolveQuestionType(latestUserMessage), resolveInteractionLevel(latestUserMessage, null), null,
-                        false, true, latestUserMessage, streamedFallbackContent,
-                        System.currentTimeMillis() - startTime);
-                return;
-            }
-            recordAudit(resolveQuestionType(latestUserMessage), resolveInteractionLevel(latestUserMessage, null), null,
-                    false, false, latestUserMessage, "AI 未返回有效内容，请稍后重试",
-                    System.currentTimeMillis() - startTime);
-            listener.onError("AI 未返回有效内容，请稍后重试");
+            runAgentLoop(runtimeConfig, promptContext, modelMessages, availableTools, listener, telemetry,
+                    conversationHistory, latestUserMessage, startTime);
         } catch (Exception ex) {
             String errorMessage = resolveFriendlyErrorMessage(ex, "AI 服务调用失败，请稍后重试");
             recordAudit(resolveQuestionType(latestUserMessage), resolveInteractionLevel(latestUserMessage, null), null,
-                    false, false, latestUserMessage, errorMessage, System.currentTimeMillis() - startTime);
+                    false, false, latestUserMessage, errorMessage, System.currentTimeMillis() - startTime, telemetry);
             listener.onError(errorMessage);
         }
     }
 
     /**
-     * 确认执行高风险动作。
+     * 执行 Agent 循环：模型可以连续多轮调用只读工具取数，直到给出最终文本答复。
      *
-     * @param request 确认请求
-     * @return 执行结果
+     * <p>循环有三道闸：轮次上限、总耗时上限，以及最后一轮强制不带工具，
+     * 保证任何情况下都会收敛到一段可读的回复，而不是无限取数。
+     * 写动作一旦出现即终止循环——写操作要么直接执行，要么进入确认卡片，不参与后续推理。</p>
+     *
+     * @param runtimeConfig       运行时配置
+     * @param promptContext       提示词上下文
+     * @param modelMessages       模型消息列表（会被就地追加）
+     * @param availableTools      可用工具列表
+     * @param listener            流式监听器
+     * @param telemetry           本轮遥测数据
+     * @param conversationHistory 规范化后的对话历史
+     * @param latestUserMessage   最近一条用户提问
+     * @param startTime           开始时间戳
+     * @throws Exception 模型调用异常
      */
-    @Override
-    public AiActionResultVO confirmAction(AiActionConfirmRequest request) {
-        if (request == null || !StringUtils.hasText(request.getConfirmationToken())) {
-            AiActionResultVO result = new AiActionResultVO();
-            result.setSuccess(false);
-            result.setMessage("确认票据不能为空");
-            result.setAssistantMessage("确认票据不能为空，请重新发起操作。");
-            recordAudit("action_confirm", "L3", null, true, false,
-                    "confirmationToken=empty", result.getAssistantMessage(), 0L);
-            return result;
+    private void runAgentLoop(AiRuntimeConfig runtimeConfig,
+            AiPromptContext promptContext,
+            List<AiChatMessage> modelMessages,
+            List<AiToolDefinition> availableTools,
+            AiStreamListener listener,
+            AiConversationTelemetry telemetry,
+            List<AiChatMessage> conversationHistory,
+            String latestUserMessage,
+            long startTime) throws Exception {
+        int maxRounds = Math.max(1, erpAiProperties.getMaxToolRounds());
+        long maxConversationMs = Math.max(10000L, erpAiProperties.getMaxConversationMs());
+
+        for (int round = 0; round <= maxRounds; round++) {
+            boolean finalRound = round == maxRounds || System.currentTimeMillis() - startTime > maxConversationMs;
+            // 最后一轮撤掉工具，逼模型直接作答，避免在取数循环里打转。
+            List<AiToolDefinition> toolsForRound = finalRound ? Collections.emptyList() : availableTools;
+
+            AiModelCompletion completion = requestCompletionWithFallback(
+                    runtimeConfig.getModel(), modelMessages, toolsForRound);
+            telemetry.addUsage(completion == null ? null : completion.getUsage());
+
+            List<AiToolCall> toolCalls = completion == null ? null : completion.getToolCalls();
+            if (toolCalls == null || toolCalls.isEmpty()) {
+                finishWithText(completion, promptContext, conversationHistory, listener, telemetry,
+                        latestUserMessage, startTime, runtimeConfig, modelMessages);
+                return;
+            }
+
+            AiToolCall writeCall = findWriteCall(toolCalls);
+            if (writeCall != null) {
+                handleWriteCall(promptContext, writeCall, listener, telemetry, latestUserMessage, startTime);
+                return;
+            }
+
+            telemetry.markToolRound();
+            List<AiToolCall> executedCalls = executeReadCalls(toolCalls, listener, telemetry, modelMessages);
+            if (executedCalls.isEmpty()) {
+                // 一个工具都没能执行（例如全部越权），直接进入最终作答轮，避免空转。
+                round = maxRounds - 1;
+            }
         }
-        long startTime = System.currentTimeMillis();
-        AiActionResultVO result = aiActionService.confirm(request.getConfirmationToken().trim());
-        recordAudit("action_confirm", "L3", result == null ? null : result.getActionKey(), true,
-                result != null && result.isSuccess(), "confirmationToken=provided",
-                result == null ? null : resolveAssistantMessageFromResult(result),
-                System.currentTimeMillis() - startTime);
-        return result;
     }
 
     /**
-     * 处理模型返回的工具调用。
+     * 执行本轮的只读工具调用，并把结果同时推给前端与模型。
      *
-     * @param promptContext 提示词上下文
-     * @param completion    模型补全结果
+     * @param toolCalls     模型返回的工具调用列表
      * @param listener      流式监听器
+     * @param telemetry     遥测数据
+     * @param modelMessages 模型消息列表（会被就地追加）
+     * @return 实际执行的工具调用列表
      */
-    private void handleToolCall(AiPromptContext promptContext, AiModelCompletion completion, AiStreamListener listener) {
-        AiActionHandleResult handleResult = aiActionService.handleToolCall(completion.getToolCalls().get(0), promptContext);
+    private List<AiToolCall> executeReadCalls(List<AiToolCall> toolCalls,
+            AiStreamListener listener,
+            AiConversationTelemetry telemetry,
+            List<AiChatMessage> modelMessages) {
+        int maxCalls = Math.max(1, erpAiProperties.getMaxToolCallsPerRound());
+        List<AiToolCall> executedCalls = new ArrayList<>();
+        List<AiReadToolResult> results = new ArrayList<>();
+
+        for (AiToolCall toolCall : toolCalls) {
+            if (executedCalls.size() >= maxCalls) {
+                break;
+            }
+            if (toolCall == null || !aiReadToolService.isReadTool(toolCall.getName())) {
+                continue;
+            }
+            listener.onToolStart(toolCall.getName(), resolveToolLabel(toolCall.getName()));
+            AiReadToolResult result = aiReadToolService.execute(toolCall.getName(), parseArguments(toolCall.getArgumentsJson()));
+            telemetry.markToolUsed(toolCall.getName());
+            if (result.getBlock() != null) {
+                listener.onBlock(result.getBlock());
+                telemetry.addBlock(result.getBlock());
+            }
+            executedCalls.add(toolCall);
+            results.add(result);
+        }
+
+        if (executedCalls.isEmpty()) {
+            return executedCalls;
+        }
+        // 先追加带 tool_calls 的 assistant 消息，再逐条追加 tool 结果，顺序必须与协议一致。
+        modelMessages.add(AiChatMessage.assistantToolCalls(null, executedCalls));
+        for (int index = 0; index < executedCalls.size(); index++) {
+            AiToolCall toolCall = executedCalls.get(index);
+            AiReadToolResult result = results.get(index);
+            modelMessages.add(AiChatMessage.toolResult(
+                    StringUtils.hasText(toolCall.getId()) ? toolCall.getId() : toolCall.getName(),
+                    toolCall.getName(),
+                    result.getModelText()));
+        }
+        return executedCalls;
+    }
+
+    /**
+     * 从工具调用列表中找出第一个写动作。
+     *
+     * @param toolCalls 工具调用列表
+     * @return 写动作调用；不存在时返回 null
+     */
+    private AiToolCall findWriteCall(List<AiToolCall> toolCalls) {
+        for (AiToolCall toolCall : toolCalls) {
+            if (toolCall != null && StringUtils.hasText(toolCall.getName())
+                    && !aiReadToolService.isReadTool(toolCall.getName())) {
+                return toolCall;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 处理写动作调用：低风险直接执行，高风险产出确认卡片。
+     *
+     * @param promptContext     提示词上下文
+     * @param writeCall         写动作调用
+     * @param listener          流式监听器
+     * @param telemetry         遥测数据
+     * @param latestUserMessage 最近一条用户提问
+     * @param startTime         开始时间戳
+     */
+    private void handleWriteCall(AiPromptContext promptContext,
+            AiToolCall writeCall,
+            AiStreamListener listener,
+            AiConversationTelemetry telemetry,
+            String latestUserMessage,
+            long startTime) {
+        AiActionHandleResult handleResult = aiActionService.handleToolCall(writeCall, promptContext);
         String assistantMessage = resolveAssistantMessage(handleResult);
         if (!StringUtils.hasText(assistantMessage)) {
             listener.onError("AI 未返回有效内容，请稍后重试");
@@ -245,6 +356,160 @@ public class AiChatServiceImpl implements AiChatService {
             listener.onActionRequired(pendingAction);
         }
         listener.onDone(assistantMessage);
+
+        String actionKey = writeCall.getName();
+        aiSessionService.recordAssistantMessage(telemetry.getSessionId(), assistantMessage,
+                telemetry.getBlocks(), actionKey, telemetry.getUsage());
+        recordAudit(resolveQuestionType(latestUserMessage), "L3", actionKey, false, true,
+                latestUserMessage, resolveToolCallResponse(actionKey),
+                System.currentTimeMillis() - startTime, telemetry);
+    }
+
+    /**
+     * 以最终文本收尾：模型有内容就用模型的，否则退到确定性兜底回复，再不行才报错。
+     *
+     * @param completion          模型补全结果
+     * @param promptContext       提示词上下文
+     * @param conversationHistory 对话历史
+     * @param listener            流式监听器
+     * @param telemetry           遥测数据
+     * @param latestUserMessage   最近一条用户提问
+     * @param startTime           开始时间戳
+     * @param runtimeConfig       运行时配置
+     * @param modelMessages       模型消息列表
+     * @throws Exception 模型调用异常
+     */
+    private void finishWithText(AiModelCompletion completion,
+            AiPromptContext promptContext,
+            List<AiChatMessage> conversationHistory,
+            AiStreamListener listener,
+            AiConversationTelemetry telemetry,
+            String latestUserMessage,
+            long startTime,
+            AiRuntimeConfig runtimeConfig,
+            List<AiChatMessage> modelMessages) throws Exception {
+        String content = completion == null ? null : completion.getContent();
+        if (StringUtils.hasText(content)) {
+            emitText(content, listener);
+            listener.onDone(content);
+            finishAudit(content, true, latestUserMessage, startTime, telemetry);
+            return;
+        }
+
+        String streamedFallbackContent = requestStreamingFallback(runtimeConfig.getModel(), modelMessages, listener);
+        if (StringUtils.hasText(streamedFallbackContent)) {
+            listener.onDone(streamedFallbackContent);
+            finishAudit(streamedFallbackContent, true, latestUserMessage, startTime, telemetry);
+            return;
+        }
+
+        // 模型彻底没给出内容时，用本地上下文拼一段确定性回复，至少保住核心问题的可用性。
+        String contextFallbackReply = buildContextFallbackReply(promptContext, conversationHistory);
+        if (StringUtils.hasText(contextFallbackReply)) {
+            emitText(contextFallbackReply, listener);
+            listener.onDone(contextFallbackReply);
+            finishAudit(contextFallbackReply, true, latestUserMessage, startTime, telemetry);
+            return;
+        }
+
+        finishAudit("AI 未返回有效内容，请稍后重试", false, latestUserMessage, startTime, telemetry);
+        listener.onError("AI 未返回有效内容，请稍后重试");
+    }
+
+    /**
+     * 统一收尾：写会话存档并落审计。
+     *
+     * @param content           最终回复
+     * @param success           是否成功
+     * @param latestUserMessage 最近一条用户提问
+     * @param startTime         开始时间戳
+     * @param telemetry         遥测数据
+     */
+    private void finishAudit(String content,
+            boolean success,
+            String latestUserMessage,
+            long startTime,
+            AiConversationTelemetry telemetry) {
+        if (success) {
+            aiSessionService.recordAssistantMessage(telemetry.getSessionId(), content,
+                    telemetry.getBlocks(), null, telemetry.getUsage());
+        }
+        recordAudit(resolveQuestionType(latestUserMessage), resolveInteractionLevel(latestUserMessage, null), null,
+                false, success, latestUserMessage, content, System.currentTimeMillis() - startTime, telemetry);
+    }
+
+    /**
+     * 解析只读工具的展示名，用于前端过程反馈。
+     *
+     * @param toolName 工具名称
+     * @return 展示名
+     */
+    private String resolveToolLabel(String toolName) {
+        if (!StringUtils.hasText(toolName)) {
+            return "数据查询";
+        }
+        return switch (toolName) {
+            case "query_todo_backlog" -> "待办积压分布";
+            case "query_todo_aging" -> "待办滞留明细";
+            case "query_approval_duration" -> "审批节点耗时";
+            case "query_process_instance_stats" -> "流程实例分布";
+            case "query_user_workload" -> "人员负载排行";
+            case "query_approval_trend" -> "审批动作趋势";
+            case "query_notice_overview" -> "消息分布";
+            case "query_operation_trend" -> "系统操作趋势";
+            case "query_ai_usage_trend" -> "AI 使用量";
+            case "query_stock_overview" -> "库存概览";
+            case "query_stock_warning" -> "库存预警";
+            case "query_hr_headcount" -> "在岗人数";
+            case "query_hr_warning" -> "HR 预警";
+            default -> "数据查询";
+        };
+    }
+
+    /**
+     * 解析工具参数 JSON。
+     *
+     * @param argumentsJson 参数 JSON
+     * @return 参数映射
+     */
+    private Map<String, Object> parseArguments(String argumentsJson) {
+        if (!StringUtils.hasText(argumentsJson)) {
+            return Collections.emptyMap();
+        }
+        try {
+            return objectMapper.readValue(argumentsJson, new TypeReference<Map<String, Object>>() {
+            });
+        } catch (Exception ex) {
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * 确认执行高风险动作。
+     *
+     * @param request 确认请求
+     * @return 执行结果
+     */
+    @Override
+    public AiActionResultVO confirmAction(AiActionConfirmRequest request) {
+        AiConversationTelemetry telemetry = new AiConversationTelemetry(
+                aiTenantConfigService.resolveRuntimeConfig().getModel());
+        if (request == null || !StringUtils.hasText(request.getConfirmationToken())) {
+            AiActionResultVO result = new AiActionResultVO();
+            result.setSuccess(false);
+            result.setMessage("确认票据不能为空");
+            result.setAssistantMessage("确认票据不能为空，请重新发起操作。");
+            recordAudit("action_confirm", "L3", null, true, false,
+                    "confirmationToken=empty", result.getAssistantMessage(), 0L, telemetry);
+            return result;
+        }
+        long startTime = System.currentTimeMillis();
+        AiActionResultVO result = aiActionService.confirm(request.getConfirmationToken().trim());
+        recordAudit("action_confirm", "L3", result == null ? null : result.getActionKey(), true,
+                result != null && result.isSuccess(), "confirmationToken=provided",
+                result == null ? null : resolveAssistantMessageFromResult(result),
+                System.currentTimeMillis() - startTime, telemetry);
+        return result;
     }
 
     /**
@@ -649,13 +914,16 @@ public class AiChatServiceImpl implements AiChatService {
         promptBuilder.append("你是 ERP 系统内置 AI 助手。\n");
         promptBuilder.append("请严格遵守以下规则：\n");
         promptBuilder.append("1. 默认使用简体中文回复。\n");
-        promptBuilder.append("2. 你可以做只读分析，也可以在权限范围内调用工具执行动作；除了工具列表中明确给出的动作，其他任何写操作都禁止执行。\n");
-        promptBuilder.append("3. 未拿到工具执行成功结果之前，绝不能声称操作已完成。\n");
-        promptBuilder.append("4. 命中多个候选目标时，必须先澄清，不允许猜测。\n");
-        promptBuilder.append("5. 驳回动作如果用户没有提供驳回原因，必须先追问原因，不允许直接调用工具。\n");
-        promptBuilder.append("6. 最多调用一个工具；如果只是回答问题，不要调用工具。\n");
-        promptBuilder.append("7. 不要向用户暴露隐藏候选区里的内部 ID。\n");
-        promptBuilder.append("8. 回答尽量直接、实用，可使用短列表，但不要输出 HTML 或 Markdown 表格。\n\n");
+        promptBuilder.append("2. 你可以做只读分析，也可以在权限范围内调用工具；除了工具列表中明确给出的动作，其他任何写操作都禁止执行。\n");
+        promptBuilder.append("3. 工具分两类：query_ 开头的是只读查询工具，可以连续调用多轮来获取数据；其余是写动作工具。\n");
+        promptBuilder.append("4. 需要具体业务数据（积压量、耗时、库存、人数、趋势等）时，必须调用只读查询工具取数，不要凭空编造数字。\n");
+        promptBuilder.append("5. 只读工具的结果会以指标卡和表格的形式直接展示给用户，你的文字回复要给出解读和建议，不要逐行复述表格内容。\n");
+        promptBuilder.append("6. 未拿到工具执行成功结果之前，绝不能声称操作已完成。\n");
+        promptBuilder.append("7. 命中多个候选目标时，必须先澄清，不允许猜测。\n");
+        promptBuilder.append("8. 驳回动作如果用户没有提供驳回原因，必须先追问原因，不允许直接调用工具。\n");
+        promptBuilder.append("9. 一次最多发起一个写动作；写动作不能与只读查询混在同一轮里。\n");
+        promptBuilder.append("10. 不要向用户暴露隐藏候选区里的内部 ID。\n");
+        promptBuilder.append("11. 回答尽量直接、实用，可使用短列表，但不要输出 HTML 或 Markdown 表格。\n\n");
         appendRoleGuideContext(promptBuilder, roleProfile);
         appendActionContext(promptBuilder, availableActions);
         appendUserContext(promptBuilder, promptContext);
@@ -1084,7 +1352,8 @@ public class AiChatServiceImpl implements AiChatService {
             boolean success,
             String requestExcerpt,
             String responseExcerpt,
-            long durationMs) {
+            long durationMs,
+            AiConversationTelemetry telemetry) {
         PlatformAiAuditCreateRequest request = new PlatformAiAuditCreateRequest();
         request.setQuestionType(limitAuditExcerpt(questionType, 64));
         request.setInteractionLevel(limitAuditExcerpt(interactionLevel, 16));
@@ -1096,6 +1365,18 @@ public class AiChatServiceImpl implements AiChatService {
         request.setRequestExcerpt(limitAuditExcerpt(requestExcerpt, 500));
         request.setResponseExcerpt(limitAuditExcerpt(responseExcerpt, 500));
         request.setDurationMs(Math.max(0L, durationMs));
+        if (telemetry != null) {
+            AiTokenUsage usage = telemetry.getUsage();
+            request.setModel(limitAuditExcerpt(telemetry.getModel(), 128));
+            request.setSessionId(telemetry.getSessionId());
+            request.setToolRounds(telemetry.getToolRounds());
+            request.setToolKeys(limitAuditExcerpt(telemetry.joinToolKeys(), 500));
+            if (usage != null && usage.hasValue()) {
+                request.setPromptTokens(usage.getPromptTokens());
+                request.setCompletionTokens(usage.getCompletionTokens());
+                request.setTotalTokens(usage.getTotalTokens());
+            }
+        }
         aiTenantConfigService.recordAudit(request);
     }
 

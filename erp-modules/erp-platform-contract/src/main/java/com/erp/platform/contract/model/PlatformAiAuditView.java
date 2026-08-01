@@ -23,6 +23,13 @@ public class PlatformAiAuditView implements Serializable {
     private String requestExcerpt;
     private String responseExcerpt;
     private Long durationMs;
+    private String model;
+    private Integer promptTokens;
+    private Integer completionTokens;
+    private Integer totalTokens;
+    private Integer toolRounds;
+    private String toolKeys;
+    private Long sessionId;
     private Date createTime;
 
     public Long getAuditId() {
@@ -135,6 +142,62 @@ public class PlatformAiAuditView implements Serializable {
 
     public void setDurationMs(Long durationMs) {
         this.durationMs = durationMs;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
+    }
+
+    public Integer getPromptTokens() {
+        return promptTokens;
+    }
+
+    public void setPromptTokens(Integer promptTokens) {
+        this.promptTokens = promptTokens;
+    }
+
+    public Integer getCompletionTokens() {
+        return completionTokens;
+    }
+
+    public void setCompletionTokens(Integer completionTokens) {
+        this.completionTokens = completionTokens;
+    }
+
+    public Integer getTotalTokens() {
+        return totalTokens;
+    }
+
+    public void setTotalTokens(Integer totalTokens) {
+        this.totalTokens = totalTokens;
+    }
+
+    public Integer getToolRounds() {
+        return toolRounds;
+    }
+
+    public void setToolRounds(Integer toolRounds) {
+        this.toolRounds = toolRounds;
+    }
+
+    public String getToolKeys() {
+        return toolKeys;
+    }
+
+    public void setToolKeys(String toolKeys) {
+        this.toolKeys = toolKeys;
+    }
+
+    public Long getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(Long sessionId) {
+        this.sessionId = sessionId;
     }
 
     public Date getCreateTime() {

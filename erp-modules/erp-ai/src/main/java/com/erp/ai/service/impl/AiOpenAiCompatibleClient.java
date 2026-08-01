@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.ai.config.ErpAiProperties;
 import com.erp.ai.model.AiChatMessage;
 import com.erp.ai.model.AiModelCompletion;
+import com.erp.ai.model.AiTokenUsage;
 import com.erp.ai.model.AiToolCall;
 import com.erp.ai.model.AiToolDefinition;
 import com.erp.ai.service.AiModelClient;
@@ -188,15 +189,16 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
         Map<String, Object> requestBody = new LinkedHashMap<>();
         requestBody.put("model", resolveModel(model));
         requestBody.put("stream", stream);
-        List<Map<String, String>> messageList = new ArrayList<>();
+        if (stream) {
+            // OpenAI 兼容协议下，流式响应默认不带 usage，必须显式开启才能拿到 token 统计。
+            requestBody.put("stream_options", Map.of("include_usage", Boolean.TRUE));
+        }
+        List<Map<String, Object>> messageList = new ArrayList<>();
         for (AiChatMessage message : messages) {
-            if (message == null || !StringUtils.hasText(message.getRole()) || !StringUtils.hasText(message.getContent())) {
-                continue;
+            Map<String, Object> messageMap = buildMessagePayload(message);
+            if (messageMap != null) {
+                messageList.add(messageMap);
             }
-            Map<String, String> messageMap = new LinkedHashMap<>();
-            messageMap.put("role", message.getRole().trim());
-            messageMap.put("content", message.getContent().trim());
-            messageList.add(messageMap);
         }
         requestBody.put("messages", messageList);
         List<Map<String, Object>> toolList = buildToolPayload(tools);
@@ -205,6 +207,56 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
             requestBody.put("tool_choice", "auto");
         }
         return objectMapper.writeValueAsString(requestBody);
+    }
+
+    /**
+     * 构造单条消息的请求载荷，兼容 Agent 循环所需的 tool_calls 与 tool 结果消息。
+     *
+     * @param message 对话消息
+     * @return 消息载荷；不合法时返回 null
+     */
+    private Map<String, Object> buildMessagePayload(AiChatMessage message) {
+        if (message == null || !StringUtils.hasText(message.getRole())) {
+            return null;
+        }
+        String role = message.getRole().trim();
+        boolean hasToolCalls = message.getToolCalls() != null && !message.getToolCalls().isEmpty();
+        // 只有携带 tool_calls 的 assistant 消息允许 content 为空，其余空内容消息一律丢弃。
+        if (!StringUtils.hasText(message.getContent()) && !hasToolCalls) {
+            return null;
+        }
+
+        Map<String, Object> messageMap = new LinkedHashMap<>();
+        messageMap.put("role", role);
+        messageMap.put("content", message.getContent() == null ? "" : message.getContent().trim());
+        if ("tool".equals(role)) {
+            messageMap.put("tool_call_id", message.getToolCallId() == null ? "" : message.getToolCallId());
+            if (StringUtils.hasText(message.getName())) {
+                messageMap.put("name", message.getName().trim());
+            }
+            return messageMap;
+        }
+        if (hasToolCalls) {
+            List<Map<String, Object>> toolCalls = new ArrayList<>();
+            for (AiToolCall toolCall : message.getToolCalls()) {
+                if (toolCall == null || !StringUtils.hasText(toolCall.getName())) {
+                    continue;
+                }
+                Map<String, Object> function = new LinkedHashMap<>();
+                function.put("name", toolCall.getName().trim());
+                function.put("arguments", StringUtils.hasText(toolCall.getArgumentsJson()) ? toolCall.getArgumentsJson() : "{}");
+
+                Map<String, Object> toolCallMap = new LinkedHashMap<>();
+                toolCallMap.put("id", StringUtils.hasText(toolCall.getId()) ? toolCall.getId() : toolCall.getName().trim());
+                toolCallMap.put("type", "function");
+                toolCallMap.put("function", function);
+                toolCalls.add(toolCallMap);
+            }
+            if (!toolCalls.isEmpty()) {
+                messageMap.put("tool_calls", toolCalls);
+            }
+        }
+        return messageMap;
     }
 
     /**
@@ -344,6 +396,7 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
             return completion;
         }
         JsonNode rootNode = objectMapper.readTree(body);
+        completion.setUsage(extractUsage(rootNode.path("usage")));
         String outputText = extractTextValue(rootNode.path("output_text"));
         if (StringUtils.hasText(outputText)) {
             completion.setContent(outputText);
@@ -363,12 +416,34 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
             if (StringUtils.hasText(textContent) && !StringUtils.hasText(completion.getContent())) {
                 completion.setContent(textContent);
             }
+            String finishReason = extractTextValue(choiceNode.path("finish_reason"));
+            if (StringUtils.hasText(finishReason)) {
+                completion.setFinishReason(finishReason);
+            }
             completion.setToolCalls(extractToolCalls(messageNode.path("tool_calls")));
             if (StringUtils.hasText(completion.getContent()) || !completion.getToolCalls().isEmpty()) {
                 return completion;
             }
         }
         return completion;
+    }
+
+    /**
+     * 解析 token 用量。
+     *
+     * @param usageNode usage 节点
+     * @return token 用量
+     */
+    private AiTokenUsage extractUsage(JsonNode usageNode) {
+        AiTokenUsage usage = new AiTokenUsage();
+        if (usageNode == null || usageNode.isMissingNode() || usageNode.isNull()) {
+            return usage;
+        }
+        usage.setPromptTokens(usageNode.path("prompt_tokens").asInt(0));
+        usage.setCompletionTokens(usageNode.path("completion_tokens").asInt(0));
+        int totalTokens = usageNode.path("total_tokens").asInt(0);
+        usage.setTotalTokens(totalTokens > 0 ? totalTokens : usage.getPromptTokens() + usage.getCompletionTokens());
+        return usage;
     }
 
     /**
