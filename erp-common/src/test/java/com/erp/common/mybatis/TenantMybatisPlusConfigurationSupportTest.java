@@ -77,6 +77,15 @@ class TenantMybatisPlusConfigurationSupportTest {
     }
 
     @Test
+    void shouldRejectQualifiedTableInNestedSubJoinOn() {
+        assertQualifiedSqlRejected(
+                "SELECT nested_menu.menu_id FROM ("
+                        + "sys_menu nested_menu JOIN sys_tenant nested_tenant "
+                        + "ON EXISTS (SELECT 1 FROM other_schema.sys_menu q "
+                        + "WHERE q.menu_id = nested_menu.menu_id))");
+    }
+
+    @Test
     void shouldRejectQualifiedTableInNestedCteAndUnion() {
         assertQualifiedSqlRejected(
                 "WITH tenant_menu AS ("

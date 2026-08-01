@@ -10,6 +10,7 @@ import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.Join;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.SubJoin;
 import net.sf.jsqlparser.statement.select.WithItem;
 import net.sf.jsqlparser.statement.update.Update;
 import net.sf.jsqlparser.util.TablesNamesFinder;
@@ -77,6 +78,12 @@ public class FailClosedTenantLineInnerInterceptor extends TenantLineInnerInterce
         public void visit(PlainSelect plainSelect) {
             super.visit(plainSelect);
             visitJoinOnExpressions(plainSelect.getJoins());
+        }
+
+        @Override
+        public void visit(SubJoin subJoin) {
+            super.visit(subJoin);
+            visitJoinOnExpressions(subJoin.getJoinList());
         }
 
         @Override
