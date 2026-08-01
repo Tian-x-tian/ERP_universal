@@ -7,9 +7,11 @@ public final class SaasControlCatalogSchemaManifest {
 
     public record Column(String name, String type, boolean nullable, String defaultValue,
             String generationExpression, String collation, boolean storedGenerated) { }
-    public record Index(String name, boolean unique, List<String> columns) { }
+    public record IndexColumn(String name, Integer prefixLength, String order) { }
+    public record Index(String name, boolean unique, List<IndexColumn> columns) { }
+    public record Check(String expression, boolean enforced) { }
     public record Table(String name, String engine, String collation, Map<String, Column> columns,
-            Map<String, Index> indexes, Map<String, String> checks) { }
+            Map<String, Index> indexes, Map<String, Check> checks) { }
 
     public static Map<String, Table> tables() {
         LinkedHashMap<String, Table> tables = new LinkedHashMap<>();
@@ -47,13 +49,15 @@ public final class SaasControlCatalogSchemaManifest {
         LinkedHashMap<String, Index> indexes = new LinkedHashMap<>();
         for (String item : indexesDsl.split(";")) {
             String[] value = item.split(":", 3);
-            indexes.put(value[0], new Index(value[0], "U".equals(value[1]), List.of(value[2].split(","))));
+            indexes.put(value[0], new Index(value[0], "U".equals(value[1]), Arrays.stream(value[2].split(","))
+                    .map(column -> new IndexColumn(column, null, "A"))
+                    .toList()));
         }
-        LinkedHashMap<String, String> checks = new LinkedHashMap<>();
+        LinkedHashMap<String, Check> checks = new LinkedHashMap<>();
         if (!checksDsl.isEmpty()) {
             for (String item : checksDsl.split(";")) {
                 int separator = item.indexOf('=');
-                checks.put(item.substring(0, separator), item.substring(separator + 1));
+                checks.put(item.substring(0, separator), new Check(item.substring(separator + 1), true));
             }
         }
         tables.put(name, new Table(name, "InnoDB", "utf8mb4_unicode_ci",

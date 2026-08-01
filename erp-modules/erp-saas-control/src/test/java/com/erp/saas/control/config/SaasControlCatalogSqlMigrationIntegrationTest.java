@@ -46,6 +46,19 @@ class SaasControlCatalogSqlMigrationIntegrationTest {
                             + "ADD COLUMN `owned_host` VARCHAR(253) AS (`host`) STORED, "
                             + "ADD UNIQUE KEY `uk_saas_domain_owned_host` (`owned_host`)", "saas_domain");
             assertRejected(dataSource, url, user, password,
+                    "ALTER TABLE `saas_domain` DROP INDEX `uk_saas_domain_owned_host`, DROP COLUMN `owned_host`, "
+                            + "ADD COLUMN `owned_host` VARCHAR(253) AS "
+                            + "(CASE WHEN (`verification_state` <> 'REVOKED_X') THEN `host` ELSE NULL END) STORED, "
+                            + "ADD UNIQUE KEY `uk_saas_domain_owned_host` (`owned_host`)", "saas_domain");
+            assertRejected(dataSource, url, user, password,
+                    "ALTER TABLE `saas_tenant` DROP INDEX `uk_saas_tenant_slug`, "
+                            + "ADD UNIQUE KEY `uk_saas_tenant_slug` (`slug`(16))", "saas_tenant");
+            assertRejected(dataSource, url, user, password,
+                    "ALTER TABLE `saas_tenant` DROP INDEX `uk_saas_tenant_slug`, "
+                            + "ADD UNIQUE KEY `uk_saas_tenant_slug` (`slug` DESC)", "saas_tenant");
+            assertRejected(dataSource, url, user, password,
+                    "ALTER TABLE `saas_plan` ALTER CHECK `ck_saas_plan_version` NOT ENFORCED", "saas_plan");
+            assertRejected(dataSource, url, user, password,
                     "ALTER TABLE `saas_feature` ENGINE=MyISAM", "saas_feature");
             assertRejected(dataSource, url, user, password,
                     "ALTER TABLE `saas_deployment` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci",

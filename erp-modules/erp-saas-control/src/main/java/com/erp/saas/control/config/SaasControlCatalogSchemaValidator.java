@@ -52,7 +52,8 @@ public class SaasControlCatalogSchemaValidator {
             }
             LinkedHashMap<String, List<Map<String, Object>>> grouped = new LinkedHashMap<>();
             for (Map<String, Object> row : jdbc.queryForList(
-                    "SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME FROM information_schema.STATISTICS "
+                    "SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, SUB_PART, COLLATION "
+                            + "FROM information_schema.STATISTICS "
                             + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY INDEX_NAME, SEQ_IN_INDEX",
                     tableName)) {
                 grouped.computeIfAbsent(text(row, "INDEX_NAME"), ignored -> new ArrayList<>()).add(row);
@@ -60,15 +61,19 @@ public class SaasControlCatalogSchemaValidator {
             LinkedHashMap<String, SaasControlCatalogSchemaManifest.Index> indexes = new LinkedHashMap<>();
             grouped.forEach((name, rows) -> indexes.put(name, new SaasControlCatalogSchemaManifest.Index(name,
                     number(rows.get(0).get("NON_UNIQUE")) == 0,
-                    rows.stream().map(row -> text(row, "COLUMN_NAME")).toList())));
-            LinkedHashMap<String, String> checks = new LinkedHashMap<>();
+                    rows.stream().map(row -> new SaasControlCatalogSchemaManifest.IndexColumn(
+                            text(row, "COLUMN_NAME"), nullableNumber(row.get("SUB_PART")),
+                            nullableText(row.get("COLLATION")))).toList())));
+            LinkedHashMap<String, SaasControlCatalogSchemaManifest.Check> checks = new LinkedHashMap<>();
             for (Map<String, Object> row : jdbc.queryForList(
-                    "SELECT tc.CONSTRAINT_NAME, cc.CHECK_CLAUSE FROM information_schema.TABLE_CONSTRAINTS tc "
+                    "SELECT tc.CONSTRAINT_NAME, cc.CHECK_CLAUSE, tc.ENFORCED "
+                            + "FROM information_schema.TABLE_CONSTRAINTS tc "
                             + "JOIN information_schema.CHECK_CONSTRAINTS cc ON cc.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA "
                             + "AND cc.CONSTRAINT_NAME = tc.CONSTRAINT_NAME WHERE tc.TABLE_SCHEMA = DATABASE() "
                             + "AND tc.TABLE_NAME = ? AND tc.CONSTRAINT_TYPE = 'CHECK' ORDER BY tc.CONSTRAINT_NAME",
                     tableName)) {
-                checks.put(text(row, "CONSTRAINT_NAME"), text(row, "CHECK_CLAUSE"));
+                checks.put(text(row, "CONSTRAINT_NAME"), new SaasControlCatalogSchemaManifest.Check(
+                        text(row, "CHECK_CLAUSE"), "YES".equalsIgnoreCase(text(row, "ENFORCED"))));
             }
             result.put(tableName, new SaasControlCatalogSchemaManifest.Table(tableName,
                     text(tableRow, "ENGINE"), text(tableRow, "TABLE_COLLATION"),
@@ -87,28 +92,68 @@ public class SaasControlCatalogSchemaValidator {
         LinkedHashMap<String, SaasControlCatalogSchemaManifest.Index> indexes = new LinkedHashMap<>();
         table.indexes().forEach((name, value) -> indexes.put(name.toLowerCase(Locale.ROOT),
                 new SaasControlCatalogSchemaManifest.Index(name.toLowerCase(Locale.ROOT), value.unique(),
-                        value.columns().stream().map(SaasControlCatalogSchemaValidator::lower).toList())));
-        LinkedHashMap<String, String> checks = new LinkedHashMap<>();
-        table.checks().forEach((name, value) -> checks.put(name.toLowerCase(Locale.ROOT), normalizeExpression(value)));
+                        value.columns().stream().map(column -> new SaasControlCatalogSchemaManifest.IndexColumn(
+                                lower(column.name()), column.prefixLength(), upper(column.order()))).toList())));
+        LinkedHashMap<String, SaasControlCatalogSchemaManifest.Check> checks = new LinkedHashMap<>();
+        table.checks().forEach((name, value) -> checks.put(name.toLowerCase(Locale.ROOT),
+                new SaasControlCatalogSchemaManifest.Check(normalizeExpression(value.expression()), value.enforced())));
         return new SaasControlCatalogSchemaManifest.Table(lower(table.name()), lower(table.engine()),
                 lower(table.collation()), columns, indexes, checks);
     }
 
     private static String normalizeExpression(String value) {
         if (value == null || value.isBlank()) { return null; }
-        String normalized = value.replace("\\'", "'").replace("`", "")
-                .replaceAll("\\s+", "").toUpperCase(Locale.ROOT);
-        normalized = normalized.replaceAll("_[A-Z0-9]+(?=')", "");
+        String source = value.replace("\\'", "'");
+        StringBuilder canonical = new StringBuilder(source.length());
+        boolean quoted = false;
+        for (int i = 0; i < source.length(); i++) {
+            char current = source.charAt(i);
+            if (quoted) {
+                canonical.append(current);
+                if (current == '\'' && i + 1 < source.length() && source.charAt(i + 1) == '\'') {
+                    canonical.append(source.charAt(++i));
+                } else if (current == '\'') {
+                    quoted = false;
+                }
+                continue;
+            }
+            if (current == '\'') {
+                quoted = true;
+                canonical.append(current);
+            } else if (current == '`' || Character.isWhitespace(current)) {
+                continue;
+            } else if (current == '_' && isCharsetIntroducer(source, i)) {
+                while (i + 1 < source.length() && isIdentifierPart(source.charAt(i + 1))) { i++; }
+            } else {
+                canonical.append(Character.toUpperCase(current));
+            }
+        }
+        String normalized = canonical.toString();
         while (isWrapped(normalized)) {
             normalized = normalized.substring(1, normalized.length() - 1);
         }
         return normalized;
     }
+    private static boolean isCharsetIntroducer(String value, int offset) {
+        int cursor = offset + 1;
+        while (cursor < value.length() && isIdentifierPart(value.charAt(cursor))) { cursor++; }
+        return cursor > offset + 1 && cursor < value.length() && value.charAt(cursor) == '\'';
+    }
+    private static boolean isIdentifierPart(char value) {
+        return Character.isLetterOrDigit(value) || value == '_';
+    }
     private static boolean isWrapped(String value) {
         if (!value.startsWith("(") || !value.endsWith(")")) { return false; }
         int depth = 0;
+        boolean quoted = false;
         for (int i = 0; i < value.length(); i++) {
             char current = value.charAt(i);
+            if (current == '\'') {
+                if (quoted && i + 1 < value.length() && value.charAt(i + 1) == '\'') { i++; continue; }
+                quoted = !quoted;
+                continue;
+            }
+            if (quoted) { continue; }
             if (current == '(') { depth++; }
             if (current == ')' && --depth == 0 && i < value.length() - 1) { return false; }
         }
@@ -142,5 +187,7 @@ public class SaasControlCatalogSchemaValidator {
         return text == null || text.isBlank() ? null : text;
     }
     private static int number(Object value) { return value instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(value)); }
+    private static Integer nullableNumber(Object value) { return value == null ? null : number(value); }
     private static String lower(String value) { return value == null ? null : value.toLowerCase(Locale.ROOT); }
+    private static String upper(String value) { return value == null ? null : value.toUpperCase(Locale.ROOT); }
 }
