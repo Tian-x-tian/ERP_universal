@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.cloud.nacos.config.enabled=false",
         "spring.cloud.discovery.enabled=false",
         "erp.saas.sql.upgrade.enabled=false",
+        "erp.saas.schema-validation.enabled=false",
         "erp.internal.auth-signature-secret=test-only-internal-secret"
 })
 class SaasControlApplicationTest {

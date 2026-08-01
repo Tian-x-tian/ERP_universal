@@ -42,6 +42,8 @@ erp:
   internal:
     auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
   saas:
+    schema-validation:
+      enabled: ${ERP_SAAS_SCHEMA_VALIDATION_ENABLED:true}
     sql:
       upgrade:
         enabled: ${ERP_SAAS_SQL_UPGRADE_ENABLED:true}

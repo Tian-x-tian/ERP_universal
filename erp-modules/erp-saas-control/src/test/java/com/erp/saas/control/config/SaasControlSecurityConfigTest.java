@@ -38,6 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.cloud.nacos.config.enabled=false",
         "spring.cloud.discovery.enabled=false",
         "erp.saas.sql.upgrade.enabled=false",
+        "erp.saas.schema-validation.enabled=false",
         "erp.internal.auth-signature-secret=test-only-internal-secret"
 })
 @AutoConfigureMockMvc

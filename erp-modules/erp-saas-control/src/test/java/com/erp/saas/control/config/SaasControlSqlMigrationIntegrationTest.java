@@ -63,7 +63,7 @@ class SaasControlSqlMigrationIntegrationTest {
 
         SchemaSignature runnerSignature;
         try (Connection connection = dataSource.getConnection()) {
-            assertThat(historyCount(connection)).isEqualTo(1);
+            assertThat(historyCount(connection)).isEqualTo(2);
             assertThat(historyChecksum(connection)).isEqualTo(checksum(UPGRADE_SCRIPT));
             assertScriptNameUnique(connection);
             runnerSignature = signature(connection);
