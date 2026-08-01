@@ -2,12 +2,14 @@ package com.erp.common.mybatis;
 
 import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
 import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
+import com.erp.common.core.context.TenantContextHolder;
 import org.junit.jupiter.api.Test;
 
 import javax.sql.DataSource;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -64,6 +66,62 @@ class TenantMybatisPlusConfigurationSupportTest {
     void shouldRejectQualifiedDeleteThroughRealParser() {
         assertQualifiedSqlRejected(
                 "DELETE FROM other_schema.sys_menu WHERE menu_id = 1");
+    }
+
+    @Test
+    void shouldRejectQualifiedTableInJoinOnSubquery() {
+        assertQualifiedSqlRejected(
+                "SELECT m.menu_id FROM sys_menu m JOIN sys_tenant t "
+                        + "ON EXISTS (SELECT 1 FROM other_schema.sys_menu q "
+                        + "WHERE q.menu_id = m.menu_id)");
+    }
+
+    @Test
+    void shouldRejectQualifiedTableInNestedCteAndUnion() {
+        assertQualifiedSqlRejected(
+                "WITH tenant_menu AS ("
+                        + "SELECT m.menu_id FROM sys_menu m JOIN sys_tenant t "
+                        + "ON EXISTS (SELECT 1 FROM other_schema.sys_menu q "
+                        + "WHERE q.menu_id = m.menu_id)) "
+                        + "SELECT menu_id FROM tenant_menu "
+                        + "UNION ALL SELECT menu_id FROM sys_menu");
+    }
+
+    @Test
+    void shouldRejectQualifiedTableInInsertSelectAndDuplicateUpdate() {
+        assertQualifiedSqlRejected(
+                "INSERT INTO sys_menu (menu_id, menu_name) "
+                        + "SELECT menu_id, menu_name FROM sys_menu "
+                        + "ON DUPLICATE KEY UPDATE menu_name = "
+                        + "(SELECT menu_name FROM other_schema.sys_menu LIMIT 1)");
+    }
+
+    @Test
+    void shouldRejectQualifiedTableInUpdateAndDeleteJoinOn() {
+        assertQualifiedSqlRejected(
+                "UPDATE sys_menu m JOIN sys_tenant t "
+                        + "ON EXISTS (SELECT 1 FROM other_schema.sys_menu q "
+                        + "WHERE q.menu_id = m.menu_id) "
+                        + "SET m.menu_name = 'updated'");
+        assertQualifiedSqlRejected(
+                "DELETE m FROM sys_menu m JOIN sys_tenant t "
+                        + "ON EXISTS (SELECT 1 FROM other_schema.sys_menu q "
+                        + "WHERE q.menu_id = m.menu_id)");
+    }
+
+    @Test
+    void shouldAllowQuotedLocalTableNameContainingDot() {
+        DataSource dataSource = mock(DataSource.class);
+        TenantLineInnerInterceptor interceptor = new TestConfiguration(dataSource).tenantLineInterceptor();
+
+        TenantContextHolder.setTenantId("tenant-a");
+        try {
+            assertDoesNotThrow(() -> interceptor.parserSingle("SELECT * FROM `local.table`", null));
+        } finally {
+            TenantContextHolder.clear();
+        }
+
+        verifyNoInteractions(dataSource);
     }
 
     @Test
