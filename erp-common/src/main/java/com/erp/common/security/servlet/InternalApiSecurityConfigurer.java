@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.util.Arrays;
@@ -43,11 +44,38 @@ public final class InternalApiSecurityConfigurer {
             OncePerRequestFilter authFilter,
             ObjectMapper objectMapper,
             String... publicPaths) throws Exception {
+        http.securityMatcher(matcher);
+        return configureFilterChain(http, authFilter, objectMapper, publicPaths);
+    }
+
+    /**
+     * Builds a stateless security chain for a composite request matcher.
+     *
+     * @param http        security builder
+     * @param matcher     protected request matcher
+     * @param authFilter  signed-principal authentication filter
+     * @param objectMapper JSON response writer
+     * @param publicPaths additional public paths inside the protected matcher
+     * @return configured security chain
+     * @throws Exception configuration failure
+     */
+    public static SecurityFilterChain buildFilterChain(HttpSecurity http,
+            RequestMatcher matcher,
+            OncePerRequestFilter authFilter,
+            ObjectMapper objectMapper,
+            String... publicPaths) throws Exception {
+        http.securityMatcher(matcher);
+        return configureFilterChain(http, authFilter, objectMapper, publicPaths);
+    }
+
+    private static SecurityFilterChain configureFilterChain(HttpSecurity http,
+            OncePerRequestFilter authFilter,
+            ObjectMapper objectMapper,
+            String... publicPaths) throws Exception {
         List<String> publicMatchers = Arrays.stream(publicPaths == null ? new String[0] : publicPaths)
                 .filter(path -> path != null && !path.isBlank())
                 .toList();
         return http
-                .securityMatcher(matcher)
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)

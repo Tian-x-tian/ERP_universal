@@ -19,6 +19,7 @@
         <module>erp-workflow-contract</module>
         <module>erp-internal-client-core</module>
         <module>erp-saas-client</module>
+        <module>erp-saas-control</module>
         <module>erp-platform-client</module>
         <module>erp-workflow-client</module>
         <module>erp-business-client</module>

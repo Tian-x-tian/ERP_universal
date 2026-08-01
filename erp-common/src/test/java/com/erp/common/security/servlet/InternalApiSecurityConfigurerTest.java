@@ -23,6 +23,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -88,6 +90,28 @@ class InternalApiSecurityConfigurerTest {
         assertThat(body.path("timestamp").asText()).isNotBlank();
     }
 
+    @Test
+    void shouldPreserveStringMatcherPositiveAndExcludedPathBehavior() throws Exception {
+        mockMvc.perform(get("/internal/secure"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/internal/public"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldProtectEveryBranchOfOrRequestMatcher() throws Exception {
+        mockMvc.perform(get("/saas/secure"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/control/secure"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/saas/secure").header("X-Test-Auth", "true"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/control/secure").header("X-Test-Auth", "true"))
+                .andExpect(status().isOk());
+    }
+
     /**
      * 测试应用配置。
      */
@@ -111,12 +135,28 @@ class InternalApiSecurityConfigurerTest {
         }
 
         @Bean
-        SecurityFilterChain filterChain(HttpSecurity http,
+        @org.springframework.core.annotation.Order(2)
+        SecurityFilterChain legacyFilterChain(HttpSecurity http,
                 ObjectMapper objectMapper,
                 TestAuthenticationFilter testAuthenticationFilter) throws Exception {
             return InternalApiSecurityConfigurer.buildFilterChain(
                     http,
                     "/internal/**",
+                    testAuthenticationFilter,
+                    objectMapper,
+                    "/internal/public");
+        }
+
+        @Bean
+        @org.springframework.core.annotation.Order(1)
+        SecurityFilterChain compositeFilterChain(HttpSecurity http,
+                ObjectMapper objectMapper,
+                TestAuthenticationFilter testAuthenticationFilter) throws Exception {
+            return InternalApiSecurityConfigurer.buildFilterChain(
+                    http,
+                    new OrRequestMatcher(
+                            new AntPathRequestMatcher("/saas/**"),
+                            new AntPathRequestMatcher("/control/**")),
                     testAuthenticationFilter,
                     objectMapper);
         }
@@ -126,6 +166,16 @@ class InternalApiSecurityConfigurerTest {
 
             @GetMapping(value = "/internal/secure", produces = MediaType.APPLICATION_JSON_VALUE)
             public R<String> secure() {
+                return R.success("ok");
+            }
+
+            @GetMapping(value = "/internal/public", produces = MediaType.APPLICATION_JSON_VALUE)
+            public R<String> publicEndpoint() {
+                return R.success("public");
+            }
+
+            @GetMapping(value = {"/saas/secure", "/control/secure"}, produces = MediaType.APPLICATION_JSON_VALUE)
+            public R<String> compositeSecure() {
                 return R.success("ok");
             }
 
