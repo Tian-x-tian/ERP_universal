@@ -8,6 +8,7 @@ import com.erp.common.security.ResolvedTenantAssertion;
 import com.erp.common.security.ResolvedTenantAssertionSignatureUtils;
 import com.erp.common.security.TenantAssertionHeaders;
 import com.erp.common.web.error.ApiErrorResponseWriter;
+import com.erp.saas.contract.model.DeploymentMode;
 import com.erp.saas.contract.model.SaasHostResolution;
 import com.erp.saas.contract.model.TenantLifecycleState;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,6 +18,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
@@ -34,6 +36,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
 /**
@@ -42,14 +46,17 @@ import java.util.regex.Pattern;
 @Component
 public class GatewayAuthFilter implements GlobalFilter, Ordered {
     private static final List<String> PROTECTED_PATTERNS =
-            List.of("/system/**", "/workflow/**", "/business/**");
-    private static final List<String> TENANT_PUBLIC_PATTERNS = List.of("/login", "/logout", "/auth/**");
+            List.of("/system/**", "/workflow/**", "/business/**", "/saas/**");
+    private static final List<String> TENANT_PUBLIC_PATTERNS = List.of(
+            "/login", "/logout", "/auth/**", "/system/public/saas/activation");
     private static final List<String> GLOBAL_PUBLIC_PATTERNS = List.of(
-            "/system/public/tenants/active",
             "/doc.html",
             "/webjars/**",
             "/v3/api-docs/**",
             "/swagger-ui/**");
+    private static final List<String> READ_ONLY_POST_PATTERNS = List.of(
+            "/system/**/export",
+            "/business/**/export");
     private static final EnumSet<TenantLifecycleState> ACCESS_ALLOWED = EnumSet.of(
             TenantLifecycleState.TRIAL, TenantLifecycleState.ACTIVE,
             TenantLifecycleState.GRACE, TenantLifecycleState.READ_ONLY);
@@ -63,21 +70,40 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
     private final String tenantAssertionSecret;
     private final String saasControlBaseUrl;
     private final Duration domainResolveTimeout;
+    private final Duration domainCacheTtl;
     private final Clock clock;
+    private final DeploymentMode deploymentMode;
+    private final String boundTenantId;
+    private final String boundHost;
+    private final ConcurrentMap<String, CachedHostResolution> hostResolutionCache = new ConcurrentHashMap<>();
 
     public GatewayAuthFilter(WebClient.Builder webClientBuilder,
             ObjectMapper objectMapper,
             @Value("${erp.internal.auth-signature-secret:}") String internalSignatureSecret,
             @Value("${erp.saas.tenant-assertion-signature-secret:}") String tenantAssertionSecret,
             @Value("${erp.internal.saas-base-url:http://erp-saas-control}") String saasControlBaseUrl,
-            @Value("${erp.saas.domain-resolve-timeout-ms:2000}") long domainResolveTimeoutMs) {
+            @Value("${erp.saas.domain-resolve-timeout-ms:2000}") long domainResolveTimeoutMs,
+            @Value("${erp.saas.domain-cache-ttl-ms:86400000}") long domainCacheTtlMs,
+            @Value("${erp.saas.deployment-mode:SHARED}") DeploymentMode deploymentMode,
+            @Value("${erp.saas.bound-tenant-id:}") String boundTenantId,
+            @Value("${erp.saas.bound-host:}") String boundHost) {
         this(webClientBuilder, objectMapper, internalSignatureSecret, tenantAssertionSecret,
-                saasControlBaseUrl, domainResolveTimeoutMs, Clock.systemUTC());
+                saasControlBaseUrl, domainResolveTimeoutMs, domainCacheTtlMs, Clock.systemUTC(),
+                deploymentMode, boundTenantId, boundHost);
     }
 
     GatewayAuthFilter(WebClient.Builder webClientBuilder, ObjectMapper objectMapper,
             String internalSignatureSecret, String tenantAssertionSecret,
             String saasControlBaseUrl, long domainResolveTimeoutMs, Clock clock) {
+        this(webClientBuilder, objectMapper, internalSignatureSecret, tenantAssertionSecret,
+                saasControlBaseUrl, domainResolveTimeoutMs, Duration.ofHours(24).toMillis(), clock,
+                DeploymentMode.SHARED, null, null);
+    }
+
+    GatewayAuthFilter(WebClient.Builder webClientBuilder, ObjectMapper objectMapper,
+            String internalSignatureSecret, String tenantAssertionSecret,
+            String saasControlBaseUrl, long domainResolveTimeoutMs, long domainCacheTtlMs, Clock clock,
+            DeploymentMode deploymentMode, String boundTenantId, String boundHost) {
         this.webClientBuilder = Objects.requireNonNull(webClientBuilder, "webClientBuilder must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
         this.internalSignatureSecret = requiredSecret(internalSignatureSecret,
@@ -89,7 +115,29 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
             throw new IllegalStateException("erp.saas.domain-resolve-timeout-ms must be between 1 and 30000");
         }
         this.domainResolveTimeout = Duration.ofMillis(domainResolveTimeoutMs);
+        if (domainCacheTtlMs <= 0 || domainCacheTtlMs > Duration.ofDays(7).toMillis()) {
+            throw new IllegalStateException("erp.saas.domain-cache-ttl-ms must be between 1 and 604800000");
+        }
+        this.domainCacheTtl = Duration.ofMillis(domainCacheTtlMs);
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
+        this.deploymentMode = Objects.requireNonNull(deploymentMode, "erp.saas.deployment-mode must not be null");
+        if (deploymentMode == DeploymentMode.DEDICATED) {
+            if (!StringUtils.hasText(boundTenantId)
+                    || !TENANT_ID.matcher(boundTenantId.trim()).matches()) {
+                throw new IllegalStateException("erp.saas.bound-tenant-id is required for dedicated deployments");
+            }
+            if (!StringUtils.hasText(boundHost)) {
+                throw new IllegalStateException("erp.saas.bound-host is required for dedicated deployments");
+            }
+            this.boundTenantId = boundTenantId.trim();
+            this.boundHost = normalizedHost(boundHost);
+        } else {
+            if (StringUtils.hasText(boundTenantId) || StringUtils.hasText(boundHost)) {
+                throw new IllegalStateException("erp.saas.bound-tenant-id and bound-host require dedicated mode");
+            }
+            this.boundTenantId = null;
+            this.boundHost = null;
+        }
     }
 
     @Override
@@ -105,7 +153,7 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         return resolveTenant(sanitizedRequest)
                 .flatMap(resolution -> forwardResolved(sanitizedExchange, sanitizedRequest,
                         resolution, requestPath, chain))
-                .onErrorResume(error -> writeUnauthorized(sanitizedExchange, safeMessage(error)));
+                .onErrorResume(error -> writeError(sanitizedExchange, error));
     }
 
     @Override
@@ -122,6 +170,10 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         ServerWebExchange assertedExchange = exchange.mutate().request(assertedRequest).build();
         if (matchesAny(requestPath, TENANT_PUBLIC_PATTERNS)) {
             return chain.filter(assertedExchange);
+        }
+        if (resolution.getLifecycleState() == TenantLifecycleState.READ_ONLY
+                && !isReadOnlyAllowed(request, requestPath)) {
+            return Mono.error(readOnlyDenied());
         }
         String authorization = assertedRequest.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         return verifyToken(authorization, assertion.getTenantId())
@@ -142,6 +194,7 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         if (!StringUtils.hasText(host) || host.trim().length() > 300) {
             return Mono.error(accessDenied("租户域名无效或未验证"));
         }
+        String cacheKey = normalizedHost(host);
         URI uri = UriComponentsBuilder.fromHttpUrl(saasControlBaseUrl)
                 .path("/internal/saas/hosts/resolve")
                 .queryParam("host", "{host}")
@@ -151,12 +204,33 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         return webClientBuilder.build().get().uri(uri)
                 .headers(this::writeServicePrincipalHeaders)
                 .retrieve()
+                .onStatus(status -> status.is4xxClientError(),
+                        response -> Mono.error(accessDenied("租户域名无效或未验证")))
                 .bodyToMono(SaasHostResolution.class)
                 .timeout(domainResolveTimeout)
                 .switchIfEmpty(Mono.error(accessDenied("租户域名无效或未验证")))
                 .map(resolution -> validateResolution(host, request, resolution))
-                .onErrorMap(error -> error instanceof GatewayAccessException
-                        ? error : accessDenied("租户域名无效或未验证"));
+                .doOnNext(resolution -> hostResolutionCache.put(cacheKey,
+                        new CachedHostResolution(resolution, clock.millis())))
+                .onErrorResume(error -> cachedResolution(cacheKey, host, request, error));
+    }
+
+    private Mono<SaasHostResolution> cachedResolution(String cacheKey, String requestHost,
+            ServerHttpRequest request, Throwable controlPlaneError) {
+        if (controlPlaneError instanceof GatewayAccessException) {
+            return Mono.error(controlPlaneError);
+        }
+        CachedHostResolution cached = hostResolutionCache.get(cacheKey);
+        if (cached != null && clock.millis() - cached.cachedAtEpochMs() <= domainCacheTtl.toMillis()) {
+            try {
+                return Mono.just(validateResolution(requestHost, request, cached.resolution()));
+            } catch (GatewayAccessException validationError) {
+                hostResolutionCache.remove(cacheKey, cached);
+                return Mono.error(validationError);
+            }
+        }
+        if (cached != null) hostResolutionCache.remove(cacheKey, cached);
+        return Mono.error(accessDenied("租户域名无效或未验证"));
     }
 
     private SaasHostResolution validateResolution(String requestHost, ServerHttpRequest request,
@@ -171,6 +245,7 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         if (!ACCESS_ALLOWED.contains(resolution.getLifecycleState())) {
             throw accessDenied("租户当前状态不允许访问");
         }
+        validateDeploymentBinding(resolution);
         long now = clock.millis();
         String method = request.getMethod() == null ? "GET" : request.getMethod().name();
         String path = rawPath(request);
@@ -182,6 +257,19 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
             throw accessDenied("租户域名无效或未验证");
         }
         return resolution;
+    }
+
+    private void validateDeploymentBinding(SaasHostResolution resolution) {
+        if (resolution.getDeploymentMode() != deploymentMode) {
+            throw deploymentMode == DeploymentMode.DEDICATED
+                    ? accessDenied("租户域名不属于当前独立部署实例")
+                    : accessDenied("租户域名无效或未验证");
+        }
+        if (deploymentMode == DeploymentMode.DEDICATED
+                && (!boundTenantId.equals(resolution.getTenantId())
+                || !boundHost.equals(normalizedHost(resolution.getHost())))) {
+            throw accessDenied("租户域名不属于当前独立部署实例");
+        }
     }
 
     private ResolvedTenantAssertion tenantAssertion(ServerHttpRequest request, SaasHostResolution resolution) {
@@ -265,6 +353,14 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         return matchesAny(requestPath, TENANT_PUBLIC_PATTERNS) || matchesAny(requestPath, PROTECTED_PATTERNS);
     }
 
+    private boolean isReadOnlyAllowed(ServerHttpRequest request, String requestPath) {
+        HttpMethod method = request.getMethod();
+        if (method == null || method == HttpMethod.GET || method == HttpMethod.HEAD || method == HttpMethod.OPTIONS) {
+            return true;
+        }
+        return method == HttpMethod.POST && matchesAny(requestPath, READ_ONLY_POST_PATTERNS);
+    }
+
     private boolean matchesAny(String requestPath, List<String> patterns) {
         for (String pattern : patterns) {
             if (pathMatcher.match(pattern, requestPath)) return true;
@@ -277,8 +373,10 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         return StringUtils.hasText(rawPath) ? rawPath : "/";
     }
 
-    private Mono<Void> writeUnauthorized(ServerWebExchange exchange, String message) {
-        return ApiErrorResponseWriter.writeReactive(exchange, objectMapper, ResultCode.UNAUTHORIZED, message);
+    private Mono<Void> writeError(ServerWebExchange exchange, Throwable error) {
+        ResultCode resultCode = error instanceof GatewayAccessException accessError
+                ? accessError.resultCode() : ResultCode.UNAUTHORIZED;
+        return ApiErrorResponseWriter.writeReactive(exchange, objectMapper, resultCode, safeMessage(error));
     }
 
     private String safeMessage(Throwable error) {
@@ -316,12 +414,30 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
     }
 
     private static GatewayAccessException accessDenied(String message) {
-        return new GatewayAccessException(message);
+        return new GatewayAccessException(ResultCode.UNAUTHORIZED, message);
+    }
+
+    private static GatewayAccessException readOnlyDenied() {
+        return new GatewayAccessException(ResultCode.FORBIDDEN, "租户当前处于只读状态，禁止业务写入");
+    }
+
+    private String normalizedHost(String host) {
+        return new ResolvedTenantAssertion("cache", host, "GET", "/", clock.millis(), "cache").getHost();
     }
 
     private static final class GatewayAccessException extends RuntimeException {
-        private GatewayAccessException(String message) {
+        private final ResultCode resultCode;
+
+        private GatewayAccessException(ResultCode resultCode, String message) {
             super(message);
+            this.resultCode = resultCode;
         }
+
+        private ResultCode resultCode() {
+            return resultCode;
+        }
+    }
+
+    private record CachedHostResolution(SaasHostResolution resolution, long cachedAtEpochMs) {
     }
 }

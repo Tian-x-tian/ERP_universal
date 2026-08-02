@@ -2,6 +2,8 @@ package com.erp.common.client.internal;
 
 import com.erp.platform.contract.model.WarehouseReferenceUsage;
 import com.erp.workflow.contract.domain.vo.WorkflowCallbackEvent;
+import com.erp.saas.contract.model.SaasTenantPurgeRequest;
+import com.erp.saas.contract.model.SaasTenantStoragePurgeResult;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -54,6 +56,17 @@ public class InternalBusinessClient {
                 HttpMethod.GET,
                 null,
                 WarehouseReferenceUsage.class);
+    }
+
+    /**
+     * Deletes all object-storage payloads registered to a tenant before database purge.
+     *
+     * @param request confirmed purge request
+     * @return storage deletion summary
+     */
+    public SaasTenantStoragePurgeResult purgeSaasTenantStorage(SaasTenantPurgeRequest request) {
+        return exchange(buildUri("/business/internal/saas/tenants/purge-storage"),
+                HttpMethod.POST, request, SaasTenantStoragePurgeResult.class);
     }
 
     /**

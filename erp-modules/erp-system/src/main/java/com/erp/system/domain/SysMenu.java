@@ -50,6 +50,9 @@ public class SysMenu extends BaseAuditEntity implements Serializable {
     /** 权限标识 */
     private String perms;
 
+    /** SaaS 功能键 */
+    private String featureKey;
+
     /** 菜单图标 */
     private String icon;
 
@@ -159,6 +162,14 @@ public class SysMenu extends BaseAuditEntity implements Serializable {
 
     public void setPerms(String perms) {
         this.perms = perms;
+    }
+
+    public String getFeatureKey() {
+        return featureKey;
+    }
+
+    public void setFeatureKey(String featureKey) {
+        this.featureKey = featureKey;
     }
 
     public String getIcon() {

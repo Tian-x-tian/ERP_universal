@@ -241,6 +241,18 @@ class SaasTenantLifecycleServiceTest {
     }
 
     @Test
+    void shouldCompletePurgeOnlyAfterLocalDeletionSucceeded() {
+        SaasTenantEntity tenant = tenant(TenantLifecycleState.PURGE_PENDING, 10L);
+        when(tenantMapper.lockByTenantId("tenant_1")).thenReturn(tenant);
+        when(tenantMapper.markPurged("tenant_1", 10L, "admin", NOW)).thenReturn(1);
+
+        var purged = service.completePurge(new TenantVersionCommand("tenant_1", 10L, "admin"));
+
+        assertThat(purged.lifecycleState()).isEqualTo(TenantLifecycleState.PURGED);
+        assertThat(purged.tenantVersion()).isEqualTo(11L);
+    }
+
+    @Test
     void shouldRejectVersionConflictsAndInvalidTransitions() {
         when(tenantMapper.lockByTenantId("tenant_1")).thenReturn(tenant(TenantLifecycleState.DRAFT, 4L));
         assertCode(SaasLifecycleException.ErrorCode.VERSION_CONFLICT,

@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public interface SaasSubscriptionMapper extends BaseMapper<SaasSubscriptionEntity> {
     @Select("SELECT * FROM saas_subscription WHERE tenant_id = #{tenantId} "
@@ -21,6 +22,12 @@ public interface SaasSubscriptionMapper extends BaseMapper<SaasSubscriptionEntit
     @Select("SELECT * FROM saas_subscription WHERE tenant_id = #{tenantId} "
             + "AND state IN ('TRIAL','ACTIVE','GRACE') ORDER BY subscription_id DESC LIMIT 1 FOR UPDATE")
     SaasSubscriptionEntity findCurrentForUpdate(@Param("tenantId") String tenantId);
+
+    @Select("SELECT tenant_id FROM saas_subscription WHERE non_expiring = 0 "
+            + "AND ((state IN ('TRIAL','ACTIVE') AND end_at <= #{now}) "
+            + "OR (state = 'GRACE' AND grace_end_at <= #{now})) "
+            + "ORDER BY COALESCE(grace_end_at, end_at), subscription_id LIMIT #{limit}")
+    List<String> findDueTenantIds(@Param("now") LocalDateTime now, @Param("limit") int limit);
 
     @Update("UPDATE saas_subscription SET state = #{nextState}, update_by = #{operator}, "
             + "update_time = #{now}, version_no = version_no + 1 WHERE subscription_id = #{subscriptionId} "

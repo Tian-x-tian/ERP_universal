@@ -14,8 +14,15 @@ import com.erp.platform.contract.model.PlatformNoticeCreateRequest;
 import com.erp.platform.contract.model.PlatformTenantView;
 import com.erp.platform.contract.model.PlatformUserView;
 import com.erp.platform.contract.model.PlatformWarehouseView;
+import com.erp.saas.contract.model.SaasTenantActivationReissueRequest;
+import com.erp.saas.contract.model.SaasTenantActivationReissueResult;
 import com.erp.saas.contract.model.SaasQuotaUsage;
+import com.erp.saas.contract.model.SaasRuntimeAccess;
+import com.erp.saas.contract.model.SaasTenantInitializationRequest;
+import com.erp.saas.contract.model.SaasTenantInitializationResult;
 import com.erp.saas.contract.model.SaasUsageEvent;
+import com.erp.saas.contract.model.SaasTenantPurgeRequest;
+import com.erp.saas.contract.model.SaasTenantPurgeResult;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -330,6 +337,54 @@ public class InternalSystemClient {
                 });
         List<SaasQuotaUsage> body = response.getBody();
         return body == null ? Collections.emptyList() : body;
+    }
+
+    /**
+     * Initialize a tenant's local system data.
+     *
+     * @param request initialization request
+     * @return initialization result
+     */
+    public SaasTenantInitializationResult initializeSaasTenant(SaasTenantInitializationRequest request) {
+        return exchange(buildUri("/system/internal/saas/tenants/initialize"),
+                HttpMethod.POST,
+                request,
+                SaasTenantInitializationResult.class);
+    }
+
+    /**
+     * Reissues the one-time activation token after a successful tenant initialization replay.
+     *
+     * @param request activation reissue request
+     * @return replacement one-time token
+     */
+    public SaasTenantActivationReissueResult reissueSaasTenantActivation(
+            SaasTenantActivationReissueRequest request) {
+        return exchange(buildUri("/system/internal/saas/tenants/activation/reissue"),
+                HttpMethod.POST,
+                request,
+                SaasTenantActivationReissueResult.class);
+    }
+
+    /**
+     * Returns the local signed-snapshot access decision for the current tenant.
+     *
+     * @return current runtime access decision
+     */
+    public SaasRuntimeAccess getSaasRuntimeAccess() {
+        return exchange(buildUri("/system/internal/saas/runtime-access"),
+                HttpMethod.GET, null, SaasRuntimeAccess.class);
+    }
+
+    /**
+     * Irreversibly removes all local data for a confirmed tenant purge.
+     *
+     * @param request confirmed purge request
+     * @return deletion summary
+     */
+    public SaasTenantPurgeResult purgeSaasTenant(SaasTenantPurgeRequest request) {
+        return exchange(buildUri("/system/internal/saas/tenants/purge"),
+                HttpMethod.POST, request, SaasTenantPurgeResult.class);
     }
 
     /**

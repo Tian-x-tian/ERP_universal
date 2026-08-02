@@ -43,6 +43,32 @@ class SaasLifecycleMapperSqlTest {
                 "purge_eligible_at <= #{now}", "version_no = #{expectedVersion}");
     }
 
+    @Test
+    void shouldUseRequestVersionStatusCasAndClearStaleProvisioningResults() throws Exception {
+        String lockSql = sql(SaasProvisioningTaskMapper.class, "lockByRequestId");
+        assertThat(lockSql).containsIgnoringCase("request_id = #{requestId}")
+                .containsIgnoringCase("FOR UPDATE")
+                .doesNotContain("${");
+        assertUpdateSql(SaasProvisioningTaskMapper.class, "markProcessing",
+                "status = 'PROVISIONING'", "attempt_count = attempt_count + 1",
+                "lease_until = #{leaseUntil}", "tenant_record_id = NULL", "activation_expires_at = NULL",
+                "request_id = #{requestId}", "version_no = #{expectedVersion}",
+                "status IN ('PENDING', 'FAILED')");
+        assertUpdateSql(SaasProvisioningTaskMapper.class, "markInitialized",
+                "status = 'INITIALIZED'", "lease_until = NULL", "tenant_record_id = #{tenantRecordId}",
+                "activation_expires_at = #{activationExpiresAt}", "version_no = #{expectedVersion}",
+                "status = 'PROVISIONING'");
+        assertUpdateSql(SaasProvisioningTaskMapper.class, "markSucceeded",
+                "status = 'SUCCEEDED'", "version_no = #{expectedVersion}", "status = 'INITIALIZED'");
+        assertUpdateSql(SaasProvisioningTaskMapper.class, "markFailed",
+                "status = 'FAILED'", "lease_until = NULL", "last_error_type = #{errorType}",
+                "version_no = #{expectedVersion}", "status IN ('PENDING', 'PROVISIONING', 'INITIALIZED')");
+        assertUpdateSql(SaasProvisioningTaskMapper.class, "reclaimExpired",
+                "status = 'FAILED'", "lease_until = NULL", "last_error_type = 'ProvisioningLeaseExpired'",
+                "request_id = #{requestId}", "version_no = #{expectedVersion}",
+                "status = 'PROVISIONING'", "lease_until <= #{now}");
+    }
+
     private static void assertUpdateSql(Class<?> mapper, String method, String... fragments) throws Exception {
         String sql = sql(mapper, method);
         for (String fragment : fragments) {

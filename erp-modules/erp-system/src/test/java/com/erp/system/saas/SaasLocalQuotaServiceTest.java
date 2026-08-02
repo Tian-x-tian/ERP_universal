@@ -9,8 +9,10 @@ import com.erp.saas.contract.model.SaasUsageOperation;
 import com.erp.saas.contract.model.TenantLifecycleState;
 import com.erp.system.domain.SysSaasQuotaCounter;
 import com.erp.system.domain.SysSaasQuotaReservation;
+import com.erp.system.domain.SysSaasUsageOutbox;
 import com.erp.system.mapper.SysSaasQuotaCounterMapper;
 import com.erp.system.mapper.SysSaasQuotaReservationMapper;
+import com.erp.system.mapper.SysSaasUsageOutboxMapper;
 import com.erp.system.mapper.SysUserMapper;
 import com.erp.system.saas.impl.SaasLocalQuotaServiceImpl;
 import org.junit.jupiter.api.AfterEach;
@@ -22,6 +24,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
+import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,6 +33,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 class SaasLocalQuotaServiceTest {
@@ -37,6 +41,7 @@ class SaasLocalQuotaServiceTest {
     private SysSaasQuotaCounterMapper counterMapper;
     private SysSaasQuotaReservationMapper reservationMapper;
     private SysUserMapper userMapper;
+    private SysSaasUsageOutboxMapper outboxMapper;
     private SaasRuntimeSnapshotService snapshotService;
     private SaasLocalQuotaService service;
 
@@ -45,11 +50,13 @@ class SaasLocalQuotaServiceTest {
         counterMapper = mock(SysSaasQuotaCounterMapper.class);
         reservationMapper = mock(SysSaasQuotaReservationMapper.class);
         userMapper = mock(SysUserMapper.class);
+        outboxMapper = mock(SysSaasUsageOutboxMapper.class);
         snapshotService = mock(SaasRuntimeSnapshotService.class);
         service = new SaasLocalQuotaServiceImpl(counterMapper, reservationMapper, userMapper,
-                snapshotService, Clock.fixed(NOW, ZoneOffset.UTC));
+                outboxMapper, snapshotService, Clock.fixed(NOW, ZoneOffset.UTC));
         TenantContextHolder.setTenantId("tenant-a");
         when(snapshotService.current("tenant-a")).thenReturn(entitlements(true, 2L));
+        when(outboxMapper.insert(any())).thenReturn(1);
     }
 
     @AfterEach
@@ -75,6 +82,7 @@ class SaasLocalQuotaServiceTest {
         assertThat(usage.getReserved()).isEqualTo(1L);
         verify(counterMapper).ensureCounter("tenant-a", SaasQuotaKeys.USER_COUNT, period,
                 1L, "quota-service", LocalDateTime.ofInstant(NOW, ZoneOffset.UTC));
+        verify(outboxMapper, never()).insert(any());
     }
 
     @Test
@@ -121,6 +129,13 @@ class SaasLocalQuotaServiceTest {
                 eq("event-RELEASE"), eq("quota-service"), any())).thenReturn(1);
         SaasQuotaUsage released = service.apply(event(SaasUsageOperation.RELEASE, "object-1", null));
         assertThat(released.getUsed()).isEqualTo(5L);
+
+        ArgumentCaptor<SysSaasUsageOutbox> outbox = ArgumentCaptor.forClass(SysSaasUsageOutbox.class);
+        verify(outboxMapper, times(2)).insert(outbox.capture());
+        assertThat(outbox.getAllValues()).extracting(SysSaasUsageOutbox::getAmount)
+                .containsExactly(7L, 5L);
+        assertThat(outbox.getAllValues()).extracting(SysSaasUsageOutbox::getStatus)
+                .containsOnly("PENDING");
     }
 
     @Test
@@ -138,6 +153,10 @@ class SaasLocalQuotaServiceTest {
         verify(counterMapper).ensureCounter("tenant-a", SaasQuotaKeys.USER_COUNT, period,
                 3L, "quota-service", now);
         assertThat(usage.getUsed()).isEqualTo(2L);
+        ArgumentCaptor<SysSaasUsageOutbox> outbox = ArgumentCaptor.forClass(SysSaasUsageOutbox.class);
+        verify(outboxMapper).insert(outbox.capture());
+        assertThat(outbox.getValue()).extracting("tenantId", "metricKey", "amount", "status")
+                .containsExactly("tenant-a", SaasQuotaKeys.USER_COUNT, 2L, "PENDING");
     }
 
     private SaasUsageEvent event(SaasUsageOperation operation, String reference, Long amount) {

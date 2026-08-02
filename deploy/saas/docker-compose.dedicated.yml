@@ -1,0 +1,208 @@
+x-java-service: &java-service
+  restart: unless-stopped
+  networks:
+    - erp-runtime
+  environment: &java-environment
+    TZ: ${TZ:-Asia/Shanghai}
+    NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR:?Set NACOS_SERVER_ADDR}
+    NACOS_DISCOVERY_ENABLED: ${NACOS_DISCOVERY_ENABLED:-true}
+    NACOS_CONFIG_ENABLED: ${NACOS_CONFIG_ENABLED:-true}
+    MYSQL_HOST: ${MYSQL_HOST:?Set MYSQL_HOST}
+    MYSQL_PORT: ${MYSQL_PORT:-3306}
+    MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE}
+    MYSQL_USERNAME: ${MYSQL_USERNAME:?Set MYSQL_USERNAME}
+    MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+    REDIS_HOST: ${REDIS_HOST:?Set REDIS_HOST}
+    REDIS_PORT: ${REDIS_PORT:-6379}
+    REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+    REDIS_DATABASE: ${REDIS_DATABASE:-0}
+    ERP_INTERNAL_AUTH_SIGNATURE_SECRET: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:?Set ERP_INTERNAL_AUTH_SIGNATURE_SECRET}
+    ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:?Set ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET}
+    ERP_SAAS_CONTROL_BASE_URL: ${ERP_SAAS_CONTROL_BASE_URL:?Set ERP_SAAS_CONTROL_BASE_URL}
+    ERP_SAAS_SNAPSHOT_VERIFICATION_KEY_ID: ${ERP_SAAS_SNAPSHOT_VERIFICATION_KEY_ID:?Set ERP_SAAS_SNAPSHOT_VERIFICATION_KEY_ID}
+    ERP_SAAS_SNAPSHOT_VERIFICATION_SECRET: ${ERP_SAAS_SNAPSHOT_VERIFICATION_SECRET:?Set ERP_SAAS_SNAPSHOT_VERIFICATION_SECRET}
+    ERP_SAAS_DEPLOYMENT_MODE: DEDICATED
+    ERP_SAAS_BOUND_TENANT_ID: ${ERP_SAAS_BOUND_TENANT_ID:?Set ERP_SAAS_BOUND_TENANT_ID}
+    ERP_SAAS_BOUND_HOST: ${ERP_SAAS_BOUND_HOST:?Set ERP_SAAS_BOUND_HOST}
+    ERP_SAAS_DOMAIN_CACHE_TTL_MS: ${ERP_SAAS_DOMAIN_CACHE_TTL_MS:-86400000}
+    ERP_SQL_UPGRADE_ENABLED: ${ERP_SQL_UPGRADE_ENABLED:-true}
+    SQL_INIT_MODE: never
+    ERP_LOG_ROOT_LEVEL: ${ERP_LOG_ROOT_LEVEL:-INFO}
+    JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError}
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "5"
+
+services:
+  erp-gateway:
+    <<: *java-service
+    image: ${ERP_IMAGE_REGISTRY:?Set ERP_IMAGE_REGISTRY}/erp-gateway:${ERP_VERSION:?Set ERP_VERSION}
+    environment:
+      <<: *java-environment
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9090/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  erp-auth:
+    <<: *java-service
+    image: ${ERP_IMAGE_REGISTRY:?Set ERP_IMAGE_REGISTRY}/erp-auth:${ERP_VERSION:?Set ERP_VERSION}
+    environment:
+      <<: *java-environment
+      ERP_JWT_SECRET: ${ERP_JWT_SECRET:?Set ERP_JWT_SECRET}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9091/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  erp-system:
+    <<: *java-service
+    image: ${ERP_IMAGE_REGISTRY:?Set ERP_IMAGE_REGISTRY}/erp-system:${ERP_VERSION:?Set ERP_VERSION}
+    environment:
+      <<: *java-environment
+      ERP_SAAS_SNAPSHOT_REFRESH_ENABLED: "true"
+      ERP_SAAS_SNAPSHOT_REFRESH_INTERVAL_MS: "300000"
+      ERP_AI_ENABLED: ${ERP_AI_ENABLED:-true}
+      ERP_AI_BASE_URL: http://erp-ai:9095/v1
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9092/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+
+  erp-business:
+    <<: *java-service
+    image: ${ERP_IMAGE_REGISTRY:?Set ERP_IMAGE_REGISTRY}/erp-business:${ERP_VERSION:?Set ERP_VERSION}
+    environment:
+      <<: *java-environment
+      HR_STORAGE_S3_ENABLED: ${HR_STORAGE_S3_ENABLED:-false}
+      HR_STORAGE_S3_ENDPOINT: ${HR_STORAGE_S3_ENDPOINT:-}
+      HR_STORAGE_S3_REGION: ${HR_STORAGE_S3_REGION:-us-east-1}
+      HR_STORAGE_S3_ACCESS_KEY: ${HR_STORAGE_S3_ACCESS_KEY:-}
+      HR_STORAGE_S3_SECRET_KEY: ${HR_STORAGE_S3_SECRET_KEY:-}
+      HR_STORAGE_S3_BUCKET: ${HR_STORAGE_S3_BUCKET:-}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9093/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+
+  erp-workflow:
+    <<: *java-service
+    image: ${ERP_IMAGE_REGISTRY:?Set ERP_IMAGE_REGISTRY}/erp-workflow:${ERP_VERSION:?Set ERP_VERSION}
+    environment:
+      <<: *java-environment
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9094/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+
+  erp-ai:
+    <<: *java-service
+    image: ${ERP_IMAGE_REGISTRY:?Set ERP_IMAGE_REGISTRY}/erp-ai:${ERP_VERSION:?Set ERP_VERSION}
+    environment:
+      <<: *java-environment
+      ERP_AI_ENABLED: ${ERP_AI_ENABLED:-true}
+      ERP_AI_BASE_URL: ${ERP_AI_PROVIDER_BASE_URL:?Set ERP_AI_PROVIDER_BASE_URL}
+      ERP_AI_MODEL: ${ERP_AI_MODEL:?Set ERP_AI_MODEL}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9095/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  erp-ui:
+    image: ${ERP_IMAGE_REGISTRY:?Set ERP_IMAGE_REGISTRY}/erp-ui:${ERP_VERSION:?Set ERP_VERSION}
+    restart: unless-stopped
+    networks:
+      - erp-runtime
+    ports:
+      - "127.0.0.1:${ERP_HTTP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "5"
+
+  mysql:
+    profiles: ["bundled-infra"]
+    image: mysql:8.0.36
+    restart: unless-stopped
+    networks:
+      - erp-runtime
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USERNAME:?Set MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping --silent -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  redis:
+    profiles: ["bundled-infra"]
+    image: redis:7.2.4-alpine
+    restart: unless-stopped
+    networks:
+      - erp-runtime
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  nacos:
+    profiles: ["bundled-infra"]
+    image: nacos/nacos-server:v2.4.3
+    restart: unless-stopped
+    networks:
+      - erp-runtime
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+    volumes:
+      - nacos-data:/home/nacos/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8848/nacos/v1/console/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 45s
+
+networks:
+  erp-runtime:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  redis-data:
+  nacos-data:

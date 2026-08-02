@@ -22,6 +22,7 @@ import java.util.*;
 
 @Service
 public class SaasTenantEntitlementServiceImpl implements SaasTenantEntitlementService {
+    private static final String LEGACY_PLAN_CODE = "legacy-full-access";
     private static final List<String> QUOTA_KEYS = List.of(SaasQuotaKeys.USER_COUNT,
             SaasQuotaKeys.STORAGE_BYTES, SaasQuotaKeys.AI_INPUT_TOKENS, SaasQuotaKeys.AI_OUTPUT_TOKENS);
 
@@ -169,18 +170,25 @@ public class SaasTenantEntitlementServiceImpl implements SaasTenantEntitlementSe
         if (plan == null) {
             throw notFound("Subscription plan not found");
         }
-        for (SaasPlanFeatureEntity grant : planFeatureMapper.findByPlanId(plan.getPlanId())) {
-            SaasFeatureEntity feature = featureById.get(grant.getFeatureId());
-            if (feature != null && feature.getStatus() == FeatureStatus.ACTIVE && Boolean.TRUE.equals(grant.getGranted())) {
-                effectiveFeatures.put(feature.getFeatureKey(), true);
+        if (LEGACY_PLAN_CODE.equals(plan.getPlanCode())) {
+            features.stream().filter(feature -> feature.getStatus() == FeatureStatus.ACTIVE)
+                    .forEach(feature -> effectiveFeatures.put(feature.getFeatureKey(), true));
+            QUOTA_KEYS.forEach(key -> effectiveQuotas.put(key, new QuotaEntitlement(true, 0)));
+        } else {
+            for (SaasPlanFeatureEntity grant : planFeatureMapper.findByPlanId(plan.getPlanId())) {
+                SaasFeatureEntity feature = featureById.get(grant.getFeatureId());
+                if (feature != null && feature.getStatus() == FeatureStatus.ACTIVE
+                        && Boolean.TRUE.equals(grant.getGranted())) {
+                    effectiveFeatures.put(feature.getFeatureKey(), true);
+                }
             }
-        }
-        for (SaasPlanQuotaEntity quota : planQuotaMapper.findByPlanId(plan.getPlanId())) {
-            if (!QUOTA_KEYS.contains(quota.getQuotaKey())) {
-                throw new SaasCatalogException(SaasCatalogException.ErrorCode.UNKNOWN_QUOTA_KEY,
-                        "Unknown stored quota key: " + quota.getQuotaKey());
+            for (SaasPlanQuotaEntity quota : planQuotaMapper.findByPlanId(plan.getPlanId())) {
+                if (!QUOTA_KEYS.contains(quota.getQuotaKey())) {
+                    throw new SaasCatalogException(SaasCatalogException.ErrorCode.UNKNOWN_QUOTA_KEY,
+                            "Unknown stored quota key: " + quota.getQuotaKey());
+                }
+                effectiveQuotas.put(quota.getQuotaKey(), entitlement(quota.getLimitValue()));
             }
-            effectiveQuotas.put(quota.getQuotaKey(), entitlement(quota.getLimitValue()));
         }
         applyFeatureOverrides(normalizedTenantId, now, featureById, effectiveFeatures);
         applyQuotaOverrides(normalizedTenantId, now, effectiveQuotas);

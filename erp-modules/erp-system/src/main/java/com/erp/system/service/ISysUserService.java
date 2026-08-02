@@ -30,6 +30,15 @@ public interface ISysUserService extends IService<SysUser> {
     boolean updatePasswordByUserId(Long userId, String encodedPassword);
 
     /**
+     * Enables a provisioned disabled user and updates its encoded password without changing role links.
+     *
+     * @param userId          provisioned user ID
+     * @param encodedPassword encoded password selected during activation
+     * @return whether activation changed the user
+     */
+    boolean activateProvisionedUser(Long userId, String encodedPassword);
+
+    /**
      * 递增用户 Token 版本号，使既有令牌失效。
      *
      * @param userId 用户ID

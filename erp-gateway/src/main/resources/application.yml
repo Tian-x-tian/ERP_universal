@@ -22,3 +22,7 @@ erp:
   saas:
     tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:}
     domain-resolve-timeout-ms: ${ERP_SAAS_DOMAIN_RESOLVE_TIMEOUT_MS:2000}
+    domain-cache-ttl-ms: ${ERP_SAAS_DOMAIN_CACHE_TTL_MS:86400000}
+    deployment-mode: ${ERP_SAAS_DEPLOYMENT_MODE:SHARED}
+    bound-tenant-id: ${ERP_SAAS_BOUND_TENANT_ID:}
+    bound-host: ${ERP_SAAS_BOUND_HOST:}

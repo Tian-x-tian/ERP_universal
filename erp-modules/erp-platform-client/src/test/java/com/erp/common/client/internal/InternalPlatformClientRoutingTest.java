@@ -1,7 +1,11 @@
 package com.erp.common.client.internal;
 
 import com.erp.platform.contract.model.PlatformRoleView;
+import com.erp.saas.contract.model.SaasTenantActivationReissueRequest;
+import com.erp.saas.contract.model.SaasTenantActivationReissueResult;
 import com.erp.saas.contract.model.SaasQuotaUsage;
+import com.erp.saas.contract.model.SaasTenantInitializationRequest;
+import com.erp.saas.contract.model.SaasTenantInitializationResult;
 import com.erp.saas.contract.model.SaasUsageEvent;
 import com.erp.saas.contract.model.SaasUsageOperation;
 import org.junit.jupiter.api.Assertions;
@@ -124,6 +128,51 @@ class InternalPlatformClientRoutingTest {
                 org.mockito.ArgumentMatchers.<ParameterizedTypeReference<List<SaasQuotaUsage>>>any());
         Assertions.assertSame(response, actual);
         Assertions.assertEquals("http://erp-system/system/internal/saas/quotas/events/batch",
+                uriCaptor.getValue().toString());
+    }
+
+    @Test
+    void shouldRouteTenantInitializationToSystemService() {
+        when(headerFactory.buildHeaders()).thenReturn(new HttpHeaders());
+        SaasTenantInitializationResult response = new SaasTenantInitializationResult();
+        when(restTemplate.exchange(any(URI.class), eq(HttpMethod.POST), any(HttpEntity.class),
+                eq(SaasTenantInitializationResult.class))).thenReturn(ResponseEntity.ok(response));
+        InternalSystemClient client = new InternalSystemClient(restTemplate, headerFactory,
+                new InternalSystemClientProperties());
+        SaasTenantInitializationRequest request = new SaasTenantInitializationRequest();
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+
+        SaasTenantInitializationResult actual = client.initializeSaasTenant(request);
+
+        verify(restTemplate).exchange(uriCaptor.capture(), eq(HttpMethod.POST), entityCaptor.capture(),
+                eq(SaasTenantInitializationResult.class));
+        Assertions.assertSame(response, actual);
+        Assertions.assertSame(request, entityCaptor.getValue().getBody());
+        Assertions.assertEquals("http://erp-system/system/internal/saas/tenants/initialize",
+                uriCaptor.getValue().toString());
+    }
+
+    @Test
+    void shouldRouteActivationReissueToSystemService() {
+        when(headerFactory.buildHeaders()).thenReturn(new HttpHeaders());
+        SaasTenantActivationReissueResult response = new SaasTenantActivationReissueResult();
+        when(restTemplate.exchange(any(URI.class), eq(HttpMethod.POST), any(HttpEntity.class),
+                eq(SaasTenantActivationReissueResult.class))).thenReturn(ResponseEntity.ok(response));
+        InternalSystemClient client = new InternalSystemClient(restTemplate, headerFactory,
+                new InternalSystemClientProperties());
+        SaasTenantActivationReissueRequest request = new SaasTenantActivationReissueRequest(
+                "req-1", "tenant-a");
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+
+        SaasTenantActivationReissueResult actual = client.reissueSaasTenantActivation(request);
+
+        verify(restTemplate).exchange(uriCaptor.capture(), eq(HttpMethod.POST), entityCaptor.capture(),
+                eq(SaasTenantActivationReissueResult.class));
+        Assertions.assertSame(response, actual);
+        Assertions.assertSame(request, entityCaptor.getValue().getBody());
+        Assertions.assertEquals("http://erp-system/system/internal/saas/tenants/activation/reissue",
                 uriCaptor.getValue().toString());
     }
 }

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class JwtAuthenticationFilter extends InternalAuthenticationFilterSupport {
-    private static final String PUBLIC_ACTIVE_TENANTS_PATH = "/system/public/tenants/active";
+    private static final String PUBLIC_SAAS_ACTIVATION_PATH = "/system/public/saas/activation";
 
     public JwtAuthenticationFilter(ObjectMapper objectMapper,
             @Value("${erp.internal.auth-signature-secret:}") String internalSignatureSecret) {
@@ -27,7 +27,7 @@ public class JwtAuthenticationFilter extends InternalAuthenticationFilterSupport
     @Override
     protected boolean requiresAuth(HttpServletRequest request) {
         String requestUri = request == null ? null : request.getRequestURI();
-        if (PUBLIC_ACTIVE_TENANTS_PATH.equals(requestUri)) {
+        if (PUBLIC_SAAS_ACTIVATION_PATH.equals(requestUri)) {
             return false;
         }
         return super.requiresAuth(request);

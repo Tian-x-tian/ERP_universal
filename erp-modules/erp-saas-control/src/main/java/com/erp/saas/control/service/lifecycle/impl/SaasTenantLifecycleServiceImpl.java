@@ -277,6 +277,24 @@ public class SaasTenantLifecycleServiceImpl implements SaasTenantLifecycleServic
         return view(tenant, null);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public SaasTenantLifecycleView completePurge(TenantVersionCommand command) {
+        SaasTenantEntity tenant = locked(command.tenantId());
+        if (tenant.getLifecycleState() == TenantLifecycleState.PURGED) {
+            return view(tenant, null);
+        }
+        requireVersion(tenant, command.expectedTenantVersion());
+        requireState(tenant, TenantLifecycleState.PURGE_PENDING,
+                "Only purge-pending tenants can complete deletion");
+        LocalDateTime now = time.now();
+        casTenant(tenantMapper.markPurged(tenant.getTenantId(), tenant.getVersionNo(),
+                command.operator(), now));
+        tenant.setLifecycleState(TenantLifecycleState.PURGED);
+        tenant.setVersionNo(tenant.getVersionNo() + 1);
+        return view(tenant, null);
+    }
+
     private SaasPlanEntity activePlan(Long planId) {
         SaasPlanEntity plan = planMapper.findByIdForUpdate(planId);
         if (plan == null) {

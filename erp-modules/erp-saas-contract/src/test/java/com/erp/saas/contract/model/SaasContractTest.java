@@ -50,7 +50,8 @@ class SaasContractTest {
     void shouldBePojoOnlyUnknownFieldCompatibleMutableBeans() throws Exception {
         List<Class<?>> beanTypes = List.of(SaasFeatureGrant.class, SaasQuotaLimit.class, SaasQuotaUsage.class,
                 SaasHostResolution.class, SaasUsageEvent.class, SaasProvisioningRequest.class,
-                SaasProvisioningResult.class, SaasEntitlementSnapshot.class);
+                SaasProvisioningResult.class, SaasTenantInitializationRequest.class,
+                SaasTenantInitializationResult.class, SaasEntitlementSnapshot.class);
 
         for (Class<?> type : beanTypes) {
             JsonIgnoreProperties annotation = type.getAnnotation(JsonIgnoreProperties.class);
@@ -92,6 +93,16 @@ class SaasContractTest {
                 SaasProvisioningResult.class, Map.of("requestId", String.class, "tenantId", String.class,
                         "success", boolean.class, "message", String.class, "activationRequired", boolean.class,
                         "completedAtEpochMs", long.class),
+                SaasTenantInitializationRequest.class, Map.of("requestId", String.class,
+                        "tenantId", String.class, "tenantName", String.class, "companyCode", String.class,
+                        "companyName", String.class, "adminUsername", String.class,
+                        "adminDisplayName", String.class, "adminEmail", String.class),
+                SaasTenantInitializationResult.class, Map.ofEntries(
+                        Map.entry("requestId", String.class), Map.entry("tenantId", String.class),
+                        Map.entry("tenantRecordId", Long.class), Map.entry("companyId", Long.class),
+                        Map.entry("deptId", Long.class), Map.entry("roleId", Long.class),
+                        Map.entry("userId", Long.class), Map.entry("activationToken", String.class),
+                        Map.entry("activationExpiresAtEpochMs", long.class), Map.entry("replayed", boolean.class)),
                 SaasEntitlementSnapshot.class, Map.ofEntries(
                         Map.entry("tenantId", String.class),
                         Map.entry("lifecycleState", TenantLifecycleState.class),

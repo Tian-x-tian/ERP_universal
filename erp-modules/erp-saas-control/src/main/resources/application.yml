@@ -27,7 +27,7 @@ spring:
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_saas_control}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:123456}
+    password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
   sql:
     init:
@@ -42,6 +42,11 @@ erp:
   internal:
     auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
   saas:
+    lifecycle:
+      reconcile-enabled: ${ERP_SAAS_LIFECYCLE_RECONCILE_ENABLED:true}
+      reconcile-interval-ms: ${ERP_SAAS_LIFECYCLE_RECONCILE_INTERVAL_MS:60000}
+      reconcile-initial-delay-ms: ${ERP_SAAS_LIFECYCLE_RECONCILE_INITIAL_DELAY_MS:30000}
+      reconcile-batch-size: ${ERP_SAAS_LIFECYCLE_RECONCILE_BATCH_SIZE:200}
     schema-validation:
       enabled: ${ERP_SAAS_SCHEMA_VALIDATION_ENABLED:true}
     snapshot:

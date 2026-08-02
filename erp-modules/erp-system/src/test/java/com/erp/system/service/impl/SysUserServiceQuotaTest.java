@@ -123,6 +123,29 @@ class SysUserServiceQuotaTest {
         order.verify(quotaService).decreaseUsed(SaasQuotaKeys.USER_COUNT, 1L, "user-service");
     }
 
+    @Test
+    void shouldActivateProvisionedUserWithoutRemovingRoleLinks() {
+        SysUser inactive = user("1", "0");
+        inactive.setUserId(11L);
+        when(userMapper.selectById(11L)).thenReturn(inactive);
+        when(userMapper.updateById(any(SysUser.class))).thenReturn(1);
+
+        assertTrue(service.activateProvisionedUser(11L, "encoded-password"));
+
+        ArgumentCaptor<SysUser> updateCaptor = ArgumentCaptor.forClass(SysUser.class);
+        verify(userMapper).updateById(updateCaptor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals("0", updateCaptor.getValue().getStatus());
+        org.junit.jupiter.api.Assertions.assertEquals("encoded-password", updateCaptor.getValue().getPassword());
+        verify(userRoleService, never()).remove(any());
+        verify(userPostService, never()).remove(any());
+        ArgumentCaptor<SaasUsageEvent> eventCaptor = ArgumentCaptor.forClass(SaasUsageEvent.class);
+        verify(quotaService, org.mockito.Mockito.times(2)).apply(eventCaptor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(SaasUsageOperation.RESERVE,
+                eventCaptor.getAllValues().get(0).getOperation());
+        org.junit.jupiter.api.Assertions.assertEquals(SaasUsageOperation.SETTLE,
+                eventCaptor.getAllValues().get(1).getOperation());
+    }
+
     private static SysUser user(String status, String delFlag) {
         SysUser user = new SysUser();
         user.setTenantId("TENANT_A");

@@ -24,6 +24,7 @@ class SaasControlPersistenceContractTest {
             Map.entry(SaasTenantFeatureOverrideEntity.class, "saas_tenant_feature_override"),
             Map.entry(SaasTenantQuotaOverrideEntity.class, "saas_tenant_quota_override"),
             Map.entry(SaasDeploymentEntity.class, "saas_deployment"),
+            Map.entry(SaasProvisioningTaskEntity.class, "saas_provisioning_task"),
             Map.entry(SaasEntitlementSnapshotEntity.class, "saas_entitlement_snapshot"),
             Map.entry(SaasUsageEventEntity.class, "saas_usage_event"),
             Map.entry(SaasUsageSummaryEntity.class, "saas_usage_summary"));
@@ -52,6 +53,7 @@ class SaasControlPersistenceContractTest {
         assertType(SaasSubscriptionEntity.class, "startAt", LocalDateTime.class);
         assertType(SaasTenantFeatureOverrideEntity.class, "overrideState", FeatureOverrideState.class);
         assertType(SaasDeploymentEntity.class, "mode", com.erp.saas.contract.model.DeploymentMode.class);
+        assertType(SaasProvisioningTaskEntity.class, "status", SaasProvisioningStatus.class);
         assertGenerated(SaasDomainEntity.class, "ownedHost");
         assertGenerated(SaasPlanEntity.class, "activeSlot");
         assertGenerated(SaasSubscriptionEntity.class, "currentSlot");
@@ -65,6 +67,8 @@ class SaasControlPersistenceContractTest {
         assertThat(QuotaPeriodType.values()).extracting(Enum::name).containsExactly("CURRENT", "MONTHLY");
         assertThat(FeatureOverrideState.values()).extracting(Enum::name).containsExactly("GRANT", "DENY");
         assertThat(DeploymentStatus.values()).extracting(Enum::name).containsExactly("REGISTERED", "HEALTHY", "UNHEALTHY", "DISABLED");
+        assertThat(SaasProvisioningStatus.values()).extracting(Enum::name)
+                .containsExactly("PENDING", "PROVISIONING", "INITIALIZED", "SUCCEEDED", "FAILED");
     }
 
     private void assertType(Class<?> type, String field, Class<?> expected) throws Exception {

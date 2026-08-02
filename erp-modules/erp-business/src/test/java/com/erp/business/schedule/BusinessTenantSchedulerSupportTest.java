@@ -3,6 +3,7 @@ package com.erp.business.schedule;
 import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.platform.contract.model.PlatformTenantView;
+import com.erp.saas.contract.model.SaasRuntimeAccess;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,7 @@ class BusinessTenantSchedulerSupportTest {
     void shouldExecuteTaskWithTenantContextForEachActiveTenant() {
         List<PlatformTenantView> tenantList = Arrays.asList(buildTenant(" 000001 "), buildTenant(""), buildTenant("000002"));
         when(internalSystemClient.listActiveTenants()).thenReturn(tenantList);
+        when(internalSystemClient.getSaasRuntimeAccess()).thenReturn(writeAllowed("000001"), writeAllowed("000002"));
         BusinessTenantSchedulerSupport schedulerSupport = new BusinessTenantSchedulerSupport(internalSystemClient);
         StringBuilder executionLog = new StringBuilder();
 
@@ -58,6 +60,7 @@ class BusinessTenantSchedulerSupportTest {
     @Test
     void shouldRestoreOriginalTenantContextAfterExecution() {
         when(internalSystemClient.listActiveTenants()).thenReturn(List.of(buildTenant("000003")));
+        when(internalSystemClient.getSaasRuntimeAccess()).thenReturn(writeAllowed("000003"));
         BusinessTenantSchedulerSupport schedulerSupport = new BusinessTenantSchedulerSupport(internalSystemClient);
         TenantContextHolder.setTenantId("ORIGINAL");
 
@@ -65,6 +68,22 @@ class BusinessTenantSchedulerSupportTest {
                 Assertions.assertEquals("000003", TenantContextHolder.getTenantId()));
 
         Assertions.assertEquals("ORIGINAL", TenantContextHolder.getTenantId());
+    }
+
+    @Test
+    void shouldSkipReadOnlyTenantTasks() {
+        when(internalSystemClient.listActiveTenants()).thenReturn(
+                List.of(buildTenant("active"), buildTenant("read-only")));
+        when(internalSystemClient.getSaasRuntimeAccess()).thenReturn(
+                writeAllowed("active"), new SaasRuntimeAccess(
+                        "read-only", com.erp.saas.contract.model.TenantLifecycleState.READ_ONLY,
+                        false, true, false));
+        BusinessTenantSchedulerSupport schedulerSupport = new BusinessTenantSchedulerSupport(internalSystemClient);
+        StringBuilder executionLog = new StringBuilder();
+
+        schedulerSupport.executeForEachActiveTenant("库存任务", executionLog::append);
+
+        Assertions.assertEquals("active", executionLog.toString());
     }
 
     /**
@@ -77,6 +96,11 @@ class BusinessTenantSchedulerSupportTest {
         PlatformTenantView tenantView = new PlatformTenantView();
         tenantView.setTenantId(tenantId);
         return tenantView;
+    }
+
+    private SaasRuntimeAccess writeAllowed(String tenantId) {
+        return new SaasRuntimeAccess(tenantId,
+                com.erp.saas.contract.model.TenantLifecycleState.ACTIVE, false, true, true);
     }
 }
 

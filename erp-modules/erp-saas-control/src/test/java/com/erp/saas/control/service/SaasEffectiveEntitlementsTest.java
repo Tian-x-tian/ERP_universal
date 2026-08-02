@@ -115,6 +115,23 @@ class SaasEffectiveEntitlementsTest {
     }
 
     @Test
+    void shouldKeepLegacyFullAccessUnlimitedAndEnableEveryActiveFeature() {
+        SaasSubscriptionEntity subscription = new SaasSubscriptionEntity();
+        subscription.setSubscriptionId(10L);
+        subscription.setPlanId(20L);
+        SaasPlanEntity legacyPlan = plan(20L);
+        legacyPlan.setPlanCode("legacy-full-access");
+        when(subscriptionMapper.findCurrentByTenantId("tenant_1")).thenReturn(subscription);
+        when(planMapper.selectById(20L)).thenReturn(legacyPlan);
+
+        var result = service.effectiveEntitlements("tenant_1");
+
+        assertThat(result.isFeatureEnabled("reports.view")).isTrue();
+        assertThat(result.isFeatureEnabled("reports.edit")).isFalse();
+        assertThat(result.quotas()).allSatisfy((key, value) -> assertThat(value.unlimited()).isTrue());
+    }
+
+    @Test
     void shouldExposeReadOnlyTransaction() throws Exception {
         Transactional annotation = SaasTenantEntitlementServiceImpl.class
                 .getDeclaredMethod("effectiveEntitlements", String.class).getAnnotation(Transactional.class);

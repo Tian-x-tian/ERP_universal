@@ -8,6 +8,7 @@ import com.erp.ai.model.AiChatRequest;
 import com.erp.ai.model.AiMetaVO;
 import com.erp.ai.service.AiChatService;
 import com.erp.ai.service.AiStreamListener;
+import com.erp.ai.service.impl.AiSaasFeatureGuard;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
@@ -31,11 +32,14 @@ import java.util.concurrent.Executor;
 public class AiChatController {
     private final AiChatService aiChatService;
     private final Executor aiStreamingExecutor;
+    private final AiSaasFeatureGuard featureGuard;
 
     public AiChatController(AiChatService aiChatService,
-                            @Qualifier("aiStreamingExecutor") Executor aiStreamingExecutor) {
+                            @Qualifier("aiStreamingExecutor") Executor aiStreamingExecutor,
+                            AiSaasFeatureGuard featureGuard) {
         this.aiChatService = aiChatService;
         this.aiStreamingExecutor = aiStreamingExecutor;
+        this.featureGuard = featureGuard;
     }
 
     /**
@@ -57,6 +61,7 @@ public class AiChatController {
      */
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamChat(@RequestBody(required = false) AiChatRequest request, HttpServletResponse response) {
+        featureGuard.requirePaidAccess();
         if (response != null) {
             response.setHeader("Cache-Control", "no-cache");
             response.setHeader("X-Accel-Buffering", "no");
@@ -75,6 +80,7 @@ public class AiChatController {
      */
     @PostMapping("/action/confirm")
     public R<AiActionResultVO> confirmAction(@RequestBody(required = false) AiActionConfirmRequest request) {
+        featureGuard.requirePaidAccess();
         return R.success(aiChatService.confirmAction(request));
     }
 

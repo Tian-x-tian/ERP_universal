@@ -162,13 +162,15 @@ CREATE TABLE `sys_menu` (
   `visible` char(1) DEFAULT '0' COMMENT '菜单状态（0显示 1隐藏）',
   `status` char(1) DEFAULT '0' COMMENT '菜单状态（0正常 1停用）',
   `perms` varchar(100) DEFAULT NULL COMMENT '权限标识',
+  `feature_key` varchar(128) DEFAULT NULL COMMENT 'Stable SaaS feature key',
   `icon` varchar(100) DEFAULT '#' COMMENT '菜单图标',
   `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   `remark` varchar(500) DEFAULT NULL COMMENT '备注',
-  PRIMARY KEY (`menu_id`)
+  PRIMARY KEY (`menu_id`),
+  KEY `idx_sys_menu_feature_key` (`feature_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='菜单权限表';
 
 -- ----------------------------
@@ -1544,3 +1546,139 @@ SELECT `tenant_id`, 'user_count', '1970-01-01 00:00:00.000', COUNT(*), 0,
 FROM `sys_user`
 WHERE `status` = '0' AND `del_flag` = '0'
 GROUP BY `tenant_id`;
+
+CREATE TABLE IF NOT EXISTS `sys_saas_usage_outbox` (
+  `outbox_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'Outbox primary key',
+  `tenant_id` varchar(20) NOT NULL COMMENT 'Tenant identifier',
+  `event_key` varchar(128) NOT NULL COMMENT 'Idempotent central usage event key',
+  `metric_key` varchar(64) NOT NULL COMMENT 'Stable quota metric key',
+  `amount` bigint(20) NOT NULL COMMENT 'Absolute settled usage snapshot',
+  `period_start` datetime(3) DEFAULT NULL COMMENT 'UTC monthly period start; null for non-periodic metrics',
+  `occurred_at` datetime(3) NOT NULL COMMENT 'Local snapshot time in UTC',
+  `status` varchar(16) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING or SENT',
+  `attempt_count` int(11) NOT NULL DEFAULT 0 COMMENT 'Delivery attempt count',
+  `next_attempt_at` datetime(3) NOT NULL COMMENT 'Next eligible delivery time in UTC',
+  `sent_at` datetime(3) DEFAULT NULL COMMENT 'Successful delivery time in UTC',
+  `last_error_type` varchar(128) DEFAULT NULL COMMENT 'Last delivery exception type without message',
+  `create_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Created by',
+  `create_time` datetime(3) NOT NULL COMMENT 'Created at',
+  `update_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Updated by',
+  `update_time` datetime(3) NOT NULL COMMENT 'Updated at',
+  PRIMARY KEY (`outbox_id`),
+  UNIQUE KEY `uk_sys_saas_usage_outbox_event` (`tenant_id`, `event_key`),
+  KEY `idx_sys_saas_usage_outbox_pending` (`tenant_id`, `status`, `next_attempt_at`, `outbox_id`),
+  CONSTRAINT `ck_sys_saas_usage_outbox_amount` CHECK (`amount` >= 0),
+  CONSTRAINT `ck_sys_saas_usage_outbox_attempt` CHECK (`attempt_count` >= 0),
+  CONSTRAINT `ck_sys_saas_usage_outbox_status` CHECK (`status` IN ('PENDING', 'SENT')),
+  CONSTRAINT `ck_sys_saas_usage_outbox_sent` CHECK ((`status` = 'PENDING' AND `sent_at` IS NULL) OR (`status` = 'SENT' AND `sent_at` IS NOT NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tenant-local SaaS usage delivery outbox';
+
+INSERT IGNORE INTO `sys_saas_usage_outbox`
+  (`tenant_id`, `event_key`, `metric_key`, `amount`, `period_start`, `occurred_at`,
+   `status`, `attempt_count`, `next_attempt_at`, `sent_at`, `last_error_type`,
+   `create_by`, `create_time`, `update_by`, `update_time`)
+SELECT `tenant_id`,
+       CONCAT('bootstrap:', SHA2(CONCAT_WS('|', `tenant_id`, `metric_key`,
+              DATE_FORMAT(`period_start`, '%Y%m%d%H%i%s%f')), 256)),
+       `metric_key`, `used_amount`,
+       IF(`period_start` = '1970-01-01 00:00:00.000', NULL, `period_start`),
+       `update_time`, 'PENDING', 0, NOW(3), NULL, NULL,
+       'saas-migration', NOW(3), 'saas-migration', NOW(3)
+FROM `sys_saas_quota_counter`;
+
+CREATE TABLE IF NOT EXISTS `sys_saas_provisioning_task` (
+  `task_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'Provisioning task primary key',
+  `tenant_id` varchar(20) NOT NULL COMMENT 'Target tenant identifier',
+  `request_id` varchar(128) NOT NULL COMMENT 'Idempotent provisioning request identifier',
+  `request_hash` char(64) NOT NULL COMMENT 'SHA-256 hash of normalized request payload',
+  `status` varchar(16) NOT NULL COMMENT 'PROCESSING or SUCCEEDED',
+  `tenant_record_id` bigint(20) DEFAULT NULL COMMENT 'Created tenant record identifier',
+  `company_id` bigint(20) DEFAULT NULL COMMENT 'Created root company identifier',
+  `dept_id` bigint(20) DEFAULT NULL COMMENT 'Created root department identifier',
+  `role_id` bigint(20) DEFAULT NULL COMMENT 'Created tenant administrator role identifier',
+  `user_id` bigint(20) DEFAULT NULL COMMENT 'Created tenant administrator user identifier',
+  `activation_expires_at` datetime(3) DEFAULT NULL COMMENT 'One-time activation expiry in UTC',
+  `create_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Created by',
+  `create_time` datetime(3) NOT NULL COMMENT 'Created at',
+  `update_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Updated by',
+  `update_time` datetime(3) NOT NULL COMMENT 'Updated at',
+  PRIMARY KEY (`task_id`),
+  UNIQUE KEY `uk_sys_saas_provisioning_request` (`tenant_id`, `request_id`),
+  KEY `idx_sys_saas_provisioning_status` (`tenant_id`, `status`, `update_time`, `task_id`),
+  CONSTRAINT `ck_sys_saas_provisioning_status` CHECK (`status` IN ('PROCESSING', 'SUCCEEDED')),
+  CONSTRAINT `ck_sys_saas_provisioning_result` CHECK (
+    (`status` = 'PROCESSING' AND `tenant_record_id` IS NULL AND `company_id` IS NULL
+      AND `dept_id` IS NULL AND `role_id` IS NULL AND `user_id` IS NULL
+      AND `activation_expires_at` IS NULL)
+    OR
+    (`status` = 'SUCCEEDED' AND `tenant_record_id` IS NOT NULL AND `company_id` IS NOT NULL
+      AND `dept_id` IS NOT NULL AND `role_id` IS NOT NULL AND `user_id` IS NOT NULL
+      AND `activation_expires_at` IS NOT NULL)
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Idempotent tenant provisioning task';
+
+CREATE TABLE IF NOT EXISTS `sys_user_activation` (
+  `activation_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'Activation primary key',
+  `tenant_id` varchar(20) NOT NULL COMMENT 'Tenant identifier',
+  `user_id` bigint(20) NOT NULL COMMENT 'Disabled user awaiting activation',
+  `token_hash` char(64) NOT NULL COMMENT 'SHA-256 hash of one-time activation token',
+  `expires_at` datetime(3) NOT NULL COMMENT 'Activation expiry in UTC',
+  `activated_at` datetime(3) DEFAULT NULL COMMENT 'Successful activation time in UTC',
+  `status` varchar(16) NOT NULL COMMENT 'PENDING, USED, or REVOKED',
+  `create_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Created by',
+  `create_time` datetime(3) NOT NULL COMMENT 'Created at',
+  `update_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Updated by',
+  `update_time` datetime(3) NOT NULL COMMENT 'Updated at',
+  `version_no` bigint(20) NOT NULL DEFAULT 0 COMMENT 'Optimistic lock version',
+  PRIMARY KEY (`activation_id`),
+  UNIQUE KEY `uk_sys_user_activation_user` (`tenant_id`, `user_id`),
+  UNIQUE KEY `uk_sys_user_activation_token` (`tenant_id`, `token_hash`),
+  KEY `idx_sys_user_activation_pending` (`tenant_id`, `status`, `expires_at`),
+  CONSTRAINT `ck_sys_user_activation_status` CHECK (`status` IN ('PENDING', 'USED', 'REVOKED')),
+  CONSTRAINT `ck_sys_user_activation_used` CHECK (
+    (`status` = 'USED' AND `activated_at` IS NOT NULL)
+    OR (`status` IN ('PENDING', 'REVOKED') AND `activated_at` IS NULL)
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='One-time tenant administrator activation';
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`,
+  `menu_type`, `visible`, `status`, `perms`, `feature_key`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT 'SaaS管理', platform_menu.menu_id, 99, '/platform/saas', NULL, 1,
+  'M', '0', '0', NULL, 'platform.saas.manage', 'Management', 'saas-bootstrap', UTC_TIMESTAMP(3),
+  'Platform SaaS administration'
+FROM `sys_menu` platform_menu
+WHERE platform_menu.path = '/platform'
+  AND NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/platform/saas');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`,
+  `menu_type`, `visible`, `status`, `perms`, `feature_key`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT child.menu_name, parent.menu_id, child.order_num, child.path, child.component, 1,
+  'C', '0', '0', child.perms, 'platform.saas.manage', child.icon,
+  'saas-bootstrap', UTC_TIMESTAMP(3), 'Platform SaaS administration page'
+FROM (
+  SELECT '租户与开通' menu_name, 1 order_num, '/platform/saas/tenants' path,
+    '/views/platform/saas/tenants/index' component, 'saas:tenant:list' perms, 'OfficeBuilding' icon
+  UNION ALL SELECT '套餐与授权', 2, '/platform/saas/plans',
+    '/views/platform/saas/plans/index', 'saas:plan:list', 'SetUp'
+  UNION ALL SELECT '域名管理', 3, '/platform/saas/domains',
+    '/views/platform/saas/domains/index', 'saas:domain:list', 'Link'
+  UNION ALL SELECT '部署实例', 4, '/platform/saas/deployments',
+    '/views/platform/saas/deployments/index', 'saas:deployment:list', 'Connection'
+  UNION ALL SELECT '用量汇总', 5, '/platform/saas/usage',
+    '/views/platform/saas/usage/index', 'saas:usage:list', 'DataAnalysis'
+) child
+INNER JOIN `sys_menu` parent ON parent.path = '/platform/saas'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` existing WHERE existing.path = child.path);
+
+INSERT INTO `sys_role_menu` (`tenant_id`, `role_id`, `menu_id`)
+SELECT role_item.tenant_id, role_item.role_id, menu_item.menu_id
+FROM `sys_role` role_item
+INNER JOIN `sys_menu` menu_item
+  ON menu_item.path = '/platform/saas' OR menu_item.path LIKE '/platform/saas/%'
+LEFT JOIN `sys_role_menu` existing
+  ON existing.tenant_id = role_item.tenant_id
+  AND existing.role_id = role_item.role_id
+  AND existing.menu_id = menu_item.menu_id
+WHERE role_item.tenant_id = '000000'
+  AND role_item.role_key = 'admin'
+  AND existing.menu_id IS NULL;

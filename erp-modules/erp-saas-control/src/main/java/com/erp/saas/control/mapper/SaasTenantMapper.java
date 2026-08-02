@@ -16,6 +16,9 @@ public interface SaasTenantMapper extends BaseMapper<SaasTenantEntity> {
     @Select("SELECT * FROM saas_tenant WHERE tenant_id = #{tenantId} FOR UPDATE")
     SaasTenantEntity lockByTenantId(@Param("tenantId") String tenantId);
 
+    @Select("SELECT * FROM saas_tenant WHERE slug = #{slug} FOR UPDATE")
+    SaasTenantEntity findBySlugForUpdate(@Param("slug") String slug);
+
     @Update("UPDATE saas_tenant SET lifecycle_state = #{nextState}, "
             + "suspended_from_state = #{suspendedFromState}, update_by = #{operator}, update_time = #{now}, "
             + "version_no = version_no + 1 WHERE tenant_id = #{tenantId} "
@@ -42,6 +45,13 @@ public interface SaasTenantMapper extends BaseMapper<SaasTenantEntity> {
             + "AND lifecycle_state = 'ARCHIVED' AND version_no = #{expectedVersion} "
             + "AND purge_eligible_at <= #{now}")
     int markPurgePending(@Param("tenantId") String tenantId,
+            @Param("expectedVersion") Long expectedVersion,
+            @Param("operator") String operator, @Param("now") LocalDateTime now);
+
+    @Update("UPDATE saas_tenant SET lifecycle_state = 'PURGED', update_by = #{operator}, "
+            + "update_time = #{now}, version_no = version_no + 1 WHERE tenant_id = #{tenantId} "
+            + "AND lifecycle_state = 'PURGE_PENDING' AND version_no = #{expectedVersion}")
+    int markPurged(@Param("tenantId") String tenantId,
             @Param("expectedVersion") Long expectedVersion,
             @Param("operator") String operator, @Param("now") LocalDateTime now);
 }

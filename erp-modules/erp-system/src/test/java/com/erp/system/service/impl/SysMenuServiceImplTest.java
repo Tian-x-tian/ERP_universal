@@ -3,18 +3,24 @@ package com.erp.system.service.impl;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.erp.common.core.context.TenantContextHolder;
+import com.erp.saas.contract.model.TenantLifecycleState;
 import com.erp.system.domain.SysMenu;
 import com.erp.system.domain.SysRoleMenu;
 import com.erp.system.domain.SysUserRole;
 import com.erp.system.domain.vo.SysMenuSyncNode;
 import com.erp.system.mapper.SysMenuMapper;
 import com.erp.system.security.service.SecurityUserResolver;
+import com.erp.system.saas.SaasRuntimeEntitlements;
+import com.erp.system.saas.SaasRuntimeSnapshotService;
+import com.erp.system.saas.SaasRuntimeSource;
 import com.erp.system.service.ISysRoleMenuService;
 import com.erp.system.service.ISysRoleService;
 import com.erp.system.service.ISysUserRoleService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -25,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -52,6 +59,9 @@ class SysMenuServiceImplTest {
     @Mock
     private SecurityUserResolver securityUserResolver;
 
+    @Mock
+    private SaasRuntimeSnapshotService snapshotService;
+
     private SysMenuServiceImpl menuService;
 
     /**
@@ -59,10 +69,17 @@ class SysMenuServiceImplTest {
      */
     @BeforeEach
     void setUp() {
-        menuService = new SysMenuServiceImpl(userRoleService, roleMenuService, roleService, securityUserResolver);
+        menuService = new SysMenuServiceImpl(userRoleService, roleMenuService, roleService,
+                securityUserResolver, snapshotService);
         ReflectionTestUtils.setField(menuService, "baseMapper", menuMapper);
         initTableInfoIfAbsent(SysUserRole.class);
         initTableInfoIfAbsent(SysRoleMenu.class);
+        TenantContextHolder.setTenantId("tenant-a");
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContextHolder.clear();
     }
 
     /**
@@ -156,6 +173,64 @@ class SysMenuServiceImplTest {
         Assertions.assertEquals("通知", legacyNoticeMenu.getMenuName());
         Assertions.assertEquals(Long.valueOf(100L), legacyNoticeMenu.getParentId());
         Assertions.assertEquals("admin", legacyNoticeMenu.getUpdateBy());
+    }
+
+    @Test
+    void shouldIntersectRbacMenuTreeWithSaasFeatures() {
+        SysUserRole userRole = new SysUserRole();
+        userRole.setRoleId(1L);
+        when(userRoleService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(userRole));
+        SysRoleMenu allowedRoleMenu = new SysRoleMenu();
+        allowedRoleMenu.setRoleId(1L);
+        allowedRoleMenu.setMenuId(3L);
+        SysRoleMenu deniedRoleMenu = new SysRoleMenu();
+        deniedRoleMenu.setRoleId(1L);
+        deniedRoleMenu.setMenuId(4L);
+        when(roleMenuService.list(any(LambdaQueryWrapper.class)))
+                .thenReturn(List.of(allowedRoleMenu, deniedRoleMenu));
+        SysMenu root = buildMenu(2L, 0L, "业务", "M", "0", "0", 1);
+        SysMenu allowed = buildMenu(3L, 2L, "订单查询", "C", "0", "0", 1);
+        allowed.setFeatureKey("orders.view");
+        SysMenu denied = buildMenu(4L, 2L, "订单维护", "C", "0", "0", 2);
+        denied.setFeatureKey("orders.edit");
+        when(menuMapper.selectList(any())).thenReturn(List.of(root, allowed, denied));
+        when(snapshotService.current("tenant-a")).thenReturn(entitlements());
+
+        List<SysMenu> tree = menuService.selectMenuTreeByUserId(1L);
+
+        Assertions.assertEquals(1, tree.size());
+        Assertions.assertEquals(List.of(3L), tree.get(0).getChildren().stream()
+                .map(SysMenu::getMenuId).toList());
+    }
+
+    @Test
+    void shouldIntersectRbacPermissionsWithSaasFeatures() {
+        SysUserRole userRole = new SysUserRole();
+        userRole.setRoleId(1L);
+        when(userRoleService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(userRole));
+        SysRoleMenu first = new SysRoleMenu();
+        first.setRoleId(1L);
+        first.setMenuId(3L);
+        SysRoleMenu second = new SysRoleMenu();
+        second.setRoleId(1L);
+        second.setMenuId(4L);
+        when(roleMenuService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(first, second));
+        SysMenu allowed = buildMenu(3L, 2L, "订单查询", "F", "0", "0", 1);
+        allowed.setPerms("orders:view");
+        allowed.setFeatureKey("orders.view");
+        SysMenu denied = buildMenu(4L, 2L, "订单维护", "F", "0", "0", 2);
+        denied.setPerms("orders:edit");
+        denied.setFeatureKey("orders.edit");
+        when(menuMapper.selectBatchIds(any())).thenReturn(List.of(allowed, denied));
+        when(snapshotService.current("tenant-a")).thenReturn(entitlements());
+
+        Assertions.assertEquals(java.util.Set.of("orders:view"), menuService.selectMenuPermsByUserId(1L));
+    }
+
+    private SaasRuntimeEntitlements entitlements() {
+        return new SaasRuntimeEntitlements("tenant-a", TenantLifecycleState.ACTIVE, 1L,
+                SaasRuntimeSource.LOCAL_CACHE, false, true, true,
+                Map.of("orders.view", true, "orders.edit", false), Map.of());
     }
 
     /**

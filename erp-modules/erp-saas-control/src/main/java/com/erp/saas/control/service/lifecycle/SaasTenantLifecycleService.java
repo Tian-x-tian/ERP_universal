@@ -23,4 +23,6 @@ public interface SaasTenantLifecycleService {
     SaasTenantLifecycleView archive(TenantVersionCommand command);
 
     SaasTenantLifecycleView markPurgePending(TenantVersionCommand command);
+
+    SaasTenantLifecycleView completePurge(TenantVersionCommand command);
 }

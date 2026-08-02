@@ -31,7 +31,7 @@ class SaasControlCatalogSqlMigrationIntegrationTest {
     private static final String URL = "ERP_SAAS_TEST_JDBC_URL";
     private static final String USER = "ERP_SAAS_TEST_DB_USER";
     private static final String PASSWORD = "ERP_SAAS_TEST_DB_PASSWORD";
-    private static final List<String> TABLES = List.of("saas_usage_summary", "saas_usage_event",
+    private static final List<String> TABLES = List.of("saas_provisioning_task", "saas_usage_summary", "saas_usage_event",
             "saas_entitlement_snapshot", "saas_deployment", "saas_tenant_quota_override",
             "saas_tenant_feature_override", "saas_subscription", "saas_plan_quota", "saas_plan_feature",
             "saas_feature", "saas_plan", "saas_domain", "saas_tenant");
@@ -43,8 +43,12 @@ class SaasControlCatalogSqlMigrationIntegrationTest {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(url, user, password);
         try {
             reset(url, user, password); executeTwice(dataSource, "sql/init_control.sql"); validate(dataSource);
+            verifyLegacyPlan(dataSource);
+            verifyCoreFeatures(dataSource);
             verifyUsageSummaryKeepsNewestSnapshot(dataSource);
             reset(url, user, password); executeCatalogUpgradesTwice(dataSource); validate(dataSource);
+            verifyLegacyPlan(dataSource);
+            verifyCoreFeatures(dataSource);
             assertRejected(dataSource, url, user, password,
                     "ALTER TABLE `saas_tenant` ALTER COLUMN `version_no` SET DEFAULT 1", "saas_tenant");
             assertRejected(dataSource, url, user, password,
@@ -117,6 +121,27 @@ class SaasControlCatalogSqlMigrationIntegrationTest {
         row.setCreateTime(occurredAt); row.setUpdateBy("test"); row.setUpdateTime(occurredAt); row.setVersionNo(0L);
         return row;
     }
+    private void verifyLegacyPlan(DriverManagerDataSource dataSource) throws Exception {
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("SELECT plan_name, status, plan_version "
+                        + "FROM saas_plan WHERE plan_code = 'legacy-full-access'")) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getString("plan_name")).isEqualTo("Legacy Full Access");
+            assertThat(result.getString("status")).isEqualTo("ACTIVE");
+            assertThat(result.getInt("plan_version")).isEqualTo(1);
+            assertThat(result.next()).isFalse();
+        }
+    }
+    private void verifyCoreFeatures(DriverManagerDataSource dataSource) throws Exception {
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("SELECT feature_name, status "
+                        + "FROM saas_feature WHERE feature_key = 'ai.assistant'")) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getString("feature_name")).isEqualTo("AI Assistant");
+            assertThat(result.getString("status")).isEqualTo("ACTIVE");
+            assertThat(result.next()).isFalse();
+        }
+    }
     private void executeTwice(DriverManagerDataSource dataSource, String path) throws Exception {
         execute(dataSource, path); execute(dataSource, path);
     }
@@ -127,6 +152,9 @@ class SaasControlCatalogSqlMigrationIntegrationTest {
         execute(dataSource, "sql/upgrade/control/20260801_02_saas_control_catalog.sql");
         execute(dataSource, "sql/upgrade/control/20260802_01_saas_entitlement_snapshot.sql");
         execute(dataSource, "sql/upgrade/control/20260802_02_saas_usage_aggregation.sql");
+        execute(dataSource, "sql/upgrade/control/20260802_03_saas_tenant_provisioning.sql");
+        execute(dataSource, "sql/upgrade/control/20260802_04_saas_legacy_full_access.sql");
+        execute(dataSource, "sql/upgrade/control/20260802_05_saas_core_features.sql");
     }
     private void execute(DriverManagerDataSource dataSource, String path) throws Exception {
         try (Connection connection = dataSource.getConnection()) {

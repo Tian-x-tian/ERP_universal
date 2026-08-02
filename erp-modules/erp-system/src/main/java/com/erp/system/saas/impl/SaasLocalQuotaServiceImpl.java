@@ -10,8 +10,10 @@ import com.erp.saas.contract.model.SaasUsageEventValidator;
 import com.erp.saas.contract.model.SaasUsageOperation;
 import com.erp.system.domain.SysSaasQuotaCounter;
 import com.erp.system.domain.SysSaasQuotaReservation;
+import com.erp.system.domain.SysSaasUsageOutbox;
 import com.erp.system.mapper.SysSaasQuotaCounterMapper;
 import com.erp.system.mapper.SysSaasQuotaReservationMapper;
+import com.erp.system.mapper.SysSaasUsageOutboxMapper;
 import com.erp.system.mapper.SysUserMapper;
 import com.erp.system.saas.SaasLocalQuotaService;
 import com.erp.system.saas.SaasRuntimeEntitlements;
@@ -27,6 +29,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 @Service
 public class SaasLocalQuotaServiceImpl implements SaasLocalQuotaService {
@@ -39,15 +42,18 @@ public class SaasLocalQuotaServiceImpl implements SaasLocalQuotaService {
     private final SysSaasQuotaCounterMapper counterMapper;
     private final SysSaasQuotaReservationMapper reservationMapper;
     private final SysUserMapper userMapper;
+    private final SysSaasUsageOutboxMapper outboxMapper;
     private final SaasRuntimeSnapshotService snapshotService;
     private final Clock clock;
 
     public SaasLocalQuotaServiceImpl(SysSaasQuotaCounterMapper counterMapper,
             SysSaasQuotaReservationMapper reservationMapper, SysUserMapper userMapper,
+            SysSaasUsageOutboxMapper outboxMapper,
             SaasRuntimeSnapshotService snapshotService, Clock clock) {
         this.counterMapper = Objects.requireNonNull(counterMapper, "counterMapper must not be null");
         this.reservationMapper = Objects.requireNonNull(reservationMapper, "reservationMapper must not be null");
         this.userMapper = Objects.requireNonNull(userMapper, "userMapper must not be null");
+        this.outboxMapper = Objects.requireNonNull(outboxMapper, "outboxMapper must not be null");
         this.snapshotService = Objects.requireNonNull(snapshotService, "snapshotService must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
@@ -62,12 +68,16 @@ public class SaasLocalQuotaServiceImpl implements SaasLocalQuotaService {
         }
         LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
         LocalDateTime period = period(event);
-        return switch (event.getOperation()) {
+        SaasQuotaUsage usage = switch (event.getOperation()) {
             case RESERVE -> reserve(tenantId, event, period, now);
             case SETTLE -> settle(tenantId, event, period, now);
             case RELEASE -> release(tenantId, event, period, now);
             case REPORT -> throw validation("Unsupported local quota operation");
         };
+        if (event.getOperation() != SaasUsageOperation.RESERVE) {
+            enqueueUsage(tenantId, usage, now);
+        }
+        return usage;
     }
 
     @Override
@@ -98,7 +108,10 @@ public class SaasLocalQuotaServiceImpl implements SaasLocalQuotaService {
                 operator(operator), now) != 1) {
             throw conflict("Quota counter cannot release consumed usage");
         }
-        return usage(metricKey, counter.getUsedAmount() - amount, counter.getReservedAmount(), null);
+        SaasQuotaUsage usage = usage(metricKey, counter.getUsedAmount() - amount,
+                counter.getReservedAmount(), null);
+        enqueueUsage(tenantId, usage, now);
+        return usage;
     }
 
     private SaasQuotaUsage reserve(String tenantId, SaasUsageEvent event,
@@ -241,6 +254,27 @@ public class SaasLocalQuotaServiceImpl implements SaasLocalQuotaService {
     private LocalDateTime period(SaasUsageEvent event) {
         return event.getPeriodStartEpochMs() == null ? NON_PERIODIC
                 : LocalDateTime.ofInstant(Instant.ofEpochMilli(event.getPeriodStartEpochMs()), ZoneOffset.UTC);
+    }
+
+    private void enqueueUsage(String tenantId, SaasQuotaUsage usage, LocalDateTime now) {
+        SysSaasUsageOutbox row = new SysSaasUsageOutbox();
+        row.setTenantId(tenantId);
+        row.setEventKey(UUID.randomUUID().toString());
+        row.setMetricKey(usage.getQuotaKey());
+        row.setAmount(usage.getUsed());
+        row.setPeriodStart(usage.getPeriodStartEpochMs() == null ? null
+                : LocalDateTime.ofInstant(Instant.ofEpochMilli(usage.getPeriodStartEpochMs()), ZoneOffset.UTC));
+        row.setOccurredAt(now);
+        row.setStatus("PENDING");
+        row.setAttemptCount(0);
+        row.setNextAttemptAt(now);
+        row.setCreateBy(OPERATOR);
+        row.setCreateTime(now);
+        row.setUpdateBy(OPERATOR);
+        row.setUpdateTime(now);
+        if (outboxMapper.insert(row) != 1) {
+            throw conflict("SaaS usage report was not queued");
+        }
     }
 
     private String requireTenant(String requestedTenantId) {

@@ -31,7 +31,7 @@ public class SecurityConfig {
                                 "/system/**",
                                 jwtAuthenticationFilter,
                                 objectMapper,
-                                "/system/public/tenants/active");
+                                "/system/public/saas/activation");
         }
 
         /**

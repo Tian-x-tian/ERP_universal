@@ -13,6 +13,9 @@ public interface SaasPlanMapper extends BaseMapper<SaasPlanEntity> {
     @Select("SELECT * FROM saas_plan WHERE plan_id = #{planId} FOR UPDATE")
     SaasPlanEntity findByIdForUpdate(@Param("planId") Long planId);
 
+    @Select("SELECT * FROM saas_plan WHERE plan_code = #{planCode} AND status = 'ACTIVE'")
+    SaasPlanEntity findActiveByCode(@Param("planCode") String planCode);
+
     @Select("SELECT * FROM saas_plan WHERE plan_code = #{planCode} ORDER BY plan_id FOR UPDATE")
     List<SaasPlanEntity> findFamilyForUpdate(@Param("planCode") String planCode);
 

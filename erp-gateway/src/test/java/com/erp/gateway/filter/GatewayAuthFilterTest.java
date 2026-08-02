@@ -4,6 +4,7 @@ import com.erp.common.security.AuthHeaders;
 import com.erp.common.security.ResolvedTenantAssertion;
 import com.erp.common.security.ResolvedTenantAssertionSignatureUtils;
 import com.erp.common.security.TenantAssertionHeaders;
+import com.erp.saas.contract.model.DeploymentMode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -20,10 +21,12 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -90,6 +93,26 @@ class GatewayAuthFilterTest {
     }
 
     @Test
+    void shouldAttachSignedTenantAssertionToActivationWithoutTokenVerification() {
+        List<ClientRequest> calls = new ArrayList<>();
+        GatewayAuthFilter filter = filter(builder(calls, TenantResponse.ACTIVE, "tenant-a"));
+        MockServerHttpRequest request = MockServerHttpRequest.post("/system/public/saas/activation")
+                .header(HttpHeaders.HOST, "acme.example")
+                .build();
+        AtomicReference<org.springframework.web.server.ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(MockServerWebExchange.from(request), exchange -> {
+            forwarded.set(exchange);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(calls).hasSize(1);
+        assertThat(assertion(forwarded.get().getRequest().getHeaders()).getPath())
+                .isEqualTo("/system/public/saas/activation");
+    }
+
+    @Test
     void shouldRejectTokenTenantDifferentFromResolvedDomain() throws Exception {
         GatewayAuthFilter filter = filter(builder(new ArrayList<>(), TenantResponse.ACTIVE, "tenant-b"));
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
@@ -103,6 +126,27 @@ class GatewayAuthFilterTest {
         JsonNode body = objectMapper.readTree(exchange.getResponse().getBodyAsString().block());
         assertThat(exchange.getResponse().getStatusCode().value()).isEqualTo(401);
         assertThat(body.path("message").asText()).isEqualTo("租户与访问域名不匹配");
+    }
+
+    @Test
+    void shouldProtectPlatformSaasRoutesWithResolvedManagementDomainAndToken() {
+        List<ClientRequest> calls = new ArrayList<>();
+        GatewayAuthFilter filter = filter(builder(calls, TenantResponse.PLATFORM, "000000"));
+        MockServerHttpRequest request = MockServerHttpRequest.post("/saas/tenants")
+                .header(HttpHeaders.HOST, "platform.example")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer platform-token")
+                .build();
+        AtomicReference<org.springframework.web.server.ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(MockServerWebExchange.from(request), exchange -> {
+            forwarded.set(exchange);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getRequest().getHeaders().getFirst(AuthHeaders.TENANT_ID))
+                .isEqualTo("000000");
+        assertThat(calls).hasSize(2);
     }
 
     @Test
@@ -129,6 +173,139 @@ class GatewayAuthFilterTest {
         JsonNode body = objectMapper.readTree(exchange.getResponse().getBodyAsString().block());
         assertThat(exchange.getResponse().getStatusCode().value()).isEqualTo(401);
         assertThat(body.path("message").asText()).isEqualTo("租户当前状态不允许访问");
+    }
+
+    @Test
+    void shouldRejectBusinessWritesWhenTenantIsReadOnly() throws Exception {
+        List<ClientRequest> calls = new ArrayList<>();
+        GatewayAuthFilter filter = filter(builder(calls, TenantResponse.READ_ONLY, "tenant-a"));
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .post("/business/orders")
+                .header(HttpHeaders.HOST, "acme.example")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer readonly-token")
+                .build());
+        AtomicReference<org.springframework.web.server.ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(exchange, request -> {
+            forwarded.set(request);
+            return Mono.empty();
+        }).block();
+
+        JsonNode body = objectMapper.readTree(exchange.getResponse().getBodyAsString().block());
+        assertThat(exchange.getResponse().getStatusCode().value()).isEqualTo(403);
+        assertThat(body.path("message").asText()).isEqualTo("租户当前处于只读状态，禁止业务写入");
+        assertThat(forwarded.get()).isNull();
+        assertThat(calls).hasSize(1);
+    }
+
+    @Test
+    void shouldAllowQueriesAndExportsWhenTenantIsReadOnly() {
+        List<ClientRequest> calls = new ArrayList<>();
+        GatewayAuthFilter filter = filter(builder(calls, TenantResponse.READ_ONLY, "tenant-a"));
+        AtomicInteger forwarded = new AtomicInteger();
+        GatewayFilterChain chain = request -> {
+            forwarded.incrementAndGet();
+            return Mono.empty();
+        };
+
+        filter.filter(MockServerWebExchange.from(MockServerHttpRequest
+                .get("/business/orders")
+                .header(HttpHeaders.HOST, "acme.example")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer readonly-token")
+                .build()), chain).block();
+        filter.filter(MockServerWebExchange.from(MockServerHttpRequest
+                .post("/business/inventory/report/summary/export")
+                .header(HttpHeaders.HOST, "acme.example")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer readonly-token")
+                .build()), chain).block();
+
+        assertThat(forwarded).hasValue(2);
+        assertThat(calls).hasSize(4);
+    }
+
+    @Test
+    void shouldUseLastVerifiedHostResolutionWhenControlPlaneIsTemporarilyUnavailable() {
+        List<ClientRequest> calls = new ArrayList<>();
+        AtomicInteger resolutionAttempts = new AtomicInteger();
+        ExchangeFunction exchangeFunction = request -> {
+            calls.add(request);
+            if ("erp-saas-control".equals(request.url().getHost())) {
+                if (resolutionAttempts.incrementAndGet() == 1) {
+                    return Mono.just(TenantResponse.ACTIVE.response());
+                }
+                return Mono.error(new IllegalStateException("control plane unavailable"));
+            }
+            return Mono.just(tokenResponse("tenant-a"));
+        };
+        GatewayAuthFilter filter = filter(WebClient.builder().exchangeFunction(exchangeFunction));
+        AtomicInteger forwarded = new AtomicInteger();
+        GatewayFilterChain chain = request -> {
+            forwarded.incrementAndGet();
+            return Mono.empty();
+        };
+
+        for (int index = 0; index < 2; index++) {
+            filter.filter(MockServerWebExchange.from(MockServerHttpRequest
+                    .get("/business/orders")
+                    .header(HttpHeaders.HOST, "acme.example")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer active-token")
+                    .build()), chain).block();
+        }
+
+        assertThat(forwarded).hasValue(2);
+        assertThat(resolutionAttempts).hasValue(2);
+        assertThat(calls).hasSize(4);
+    }
+
+    @Test
+    void shouldNotUseCachedResolutionWhenControlPlaneExplicitlyRejectsDomain() throws Exception {
+        AtomicInteger resolutionAttempts = new AtomicInteger();
+        ExchangeFunction exchangeFunction = request -> {
+            if ("erp-saas-control".equals(request.url().getHost())) {
+                return Mono.just(resolutionAttempts.incrementAndGet() == 1
+                        ? TenantResponse.ACTIVE.response() : TenantResponse.NOT_FOUND.response());
+            }
+            return Mono.just(tokenResponse("tenant-a"));
+        };
+        GatewayAuthFilter filter = filter(WebClient.builder().exchangeFunction(exchangeFunction));
+        AtomicInteger forwarded = new AtomicInteger();
+        GatewayFilterChain chain = request -> {
+            forwarded.incrementAndGet();
+            return Mono.empty();
+        };
+        MockServerHttpRequest request = MockServerHttpRequest.get("/business/orders")
+                .header(HttpHeaders.HOST, "acme.example")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer active-token")
+                .build();
+
+        filter.filter(MockServerWebExchange.from(request), chain).block();
+        MockServerWebExchange rejectedExchange = MockServerWebExchange.from(request);
+        filter.filter(rejectedExchange, chain).block();
+
+        JsonNode body = objectMapper.readTree(rejectedExchange.getResponse().getBodyAsString().block());
+        assertThat(forwarded).hasValue(1);
+        assertThat(rejectedExchange.getResponse().getStatusCode().value()).isEqualTo(401);
+        assertThat(body.path("message").asText()).isEqualTo("租户域名无效或未验证");
+    }
+
+    @Test
+    void shouldRejectResolutionOutsideDedicatedInstanceBinding() throws Exception {
+        GatewayAuthFilter filter = new GatewayAuthFilter(
+                builder(new ArrayList<>(), TenantResponse.DEDICATED_OTHER, "tenant-b"),
+                objectMapper, INTERNAL_SECRET, ASSERTION_SECRET, "http://erp-saas-control",
+                2000L, Duration.ofHours(24).toMillis(), Clock.fixed(NOW, ZoneOffset.UTC),
+                DeploymentMode.DEDICATED, "tenant-a", "acme.example");
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .get("/business/orders")
+                .header(HttpHeaders.HOST, "other.example")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer other-token")
+                .build());
+
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        JsonNode body = objectMapper.readTree(exchange.getResponse().getBodyAsString().block());
+        assertThat(exchange.getResponse().getStatusCode().value()).isEqualTo(401);
+        assertThat(body.path("message").asText()).isEqualTo("租户域名不属于当前独立部署实例");
     }
 
     private GatewayAuthFilter filter(WebClient.Builder builder) {
@@ -170,6 +347,12 @@ class GatewayAuthFilterTest {
     private enum TenantResponse {
         ACTIVE(HttpStatus.OK, "{\"host\":\"acme.example\",\"tenantId\":\"tenant-a\","
                 + "\"deploymentMode\":\"SHARED\",\"lifecycleState\":\"ACTIVE\",\"verified\":true}"),
+        PLATFORM(HttpStatus.OK, "{\"host\":\"platform.example\",\"tenantId\":\"000000\","
+                + "\"deploymentMode\":\"SHARED\",\"lifecycleState\":\"ACTIVE\",\"verified\":true}"),
+        READ_ONLY(HttpStatus.OK, "{\"host\":\"acme.example\",\"tenantId\":\"tenant-a\","
+                + "\"deploymentMode\":\"SHARED\",\"lifecycleState\":\"READ_ONLY\",\"verified\":true}"),
+        DEDICATED_OTHER(HttpStatus.OK, "{\"host\":\"other.example\",\"tenantId\":\"tenant-b\","
+                + "\"deploymentMode\":\"DEDICATED\",\"lifecycleState\":\"ACTIVE\",\"verified\":true}"),
         SUSPENDED(HttpStatus.OK, "{\"host\":\"acme.example\",\"tenantId\":\"tenant-a\","
                 + "\"deploymentMode\":\"SHARED\",\"lifecycleState\":\"SUSPENDED\",\"verified\":true}"),
         NOT_FOUND(HttpStatus.NOT_FOUND, "");

@@ -2,6 +2,7 @@ package com.erp.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.erp.common.core.context.TenantContextHolder;
 import com.erp.system.domain.SysMenu;
 import com.erp.system.domain.SysRole;
 import com.erp.system.domain.SysRoleMenu;
@@ -9,6 +10,8 @@ import com.erp.system.domain.SysUserRole;
 import com.erp.system.domain.vo.SysMenuSyncNode;
 import com.erp.system.mapper.SysMenuMapper;
 import com.erp.system.security.service.SecurityUserResolver;
+import com.erp.system.saas.SaasRuntimeEntitlements;
+import com.erp.system.saas.SaasRuntimeSnapshotService;
 import com.erp.system.service.ISysMenuService;
 import com.erp.system.service.ISysRoleMenuService;
 import com.erp.system.service.ISysRoleService;
@@ -36,20 +39,24 @@ import java.util.stream.Collectors;
 public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> implements ISysMenuService {
 
     private static final String ALL_PERMISSION = "*:*:*";
+    private static final String PLATFORM_TENANT_ID = "000000";
 
     private final ISysUserRoleService userRoleService;
     private final ISysRoleMenuService roleMenuService;
     private final ISysRoleService roleService;
     private final SecurityUserResolver securityUserResolver;
+    private final SaasRuntimeSnapshotService snapshotService;
 
     public SysMenuServiceImpl(ISysUserRoleService userRoleService,
             ISysRoleMenuService roleMenuService,
             ISysRoleService roleService,
-            SecurityUserResolver securityUserResolver) {
+            SecurityUserResolver securityUserResolver,
+            SaasRuntimeSnapshotService snapshotService) {
         this.userRoleService = userRoleService;
         this.roleMenuService = roleMenuService;
         this.roleService = roleService;
         this.securityUserResolver = securityUserResolver;
+        this.snapshotService = snapshotService;
     }
 
     /**
@@ -84,7 +91,7 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
             return Collections.emptySet();
         }
 
-        return listByIds(menuIds).stream()
+        return entitledMenus(listByIds(menuIds)).stream()
                 .map(SysMenu::getPerms)
                 .filter(StringUtils::hasText)
                 .collect(Collectors.toSet());
@@ -107,7 +114,7 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
             return Collections.emptyList();
         }
 
-        List<SysMenu> allMenus = list();
+        List<SysMenu> allMenus = entitledMenus(list());
         if (allMenus.isEmpty()) {
             return Collections.emptyList();
         }
@@ -120,6 +127,24 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
                 .sorted(Comparator.comparing(SysMenu::getOrderNum, Comparator.nullsLast(Integer::compareTo)))
                 .collect(Collectors.toList());
         return buildMenuTree(menus, 0L);
+    }
+
+    private List<SysMenu> entitledMenus(List<SysMenu> menus) {
+        if (menus == null || menus.isEmpty()) {
+            return Collections.emptyList();
+        }
+        String tenantId = TenantContextHolder.getTenantId();
+        if (PLATFORM_TENANT_ID.equals(tenantId)) {
+            return menus;
+        }
+        if (!StringUtils.hasText(tenantId)) {
+            return menus.stream().filter(menu -> !StringUtils.hasText(menu.getFeatureKey())).toList();
+        }
+        SaasRuntimeEntitlements entitlements = snapshotService.current(tenantId);
+        return menus.stream()
+                .filter(menu -> !StringUtils.hasText(menu.getFeatureKey())
+                        || entitlements.featureEnabled(menu.getFeatureKey()))
+                .toList();
     }
 
     /**

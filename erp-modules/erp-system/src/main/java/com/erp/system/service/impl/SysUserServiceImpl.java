@@ -91,6 +91,36 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean activateProvisionedUser(Long userId, String encodedPassword) {
+        if (userId == null || !StringUtils.hasText(encodedPassword)) {
+            return false;
+        }
+        SysUser existedUser = getById(userId);
+        if (existedUser == null || !"1".equals(existedUser.getStatus())
+                || !"0".equals(existedUser.getDelFlag())) {
+            return false;
+        }
+        String tenantId = resolveTenantId(null, existedUser.getTenantId());
+        if (!StringUtils.hasText(tenantId)) {
+            return false;
+        }
+        String quotaReference = reserveUserQuota(tenantId);
+        SysUser updateEntity = new SysUser();
+        updateEntity.setUserId(userId);
+        updateEntity.setTenantId(tenantId);
+        updateEntity.setStatus("0");
+        updateEntity.setPassword(encodedPassword);
+        boolean success = super.updateById(updateEntity);
+        if (!success) {
+            releaseUserQuota(tenantId, quotaReference);
+            return false;
+        }
+        settleUserQuota(tenantId, quotaReference);
+        return true;
+    }
+
+    @Override
     @Transactional
     public boolean save(SysUser entity) {
         if (entity == null) {
