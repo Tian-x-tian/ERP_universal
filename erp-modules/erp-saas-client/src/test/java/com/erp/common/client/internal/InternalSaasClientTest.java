@@ -145,6 +145,9 @@ class InternalSaasClientTest {
         Assertions.assertThrows(IllegalArgumentException.class, () -> client.resolveTenantByHost("  "));
         Assertions.assertThrows(IllegalArgumentException.class, () -> client.loadEntitlementSnapshot(null));
         Assertions.assertThrows(IllegalArgumentException.class, () -> client.reportUsage(null));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> client.reportUsage(
+                new SaasUsageEvent("reserve-a", "tenant-a", SaasQuotaKeys.USER_COUNT,
+                        SaasUsageOperation.RESERVE, "user-a", 1L, null, 1L)));
         Assertions.assertThrows(IllegalArgumentException.class, () -> client.reportProvisioningResult(null));
         Assertions.assertThrows(IllegalArgumentException.class, () -> client.reportProvisioningResult(
                 new SaasProvisioningResult("request-a", "tenant-a", false, " ", true, 1L)));
@@ -224,8 +227,8 @@ class InternalSaasClientTest {
     }
 
     private SaasUsageEvent usageEvent() {
-        return new SaasUsageEvent("event-a", "tenant-a", SaasQuotaKeys.USER_COUNT, SaasUsageOperation.RESERVE,
-                "user-a", 1L, null, 1L);
+        return new SaasUsageEvent("event-a", "tenant-a", SaasQuotaKeys.USER_COUNT, SaasUsageOperation.REPORT,
+                null, 1L, null, 1L);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

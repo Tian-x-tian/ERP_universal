@@ -24,7 +24,9 @@ class SaasControlPersistenceContractTest {
             Map.entry(SaasTenantFeatureOverrideEntity.class, "saas_tenant_feature_override"),
             Map.entry(SaasTenantQuotaOverrideEntity.class, "saas_tenant_quota_override"),
             Map.entry(SaasDeploymentEntity.class, "saas_deployment"),
-            Map.entry(SaasEntitlementSnapshotEntity.class, "saas_entitlement_snapshot"));
+            Map.entry(SaasEntitlementSnapshotEntity.class, "saas_entitlement_snapshot"),
+            Map.entry(SaasUsageEventEntity.class, "saas_usage_event"),
+            Map.entry(SaasUsageSummaryEntity.class, "saas_usage_summary"));
 
     @Test void shouldFreezeTablesKeysAndFieldTypes() throws Exception {
         for (var entry : TABLES.entrySet()) {

@@ -2,11 +2,15 @@ package com.erp.saas.control.controller;
 
 import com.erp.saas.contract.model.DeploymentMode;
 import com.erp.saas.contract.model.SaasEntitlementSnapshot;
+import com.erp.saas.contract.model.SaasQuotaKeys;
+import com.erp.saas.contract.model.SaasUsageEvent;
+import com.erp.saas.contract.model.SaasUsageOperation;
 import com.erp.saas.contract.model.TenantLifecycleState;
 import com.erp.common.security.AuthenticatedUserPrincipal;
 import com.erp.saas.control.service.domain.SaasDomainService;
 import com.erp.saas.control.service.domain.model.ResolvedTenantDomain;
 import com.erp.saas.control.service.snapshot.SaasEntitlementSnapshotService;
+import com.erp.saas.control.service.usage.SaasUsageAggregationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
@@ -22,7 +26,8 @@ class InternalSaasControllerTest {
     void shouldReturnOnlyVerifiedResolutionAndHideMissAsNotFound() {
         SaasDomainService domains = mock(SaasDomainService.class);
         SaasEntitlementSnapshotService snapshots = mock(SaasEntitlementSnapshotService.class);
-        InternalSaasController controller = new InternalSaasController(domains, snapshots);
+        SaasUsageAggregationService usage = mock(SaasUsageAggregationService.class);
+        InternalSaasController controller = new InternalSaasController(domains, snapshots, usage);
         when(domains.resolve("Acme.example")).thenReturn(Optional.of(new ResolvedTenantDomain(
                 1L, "tenant_1", "acme.example", DeploymentMode.SHARED, TenantLifecycleState.ACTIVE)));
 
@@ -39,7 +44,8 @@ class InternalSaasControllerTest {
     void shouldAuditSnapshotLeaseToAuthenticatedServicePrincipal() {
         SaasDomainService domains = mock(SaasDomainService.class);
         SaasEntitlementSnapshotService snapshots = mock(SaasEntitlementSnapshotService.class);
-        InternalSaasController controller = new InternalSaasController(domains, snapshots);
+        SaasUsageAggregationService usage = mock(SaasUsageAggregationService.class);
+        InternalSaasController controller = new InternalSaasController(domains, snapshots, usage);
         SaasEntitlementSnapshot expected = new SaasEntitlementSnapshot();
         when(snapshots.load("tenant_1", "erp-gateway")).thenReturn(expected);
 
@@ -48,5 +54,21 @@ class InternalSaasControllerTest {
                 principal, "n/a", java.util.List.of());
         assertThat(controller.entitlementSnapshot("tenant_1", authentication)).isSameAs(expected);
         verify(snapshots).load("tenant_1", "erp-gateway");
+    }
+
+    @Test
+    void shouldAggregateUsageAsAuthenticatedServicePrincipal() {
+        SaasDomainService domains = mock(SaasDomainService.class);
+        SaasEntitlementSnapshotService snapshots = mock(SaasEntitlementSnapshotService.class);
+        SaasUsageAggregationService usage = mock(SaasUsageAggregationService.class);
+        InternalSaasController controller = new InternalSaasController(domains, snapshots, usage);
+        SaasUsageEvent event = new SaasUsageEvent("event-a", "tenant_1", SaasQuotaKeys.USER_COUNT,
+                SaasUsageOperation.REPORT, null, 5L, null, 1L);
+        var principal = new AuthenticatedUserPrincipal(0L, "erp-system", "000000", 0, 4102444800000L);
+        var authentication = UsernamePasswordAuthenticationToken.authenticated(
+                principal, "n/a", java.util.List.of());
+
+        assertThat(controller.reportUsage(event, authentication).getStatusCode().value()).isEqualTo(204);
+        verify(usage).report(event, "erp-system");
     }
 }

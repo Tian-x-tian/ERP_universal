@@ -5,6 +5,7 @@ import com.erp.saas.contract.model.SaasHostResolution;
 import com.erp.saas.contract.model.SaasProvisioningResult;
 import com.erp.saas.contract.model.SaasUsageEvent;
 import com.erp.saas.contract.model.SaasUsageEventValidator;
+import com.erp.saas.contract.model.SaasUsageOperation;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -56,6 +57,9 @@ public class InternalSaasClient {
 
     public void reportUsage(SaasUsageEvent event) {
         SaasUsageEventValidator.validate(event);
+        if (event.getOperation() != SaasUsageOperation.REPORT) {
+            throw new IllegalArgumentException("SaaS control plane accepts REPORT usage events only");
+        }
         post(buildUri("/internal/saas/usage-events"), event);
     }
 

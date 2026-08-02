@@ -38,6 +38,12 @@ public final class SaasControlCatalogSchemaManifest {
         add(tables, "saas_entitlement_snapshot", "tenant_id:varchar(20):N:~:~:utf8mb4_unicode_ci;snapshot_version:bigint:N:~:~:~;payload_hash:char(64):N:~:~:utf8mb4_unicode_ci;snapshot_json:longtext:N:~:~:utf8mb4_unicode_ci;issued_at:datetime(3):N:~:~:~;expires_at:datetime(3):N:~:~:~;signature_key_id:varchar(64):N:~:~:utf8mb4_unicode_ci;signature:varchar(128):N:~:~:utf8mb4_unicode_ci;create_by:varchar(64):N:~:~:utf8mb4_unicode_ci;create_time:datetime(3):N:~:~:~;update_by:varchar(64):N:~:~:utf8mb4_unicode_ci;update_time:datetime(3):N:~:~:~;version_no:bigint:N:0:~:~",
                 "PRIMARY:U:tenant_id;idx_saas_entitlement_snapshot_expiry:N:expires_at",
                 "ck_saas_entitlement_snapshot_version=snapshot_version >= 1;ck_saas_entitlement_snapshot_lease=expires_at > issued_at");
+        add(tables, "saas_usage_event", "usage_event_id:bigint:N:~:~:~;idempotency_key:varchar(128):N:~:~:utf8mb4_unicode_ci;tenant_id:varchar(20):N:~:~:utf8mb4_unicode_ci;metric_key:varchar(64):N:~:~:utf8mb4_unicode_ci;operation:varchar(16):N:~:~:utf8mb4_unicode_ci;amount:bigint:N:~:~:~;period_start:datetime(3):N:~:~:~;occurred_at:datetime(3):N:~:~:~;create_by:varchar(64):N:~:~:utf8mb4_unicode_ci;create_time:datetime(3):N:~:~:~;update_by:varchar(64):N:~:~:utf8mb4_unicode_ci;update_time:datetime(3):N:~:~:~",
+                "PRIMARY:U:usage_event_id;uk_saas_usage_event_idempotency:U:idempotency_key;idx_saas_usage_event_tenant_metric_period:N:tenant_id,metric_key,period_start;idx_saas_usage_event_occurred:N:occurred_at",
+                "ck_saas_usage_event_operation=operation = 'REPORT';ck_saas_usage_event_amount=amount >= 0");
+        add(tables, "saas_usage_summary", "usage_summary_id:bigint:N:~:~:~;tenant_id:varchar(20):N:~:~:utf8mb4_unicode_ci;metric_key:varchar(64):N:~:~:utf8mb4_unicode_ci;period_start:datetime(3):N:~:~:~;used_amount:bigint:N:~:~:~;last_event_key:varchar(128):N:~:~:utf8mb4_unicode_ci;last_occurred_at:datetime(3):N:~:~:~;create_by:varchar(64):N:~:~:utf8mb4_unicode_ci;create_time:datetime(3):N:~:~:~;update_by:varchar(64):N:~:~:utf8mb4_unicode_ci;update_time:datetime(3):N:~:~:~;version_no:bigint:N:0:~:~",
+                "PRIMARY:U:usage_summary_id;uk_saas_usage_summary_period:U:tenant_id,metric_key,period_start;idx_saas_usage_summary_metric_period:N:metric_key,period_start",
+                "ck_saas_usage_summary_amount=used_amount >= 0");
         return Collections.unmodifiableMap(tables);
     }
 

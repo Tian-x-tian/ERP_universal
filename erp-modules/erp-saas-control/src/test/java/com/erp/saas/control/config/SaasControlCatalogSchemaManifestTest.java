@@ -9,7 +9,8 @@ class SaasControlCatalogSchemaManifestTest {
         assertThat(tables.keySet()).containsExactly(
                 "saas_tenant", "saas_domain", "saas_plan", "saas_feature", "saas_plan_feature",
                 "saas_plan_quota", "saas_subscription", "saas_tenant_feature_override",
-                "saas_tenant_quota_override", "saas_deployment", "saas_entitlement_snapshot");
+                "saas_tenant_quota_override", "saas_deployment", "saas_entitlement_snapshot",
+                "saas_usage_event", "saas_usage_summary");
         assertThat(tables.values()).allSatisfy(table -> {
             assertThat(table.engine()).isEqualTo("InnoDB");
             assertThat(table.collation()).isEqualTo("utf8mb4_unicode_ci");
@@ -23,5 +24,9 @@ class SaasControlCatalogSchemaManifestTest {
                 "jdbc_url", "password", "token", "certificate", "connection_string");
         assertThat(tables.get("saas_entitlement_snapshot").indexes())
                 .containsKeys("PRIMARY", "idx_saas_entitlement_snapshot_expiry");
+        assertThat(tables.get("saas_usage_event").indexes())
+                .containsKeys("uk_saas_usage_event_idempotency", "idx_saas_usage_event_occurred");
+        assertThat(tables.get("saas_usage_summary").indexes())
+                .containsKey("uk_saas_usage_summary_period");
     }
 }

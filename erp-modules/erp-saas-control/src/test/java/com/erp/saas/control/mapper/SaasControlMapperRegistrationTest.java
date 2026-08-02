@@ -27,7 +27,8 @@ class SaasControlMapperRegistrationTest {
                 SaasFeatureMapper.class, SaasPlanFeatureMapper.class, SaasPlanQuotaMapper.class,
                 SaasSubscriptionMapper.class, SaasTenantFeatureOverrideMapper.class,
                 SaasTenantQuotaOverrideMapper.class, SaasDeploymentMapper.class,
-                SaasEntitlementSnapshotMapper.class})
+                SaasEntitlementSnapshotMapper.class, SaasUsageEventMapper.class,
+                SaasUsageSummaryMapper.class})
                 .allSatisfy(type -> assertThat(context.getBean(type)).isNotNull());
     }
 }
