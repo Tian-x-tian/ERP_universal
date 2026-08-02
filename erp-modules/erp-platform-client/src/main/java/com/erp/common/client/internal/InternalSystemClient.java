@@ -5,11 +5,14 @@ import com.erp.platform.contract.model.PlatformAiActionPolicyItem;
 import com.erp.platform.contract.model.PlatformAiAuditCreateRequest;
 import com.erp.platform.contract.model.PlatformAiAuditView;
 import com.erp.platform.contract.model.PlatformAiConfigUpdateRequest;
+import com.erp.platform.contract.model.PlatformAiBriefSaveRequest;
+import com.erp.platform.contract.model.PlatformAiBriefView;
 import com.erp.platform.contract.model.PlatformAiConfigView;
 import com.erp.platform.contract.model.PlatformAiDataSet;
 import com.erp.platform.contract.model.PlatformAiDataSetRequest;
 import com.erp.platform.contract.model.PlatformAiMessageAppendRequest;
 import com.erp.platform.contract.model.PlatformAiMessageView;
+import com.erp.platform.contract.model.PlatformAiQuotaUsage;
 import com.erp.platform.contract.model.PlatformAiSessionView;
 import com.erp.platform.contract.model.PlatformImexJob;
 import com.erp.platform.contract.model.PlatformImexJobCreateRequest;
@@ -340,6 +343,77 @@ public class InternalSystemClient {
                 HttpMethod.POST,
                 new PlatformAiDataSetRequest(datasetKey, params),
                 PlatformAiDataSet.class);
+    }
+
+    /**
+     * 查询当日 AI 简报。
+     *
+     * @param userId    用户ID
+     * @param briefType 简报类型
+     * @return 简报视图
+     */
+    public PlatformAiBriefView getAiBrief(Long userId, String briefType) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/brief"))
+                        .queryParam("userId", userId)
+                        .queryParam("briefType", briefType)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.GET,
+                null,
+                PlatformAiBriefView.class);
+    }
+
+    /**
+     * 抢占当日 AI 简报的生成权。
+     *
+     * @param userId       用户ID
+     * @param briefType    简报类型
+     * @param staleMinutes 陈旧判定分钟数
+     * @return true 表示抢占成功
+     */
+    public Boolean claimAiBrief(Long userId, String briefType, int staleMinutes) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/brief/claim"))
+                        .queryParam("userId", userId)
+                        .queryParam("briefType", briefType)
+                        .queryParam("staleMinutes", staleMinutes)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.POST,
+                null,
+                Boolean.class);
+    }
+
+    /**
+     * 回写 AI 简报生成结果。
+     *
+     * @param userId  用户ID
+     * @param request 回写请求
+     * @return 回写后的简报视图
+     */
+    public PlatformAiBriefView saveAiBrief(Long userId, PlatformAiBriefSaveRequest request) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/brief"))
+                        .queryParam("userId", userId)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.POST,
+                request,
+                PlatformAiBriefView.class);
+    }
+
+    /**
+     * 查询当日 AI 用量。
+     *
+     * @param userId 用户ID
+     * @return 用量统计
+     */
+    public PlatformAiQuotaUsage getAiQuotaUsage(Long userId) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/quota/usage"))
+                        .queryParam("userId", userId)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.GET,
+                null,
+                PlatformAiQuotaUsage.class);
     }
 
     /**

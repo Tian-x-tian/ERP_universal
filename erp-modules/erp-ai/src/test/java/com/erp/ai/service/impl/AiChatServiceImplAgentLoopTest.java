@@ -7,6 +7,7 @@ import com.erp.ai.model.AiChatRequest;
 import com.erp.ai.model.AiModelCompletion;
 import com.erp.ai.model.AiPendingAction;
 import com.erp.ai.model.AiPromptContext;
+import com.erp.ai.model.AiQuotaDecision;
 import com.erp.ai.model.AiReadToolResult;
 import com.erp.ai.model.AiRoleProfileVO;
 import com.erp.ai.model.AiRuntimeConfig;
@@ -17,6 +18,7 @@ import com.erp.ai.model.AiToolDefinition;
 import com.erp.ai.service.AiActionService;
 import com.erp.ai.service.AiContextService;
 import com.erp.ai.service.AiModelClient;
+import com.erp.ai.service.AiQuotaService;
 import com.erp.ai.service.AiReadToolService;
 import com.erp.ai.service.AiRoleGuideService;
 import com.erp.ai.service.AiSessionService;
@@ -34,6 +36,7 @@ import org.mockito.Mockito;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * AI 对话 Agent 循环单元测试。
@@ -47,6 +50,7 @@ class AiChatServiceImplAgentLoopTest {
     private AiRoleGuideService roleGuideService;
     private AiReadToolService readToolService;
     private AiSessionService sessionService;
+    private AiQuotaService quotaService;
     private ErpAiProperties properties;
     private AiChatServiceImpl chatService;
     private RecordingListener listener;
@@ -60,10 +64,15 @@ class AiChatServiceImplAgentLoopTest {
         roleGuideService = Mockito.mock(AiRoleGuideService.class);
         readToolService = Mockito.mock(AiReadToolService.class);
         sessionService = Mockito.mock(AiSessionService.class);
+        quotaService = Mockito.mock(AiQuotaService.class);
         properties = new ErpAiProperties();
+        // 这批用例聚焦 Agent 循环，统一走非流式路径；真流式行为由独立用例覆盖。
+        properties.setStreamingEnabled(false);
         chatService = new AiChatServiceImpl(contextService, modelClient, actionService, tenantConfigService,
-                roleGuideService, readToolService, sessionService, properties, new ObjectMapper());
+                roleGuideService, readToolService, sessionService, quotaService, properties, new ObjectMapper());
         listener = new RecordingListener();
+
+        Mockito.when(quotaService.check()).thenReturn(AiQuotaDecision.allow());
 
         AiRuntimeConfig runtimeConfig = new AiRuntimeConfig();
         runtimeConfig.setEnabled(true);
@@ -221,6 +230,83 @@ class AiChatServiceImplAgentLoopTest {
 
         Assertions.assertEquals(2, listener.startedTools.size());
         Mockito.verify(readToolService, Mockito.times(2)).execute(Mockito.anyString(), Mockito.anyMap());
+    }
+
+    /**
+     * 验证配额超限时直接拒绝，不装载上下文也不打模型。
+     */
+    @Test
+    void shouldRejectWhenQuotaExceeded() throws Exception {
+        Mockito.when(quotaService.check()).thenReturn(AiQuotaDecision.deny("本租户今日 AI 调用次数已达上限（100 次）"));
+
+        chatService.streamChat(request("看看待办"), listener);
+
+        Assertions.assertEquals("本租户今日 AI 调用次数已达上限（100 次）", listener.errorMessage);
+        Mockito.verifyNoInteractions(contextService);
+        Mockito.verifyNoInteractions(modelClient);
+    }
+
+    /**
+     * 验证真流式开启时文本按 token 推送，且不会在收尾时重复推一遍。
+     */
+    @Test
+    void shouldStreamTextWithoutDuplicatingOnFinish() throws Exception {
+        properties.setStreamingEnabled(true);
+        Mockito.when(modelClient.streamCompletion(Mockito.anyString(), Mockito.anyList(), Mockito.anyList(), Mockito.any()))
+                .thenAnswer(invocation -> {
+                    Consumer<String> consumer = invocation.getArgument(3);
+                    consumer.accept("你当前");
+                    consumer.accept("积压 5 条待办。");
+                    return textCompletion("你当前积压 5 条待办。");
+                });
+
+        chatService.streamChat(request("我的待办情况"), listener);
+
+        Assertions.assertNull(listener.errorMessage);
+        // 增量拼起来正好是全文，说明收尾没有再 emit 一遍
+        Assertions.assertEquals("你当前积压 5 条待办。", listener.deltas.toString());
+        Assertions.assertEquals("你当前积压 5 条待办。", listener.doneContent);
+        Mockito.verify(modelClient, Mockito.never())
+                .completeChat(Mockito.anyString(), Mockito.anyList(), Mockito.anyList());
+    }
+
+    /**
+     * 验证流式失败且尚未推送任何文本时，可以安全降级为非流式。
+     */
+    @Test
+    void shouldFallBackToNonStreamingWhenStreamFailsEarly() throws Exception {
+        properties.setStreamingEnabled(true);
+        Mockito.when(modelClient.streamCompletion(Mockito.anyString(), Mockito.anyList(), Mockito.anyList(), Mockito.any()))
+                .thenThrow(new java.io.IOException("connection reset"));
+        Mockito.when(modelClient.completeChat(Mockito.anyString(), Mockito.anyList(), Mockito.anyList()))
+                .thenReturn(textCompletion("降级后的回复。"));
+
+        chatService.streamChat(request("我的待办情况"), listener);
+
+        Assertions.assertNull(listener.errorMessage);
+        Assertions.assertEquals("降级后的回复。", listener.doneContent);
+        Assertions.assertEquals("降级后的回复。", listener.deltas.toString());
+    }
+
+    /**
+     * 验证流式中途失败且已推过文本时，不再降级重发，避免同一段话出现两遍。
+     */
+    @Test
+    void shouldNotRetryAfterPartialStreamFailure() throws Exception {
+        properties.setStreamingEnabled(true);
+        Mockito.when(modelClient.streamCompletion(Mockito.anyString(), Mockito.anyList(), Mockito.anyList(), Mockito.any()))
+                .thenAnswer(invocation -> {
+                    Consumer<String> consumer = invocation.getArgument(3);
+                    consumer.accept("已经推出去的一段话");
+                    throw new java.io.IOException("connection prematurely closed");
+                });
+
+        chatService.streamChat(request("我的待办情况"), listener);
+
+        Assertions.assertEquals("已经推出去的一段话", listener.deltas.toString());
+        Assertions.assertEquals("已经推出去的一段话", listener.doneContent);
+        Mockito.verify(modelClient, Mockito.never())
+                .completeChat(Mockito.anyString(), Mockito.anyList(), Mockito.anyList());
     }
 
     private AiChatRequest request(String content) {

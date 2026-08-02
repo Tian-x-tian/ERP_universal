@@ -14,6 +14,7 @@ import com.erp.ai.model.AiPageContext;
 import com.erp.ai.model.AiPendingAction;
 import com.erp.ai.model.AiPolicySummaryVO;
 import com.erp.ai.model.AiPromptContext;
+import com.erp.ai.model.AiQuotaDecision;
 import com.erp.ai.model.AiReadToolResult;
 import com.erp.ai.model.AiRoleProfileVO;
 import com.erp.ai.model.AiRuntimeConfig;
@@ -25,6 +26,7 @@ import com.erp.ai.service.AiActionService;
 import com.erp.ai.service.AiChatService;
 import com.erp.ai.service.AiContextService;
 import com.erp.ai.service.AiModelClient;
+import com.erp.ai.service.AiQuotaService;
 import com.erp.ai.service.AiReadToolService;
 import com.erp.ai.service.AiRoleGuideService;
 import com.erp.ai.service.AiSessionService;
@@ -33,6 +35,8 @@ import com.erp.ai.service.AiTenantConfigService;
 import com.erp.platform.contract.model.PlatformAiAuditCreateRequest;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -53,6 +57,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class AiChatServiceImpl implements AiChatService {
+    private static final Logger log = LoggerFactory.getLogger(AiChatServiceImpl.class);
+
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
             .withZone(ZoneId.systemDefault());
     private static final List<String> CAPABILITIES = Collections.unmodifiableList(Arrays.asList(
@@ -75,6 +81,7 @@ public class AiChatServiceImpl implements AiChatService {
     private final AiRoleGuideService aiRoleGuideService;
     private final AiReadToolService aiReadToolService;
     private final AiSessionService aiSessionService;
+    private final AiQuotaService aiQuotaService;
     private final ErpAiProperties erpAiProperties;
     private final ObjectMapper objectMapper;
 
@@ -85,6 +92,7 @@ public class AiChatServiceImpl implements AiChatService {
             AiRoleGuideService aiRoleGuideService,
             AiReadToolService aiReadToolService,
             AiSessionService aiSessionService,
+            AiQuotaService aiQuotaService,
             ErpAiProperties erpAiProperties,
             ObjectMapper objectMapper) {
         this.aiContextService = aiContextService;
@@ -94,6 +102,7 @@ public class AiChatServiceImpl implements AiChatService {
         this.aiRoleGuideService = aiRoleGuideService;
         this.aiReadToolService = aiReadToolService;
         this.aiSessionService = aiSessionService;
+        this.aiQuotaService = aiQuotaService;
         this.erpAiProperties = erpAiProperties;
         this.objectMapper = objectMapper;
     }
@@ -149,6 +158,13 @@ public class AiChatServiceImpl implements AiChatService {
             return;
         }
         listener.onReady(runtimeConfig.getModel());
+
+        // 配额判定放在装载上下文之前：被拦下时不该再去打业务服务取数。
+        AiQuotaDecision quotaDecision = aiQuotaService.check();
+        if (!quotaDecision.isAllowed()) {
+            listener.onError(quotaDecision.getMessage());
+            return;
+        }
 
         AiConversationTelemetry telemetry = new AiConversationTelemetry(runtimeConfig.getModel());
 
@@ -229,20 +245,23 @@ public class AiChatServiceImpl implements AiChatService {
             long startTime) throws Exception {
         int maxRounds = Math.max(1, erpAiProperties.getMaxToolRounds());
         long maxConversationMs = Math.max(10000L, erpAiProperties.getMaxConversationMs());
+        // 记录本轮对话里「已经推给前端」的全部文本，用于收尾时既不重复推送也不丢失过程叙述。
+        StringBuilder emittedText = new StringBuilder();
 
         for (int round = 0; round <= maxRounds; round++) {
             boolean finalRound = round == maxRounds || System.currentTimeMillis() - startTime > maxConversationMs;
             // 最后一轮撤掉工具，逼模型直接作答，避免在取数循环里打转。
             List<AiToolDefinition> toolsForRound = finalRound ? Collections.emptyList() : availableTools;
 
-            AiModelCompletion completion = requestCompletionWithFallback(
-                    runtimeConfig.getModel(), modelMessages, toolsForRound);
+            boolean[] streamedFlag = new boolean[1];
+            AiModelCompletion completion = requestRoundCompletion(
+                    runtimeConfig.getModel(), modelMessages, toolsForRound, listener, emittedText, streamedFlag);
             telemetry.addUsage(completion == null ? null : completion.getUsage());
 
             List<AiToolCall> toolCalls = completion == null ? null : completion.getToolCalls();
             if (toolCalls == null || toolCalls.isEmpty()) {
                 finishWithText(completion, promptContext, conversationHistory, listener, telemetry,
-                        latestUserMessage, startTime, runtimeConfig, modelMessages);
+                        latestUserMessage, startTime, runtimeConfig, modelMessages, emittedText, streamedFlag[0]);
                 return;
             }
 
@@ -285,7 +304,7 @@ public class AiChatServiceImpl implements AiChatService {
             if (toolCall == null || !aiReadToolService.isReadTool(toolCall.getName())) {
                 continue;
             }
-            listener.onToolStart(toolCall.getName(), resolveToolLabel(toolCall.getName()));
+            listener.onToolStart(toolCall.getName(), aiReadToolService.resolveToolLabel(toolCall.getName()));
             AiReadToolResult result = aiReadToolService.execute(toolCall.getName(), parseArguments(toolCall.getArgumentsJson()));
             telemetry.markToolUsed(toolCall.getName());
             if (result.getBlock() != null) {
@@ -387,17 +406,32 @@ public class AiChatServiceImpl implements AiChatService {
             String latestUserMessage,
             long startTime,
             AiRuntimeConfig runtimeConfig,
-            List<AiChatMessage> modelMessages) throws Exception {
+            List<AiChatMessage> modelMessages,
+            StringBuilder emittedText,
+            boolean alreadyStreamed) throws Exception {
         String content = completion == null ? null : completion.getContent();
         if (StringUtils.hasText(content)) {
-            emitText(content, listener);
-            listener.onDone(content);
-            finishAudit(content, true, latestUserMessage, startTime, telemetry);
+            if (!alreadyStreamed) {
+                emitText(content, listener);
+                emittedText.append(content);
+            }
+            // 收尾用会话级累计文本：多轮取数时前几轮的过程叙述也要一并留在会话里。
+            String finalText = resolveFinalText(emittedText, content);
+            listener.onDone(finalText);
+            finishAudit(finalText, true, latestUserMessage, startTime, telemetry);
+            return;
+        }
+
+        if (alreadyStreamed && emittedText.length() > 0) {
+            String finalText = emittedText.toString();
+            listener.onDone(finalText);
+            finishAudit(finalText, true, latestUserMessage, startTime, telemetry);
             return;
         }
 
         String streamedFallbackContent = requestStreamingFallback(runtimeConfig.getModel(), modelMessages, listener);
         if (StringUtils.hasText(streamedFallbackContent)) {
+            emittedText.append(streamedFallbackContent);
             listener.onDone(streamedFallbackContent);
             finishAudit(streamedFallbackContent, true, latestUserMessage, startTime, telemetry);
             return;
@@ -414,6 +448,18 @@ public class AiChatServiceImpl implements AiChatService {
 
         finishAudit("AI 未返回有效内容，请稍后重试", false, latestUserMessage, startTime, telemetry);
         listener.onError("AI 未返回有效内容，请稍后重试");
+    }
+
+    /**
+     * 解析最终留档文本。
+     *
+     * @param emittedText 会话级已推送文本
+     * @param content     本轮模型内容
+     * @return 最终文本
+     */
+    private String resolveFinalText(StringBuilder emittedText, String content) {
+        String accumulated = emittedText.toString().trim();
+        return accumulated.isEmpty() ? content : accumulated;
     }
 
     /**
@@ -436,34 +482,6 @@ public class AiChatServiceImpl implements AiChatService {
         }
         recordAudit(resolveQuestionType(latestUserMessage), resolveInteractionLevel(latestUserMessage, null), null,
                 false, success, latestUserMessage, content, System.currentTimeMillis() - startTime, telemetry);
-    }
-
-    /**
-     * 解析只读工具的展示名，用于前端过程反馈。
-     *
-     * @param toolName 工具名称
-     * @return 展示名
-     */
-    private String resolveToolLabel(String toolName) {
-        if (!StringUtils.hasText(toolName)) {
-            return "数据查询";
-        }
-        return switch (toolName) {
-            case "query_todo_backlog" -> "待办积压分布";
-            case "query_todo_aging" -> "待办滞留明细";
-            case "query_approval_duration" -> "审批节点耗时";
-            case "query_process_instance_stats" -> "流程实例分布";
-            case "query_user_workload" -> "人员负载排行";
-            case "query_approval_trend" -> "审批动作趋势";
-            case "query_notice_overview" -> "消息分布";
-            case "query_operation_trend" -> "系统操作趋势";
-            case "query_ai_usage_trend" -> "AI 使用量";
-            case "query_stock_overview" -> "库存概览";
-            case "query_stock_warning" -> "库存预警";
-            case "query_hr_headcount" -> "在岗人数";
-            case "query_hr_warning" -> "HR 预警";
-            default -> "数据查询";
-        };
     }
 
     /**
@@ -550,6 +568,59 @@ public class AiChatServiceImpl implements AiChatService {
      * @return 模型补全结果
      * @throws Exception 模型调用异常
      */
+    /**
+     * 请求单轮补全：优先走真流式，失败时在「尚未推送任何文本」的前提下降级为非流式。
+     *
+     * <p>降级有一条硬约束：一旦已经通过 onDelta 推过文本，就绝不能再走一次非流式补全，
+     * 否则前端会看到同一段话出现两遍。因此 streamedText 的判断必须覆盖异常分支。</p>
+     *
+     * @param model          模型编号
+     * @param modelMessages  对话消息
+     * @param availableTools 本轮可用工具
+     * @param listener       流式监听器
+     * @param emittedText    会话级已推送文本缓冲
+     * @param streamedFlag   出参：本轮是否已经推送过文本
+     * @return 模型补全结果
+     * @throws Exception 模型调用异常
+     */
+    private AiModelCompletion requestRoundCompletion(String model,
+            List<AiChatMessage> modelMessages,
+            List<AiToolDefinition> availableTools,
+            AiStreamListener listener,
+            StringBuilder emittedText,
+            boolean[] streamedFlag) throws Exception {
+        if (!erpAiProperties.isStreamingEnabled()) {
+            return requestCompletionWithFallback(model, modelMessages, availableTools);
+        }
+
+        StringBuilder roundBuffer = new StringBuilder();
+        try {
+            AiModelCompletion completion = aiModelClient.streamCompletion(model, modelMessages, availableTools,
+                    delta -> {
+                        if (!StringUtils.hasText(delta)) {
+                            return;
+                        }
+                        roundBuffer.append(delta);
+                        emittedText.append(delta);
+                        listener.onDelta(delta);
+                    });
+            streamedFlag[0] = roundBuffer.length() > 0;
+            if (hasUsableCompletion(completion) || streamedFlag[0]) {
+                return completion;
+            }
+        } catch (Exception ex) {
+            if (roundBuffer.length() > 0) {
+                // 已经推过文本，不能重来；把已收到的部分当作本轮结果继续收尾。
+                streamedFlag[0] = true;
+                AiModelCompletion partial = new AiModelCompletion();
+                partial.setContent(roundBuffer.toString());
+                return partial;
+            }
+            log.warn("AI 流式补全失败，降级为非流式：{}", ex.getMessage());
+        }
+        return requestCompletionWithFallback(model, modelMessages, availableTools);
+    }
+
     private AiModelCompletion requestCompletionWithFallback(String model,
             List<AiChatMessage> modelMessages,
             List<AiToolDefinition> availableTools) throws Exception {

@@ -51,6 +51,14 @@ erp:
     read-tools-enabled: ${ERP_AI_READ_TOOLS_ENABLED:true}
     max-dataset-rows: ${ERP_AI_MAX_DATASET_ROWS:20}
     session-persist-enabled: ${ERP_AI_SESSION_PERSIST_ENABLED:true}
+    # 真流式：按 token 边生成边推送；关闭后回退为「非流式补全 + 服务端分片回放」
+    streaming-enabled: ${ERP_AI_STREAMING_ENABLED:true}
+    # 每日简报缓存有效期（分钟）
+    brief-ttl-minutes: ${ERP_AI_BRIEF_TTL_MINUTES:240}
+    # 配额上限，0 表示不限制；租户可在 AI 配置中心单独覆盖
+    tenant-daily-request-limit: ${ERP_AI_TENANT_DAILY_REQUEST_LIMIT:0}
+    tenant-daily-token-limit: ${ERP_AI_TENANT_DAILY_TOKEN_LIMIT:0}
+    user-daily-request-limit: ${ERP_AI_USER_DAILY_REQUEST_LIMIT:0}
 
 management:
   endpoints:

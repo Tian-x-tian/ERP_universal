@@ -2,6 +2,7 @@ package com.erp.system.service.impl;
 
 import com.erp.platform.contract.model.PlatformAiDataSet;
 import com.erp.platform.contract.model.PlatformAiDataSetRequest;
+import com.erp.platform.contract.model.PlatformAiQuotaUsage;
 import com.erp.system.mapper.AiDatasetMapper;
 import com.erp.system.service.IAiDatasetService;
 import org.springframework.stereotype.Service;
@@ -9,6 +10,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -61,6 +63,25 @@ public class AiDatasetServiceImpl implements IAiDatasetService {
     @Override
     public List<String> supportedKeys() {
         return Arrays.asList(KEY_NOTICE_OVERVIEW, KEY_OPERATION_TREND, KEY_AI_USAGE_TREND);
+    }
+
+    /**
+     * 查询当日 AI 用量。
+     *
+     * @param userId 当前用户ID
+     * @return 用量统计
+     */
+    @Override
+    public PlatformAiQuotaUsage queryQuotaUsage(Long userId) {
+        PlatformAiQuotaUsage usage = new PlatformAiQuotaUsage();
+        Map<String, Object> record = aiDatasetMapper.selectQuotaUsage(userId, sinceDate(1));
+        if (record == null) {
+            return usage;
+        }
+        usage.setTenantRequestCount((int) asLong(record.get("tenant_request_count")));
+        usage.setTenantTokenCount(asLong(record.get("tenant_token_count")));
+        usage.setUserRequestCount((int) asLong(record.get("user_request_count")));
+        return usage;
     }
 
     /**

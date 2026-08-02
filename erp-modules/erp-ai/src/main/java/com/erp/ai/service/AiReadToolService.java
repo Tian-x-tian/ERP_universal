@@ -1,5 +1,6 @@
 package com.erp.ai.service;
 
+import com.erp.ai.model.AiPanelCardVO;
 import com.erp.ai.model.AiReadToolResult;
 import com.erp.ai.model.AiToolDefinition;
 
@@ -37,4 +38,19 @@ public interface AiReadToolService {
      * @return 执行结果
      */
     AiReadToolResult execute(String toolName, Map<String, Object> arguments);
+
+    /**
+     * 列出当前用户可用的面板卡片。
+     *
+     * @return 卡片列表
+     */
+    List<AiPanelCardVO> listAvailableCards();
+
+    /**
+     * 解析只读工具的展示名。
+     *
+     * @param toolName 工具名称
+     * @return 展示名
+     */
+    String resolveToolLabel(String toolName);
 }

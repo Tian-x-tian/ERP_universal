@@ -191,6 +191,15 @@ public class SysAiConfigServiceImpl extends ServiceImpl<SysAiConfigMapper, SysAi
         if (request.getPromptTemplate() != null) {
             entity.setPromptTemplate(trimToNull(request.getPromptTemplate()));
         }
+        if (request.getTenantDailyRequestLimit() != null) {
+            entity.setTenantDailyRequestLimit(normalizeQuota(request.getTenantDailyRequestLimit()));
+        }
+        if (request.getTenantDailyTokenLimit() != null) {
+            entity.setTenantDailyTokenLimit(normalizeQuota(request.getTenantDailyTokenLimit()));
+        }
+        if (request.getUserDailyRequestLimit() != null) {
+            entity.setUserDailyRequestLimit(normalizeQuota(request.getUserDailyRequestLimit()));
+        }
     }
 
     /**
@@ -325,6 +334,9 @@ public class SysAiConfigServiceImpl extends ServiceImpl<SysAiConfigMapper, SysAi
         view.setMaxTodoItems(entity.getMaxTodoItems() == null ? DEFAULT_MAX_TODO_ITEMS : entity.getMaxTodoItems());
         view.setMaxNoticeItems(entity.getMaxNoticeItems() == null ? DEFAULT_MAX_NOTICE_ITEMS : entity.getMaxNoticeItems());
         view.setPromptTemplate(trimToNull(entity.getPromptTemplate()));
+        view.setTenantDailyRequestLimit(entity.getTenantDailyRequestLimit());
+        view.setTenantDailyTokenLimit(entity.getTenantDailyTokenLimit());
+        view.setUserDailyRequestLimit(entity.getUserDailyRequestLimit());
         view.setUpdateBy(trimToNull(entity.getUpdateBy()));
         view.setUpdateTime(entity.getUpdateTime());
         view.setConfigVersion(buildConfigVersion(entity.getUpdateTime()));
@@ -414,6 +426,19 @@ public class SysAiConfigServiceImpl extends ServiceImpl<SysAiConfigMapper, SysAi
      * @param value 原始字符串
      * @return 规范化字符串
      */
+    /**
+     * 规范化配额配置：负数一律归零（0 表示不限制）。
+     *
+     * @param value 原始值
+     * @return 规范化后的值
+     */
+    private Integer normalizeQuota(Integer value) {
+        if (value == null) {
+            return null;
+        }
+        return value < 0 ? 0 : value;
+    }
+
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
