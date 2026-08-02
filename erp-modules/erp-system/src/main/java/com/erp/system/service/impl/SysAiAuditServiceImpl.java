@@ -49,6 +49,13 @@ public class SysAiAuditServiceImpl extends ServiceImpl<SysAiAuditMapper, SysAiAu
         entity.setRequestExcerpt(limitLength(trimToNull(request.getRequestExcerpt()), 500));
         entity.setResponseExcerpt(limitLength(trimToNull(request.getResponseExcerpt()), 500));
         entity.setDurationMs(request.getDurationMs());
+        entity.setModel(limitLength(trimToNull(request.getModel()), 128));
+        entity.setPromptTokens(normalizeTokenCount(request.getPromptTokens()));
+        entity.setCompletionTokens(normalizeTokenCount(request.getCompletionTokens()));
+        entity.setTotalTokens(normalizeTokenCount(request.getTotalTokens()));
+        entity.setToolRounds(normalizeTokenCount(request.getToolRounds()));
+        entity.setToolKeys(limitLength(trimToNull(request.getToolKeys()), 500));
+        entity.setSessionId(request.getSessionId());
         entity.setCreateTime(new Date());
         save(entity);
     }
@@ -88,6 +95,13 @@ public class SysAiAuditServiceImpl extends ServiceImpl<SysAiAuditMapper, SysAiAu
             view.setRequestExcerpt(record.getRequestExcerpt());
             view.setResponseExcerpt(record.getResponseExcerpt());
             view.setDurationMs(record.getDurationMs());
+            view.setModel(record.getModel());
+            view.setPromptTokens(record.getPromptTokens());
+            view.setCompletionTokens(record.getCompletionTokens());
+            view.setTotalTokens(record.getTotalTokens());
+            view.setToolRounds(record.getToolRounds());
+            view.setToolKeys(record.getToolKeys());
+            view.setSessionId(record.getSessionId());
             view.setCreateTime(record.getCreateTime());
             result.add(view);
         }
@@ -106,6 +120,19 @@ public class SysAiAuditServiceImpl extends ServiceImpl<SysAiAuditMapper, SysAiAu
             return null;
         }
         return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    /**
+     * 规范化计数类字段，负数一律归零。
+     *
+     * @param value 原始值
+     * @return 规范化后的值
+     */
+    private Integer normalizeTokenCount(Integer value) {
+        if (value == null) {
+            return null;
+        }
+        return value < 0 ? 0 : value;
     }
 
     /**

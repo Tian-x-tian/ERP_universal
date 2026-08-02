@@ -3,6 +3,7 @@ package com.erp.common.client.internal;
 import com.erp.common.core.context.TenantContextHolder;
 import com.erp.common.security.AuthHeaders;
 import com.erp.common.security.AuthenticatedUserPrincipal;
+import com.erp.common.security.InternalAuthContextHolder;
 import com.erp.common.security.InternalAuthSignatureUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
@@ -12,6 +13,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+
+import java.util.Map;
 
 /**
  * 平台内部调用请求头构造器。
@@ -37,6 +40,11 @@ public class InternalRequestHeaderFactory {
         HttpServletRequest currentRequest = currentRequest();
         if (hasForwardableAuthHeaders(currentRequest)) {
             copyForwardableHeaders(currentRequest, headers);
+            return headers;
+        }
+        // 异步线程上没有 Servlet 请求绑定，回退读取线程内的认证头快照，保持“真实用户”身份。
+        if (InternalAuthContextHolder.hasForwardableHeaders()) {
+            copyForwardableHeaders(InternalAuthContextHolder.get(), headers);
             return headers;
         }
 
@@ -109,6 +117,25 @@ public class InternalRequestHeaderFactory {
         if (!StringUtils.hasText(tenantId)) {
             tenantId = request.getHeader(AuthHeaders.TENANT_ID);
         }
+        if (StringUtils.hasText(tenantId)) {
+            headers.set("tenantId", tenantId.trim());
+        }
+    }
+
+    /**
+     * 复制线程内认证头快照。
+     *
+     * @param snapshot 认证头快照
+     * @param headers  目标请求头
+     */
+    private void copyForwardableHeaders(Map<String, String> snapshot, HttpHeaders headers) {
+        for (String headerName : AuthHeaders.INTERNAL_HEADERS) {
+            String headerValue = snapshot.get(headerName);
+            if (StringUtils.hasText(headerValue)) {
+                headers.set(headerName, headerValue.trim());
+            }
+        }
+        String tenantId = snapshot.get(AuthHeaders.TENANT_ID);
         if (StringUtils.hasText(tenantId)) {
             headers.set("tenantId", tenantId.trim());
         }

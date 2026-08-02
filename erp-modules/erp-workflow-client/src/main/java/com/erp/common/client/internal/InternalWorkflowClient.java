@@ -1,5 +1,7 @@
 package com.erp.common.client.internal;
 
+import com.erp.platform.contract.model.PlatformAiDataSet;
+import com.erp.platform.contract.model.PlatformAiDataSetRequest;
 import com.erp.workflow.contract.domain.vo.WorkflowInstanceDetailVO;
 import com.erp.workflow.contract.domain.vo.WorkflowDefinitionLiteVO;
 import com.erp.workflow.contract.domain.vo.WorkflowProcessOptionVO;
@@ -18,6 +20,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 工作流内部接口客户端。
@@ -269,6 +272,20 @@ public class InternalWorkflowClient {
      * @param <T>          响应泛型
      * @return 响应对象
      */
+    /**
+     * 查询流程域 AI 只读数据集。
+     *
+     * @param datasetKey 数据集编码
+     * @param params     查询参数
+     * @return 数据集结果
+     */
+    public PlatformAiDataSet queryAiDataset(String datasetKey, Map<String, Object> params) {
+        return exchange(buildUri("/workflow/internal/ai/dataset"),
+                HttpMethod.POST,
+                new PlatformAiDataSetRequest(datasetKey, params),
+                PlatformAiDataSet.class);
+    }
+
     private <T> T exchange(URI uri, HttpMethod method, Object body, Class<T> responseType) {
         HttpHeaders headers = headerFactory.buildHeaders();
         ResponseEntity<T> response = restTemplate.exchange(uri, method, new HttpEntity<>(body, headers), responseType);

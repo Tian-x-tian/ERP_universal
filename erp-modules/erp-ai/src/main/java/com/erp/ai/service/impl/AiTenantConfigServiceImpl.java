@@ -1,6 +1,7 @@
 package com.erp.ai.service.impl;
 
 import com.erp.ai.config.ErpAiProperties;
+import com.erp.ai.context.AiInvocationScope;
 import com.erp.ai.model.AiRuntimeConfig;
 import com.erp.ai.service.AiTenantConfigService;
 import com.erp.common.client.internal.InternalSystemClient;
@@ -21,6 +22,10 @@ import java.util.List;
 @Service
 public class AiTenantConfigServiceImpl implements AiTenantConfigService {
     private static final int DEFAULT_AUDIT_LIMIT = 50;
+    private static final String CACHE_KEY_CONFIG = "ai:config";
+    private static final String CACHE_KEY_POLICIES = "ai:policies";
+    private static final String CACHE_KEY_RUNTIME = "ai:runtime-config";
+    private static final String CACHE_KEY_PERMISSION_PREFIX = "ai:perm:";
 
     private final InternalSystemClient internalSystemClient;
     private final ErpAiProperties erpAiProperties;
@@ -37,12 +42,14 @@ public class AiTenantConfigServiceImpl implements AiTenantConfigService {
      */
     @Override
     public PlatformAiConfigView getConfig() {
-        try {
-            PlatformAiConfigView config = internalSystemClient.getAiConfig();
-            return config == null ? buildDefaultConfigView() : config;
-        } catch (Exception ignored) {
-            return buildDefaultConfigView();
-        }
+        return AiInvocationScope.compute(CACHE_KEY_CONFIG, () -> {
+            try {
+                PlatformAiConfigView config = internalSystemClient.getAiConfig();
+                return config == null ? buildDefaultConfigView() : config;
+            } catch (Exception ignored) {
+                return buildDefaultConfigView();
+            }
+        });
     }
 
     /**
@@ -58,6 +65,8 @@ public class AiTenantConfigServiceImpl implements AiTenantConfigService {
             return config == null ? buildDefaultConfigView() : config;
         } catch (Exception ignored) {
             return buildDefaultConfigView();
+        } finally {
+            evictConfigCache();
         }
     }
 
@@ -68,12 +77,14 @@ public class AiTenantConfigServiceImpl implements AiTenantConfigService {
      */
     @Override
     public List<PlatformAiActionPolicyItem> listActionPolicies() {
-        try {
-            List<PlatformAiActionPolicyItem> policyList = internalSystemClient.listAiActionPolicies();
-            return policyList == null ? new ArrayList<>() : policyList;
-        } catch (Exception ignored) {
-            return new ArrayList<>();
-        }
+        return AiInvocationScope.compute(CACHE_KEY_POLICIES, () -> {
+            try {
+                List<PlatformAiActionPolicyItem> policyList = internalSystemClient.listAiActionPolicies();
+                return policyList == null ? new ArrayList<>() : policyList;
+            } catch (Exception ignored) {
+                return new ArrayList<>();
+            }
+        });
     }
 
     /**
@@ -89,7 +100,18 @@ public class AiTenantConfigServiceImpl implements AiTenantConfigService {
             return updatedPolicyList == null ? new ArrayList<>() : updatedPolicyList;
         } catch (Exception ignored) {
             return new ArrayList<>();
+        } finally {
+            evictConfigCache();
         }
+    }
+
+    /**
+     * 写操作后失效配置类缓存，保证同一请求内后续读取拿到新值。
+     */
+    private void evictConfigCache() {
+        AiInvocationScope.evict(CACHE_KEY_CONFIG);
+        AiInvocationScope.evict(CACHE_KEY_POLICIES);
+        AiInvocationScope.evict(CACHE_KEY_RUNTIME);
     }
 
     /**
@@ -130,6 +152,15 @@ public class AiTenantConfigServiceImpl implements AiTenantConfigService {
      */
     @Override
     public AiRuntimeConfig resolveRuntimeConfig() {
+        return AiInvocationScope.compute(CACHE_KEY_RUNTIME, this::doResolveRuntimeConfig);
+    }
+
+    /**
+     * 实际组装运行时配置。
+     *
+     * @return 运行时配置
+     */
+    private AiRuntimeConfig doResolveRuntimeConfig() {
         PlatformAiConfigView config = getConfig();
         List<PlatformAiActionPolicyItem> policyList = listActionPolicies();
         AiRuntimeConfig runtimeConfig = new AiRuntimeConfig();
@@ -155,11 +186,15 @@ public class AiTenantConfigServiceImpl implements AiTenantConfigService {
         if (!StringUtils.hasText(permission)) {
             return false;
         }
-        try {
-            return Boolean.TRUE.equals(internalSystemClient.hasPermission(permission.trim()));
-        } catch (Exception ignored) {
-            return false;
-        }
+        String normalizedPermission = permission.trim();
+        // 一次对话里同一权限会被反复问到，缓存到调用作用域，避免放大成几十次跨服务调用。
+        return Boolean.TRUE.equals(AiInvocationScope.compute(CACHE_KEY_PERMISSION_PREFIX + normalizedPermission, () -> {
+            try {
+                return Boolean.TRUE.equals(internalSystemClient.hasPermission(normalizedPermission));
+            } catch (Exception ignored) {
+                return Boolean.FALSE;
+            }
+        }));
     }
 
     /**

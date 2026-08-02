@@ -1355,10 +1355,49 @@ CREATE TABLE IF NOT EXISTS `sys_ai_audit` (
   `request_excerpt` varchar(500) DEFAULT NULL COMMENT '请求摘要',
   `response_excerpt` varchar(500) DEFAULT NULL COMMENT '响应摘要',
   `duration_ms` bigint(20) DEFAULT NULL COMMENT '耗时毫秒',
+  `model` varchar(128) DEFAULT NULL COMMENT '本次交互使用的模型编号',
+  `prompt_tokens` int(11) DEFAULT NULL COMMENT '输入token数',
+  `completion_tokens` int(11) DEFAULT NULL COMMENT '输出token数',
+  `total_tokens` int(11) DEFAULT NULL COMMENT '总token数',
+  `tool_rounds` int(11) DEFAULT NULL COMMENT '工具调用轮次',
+  `tool_keys` varchar(500) DEFAULT NULL COMMENT '本次调用的只读工具，逗号分隔',
+  `session_id` bigint(20) DEFAULT NULL COMMENT '关联AI会话ID',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   PRIMARY KEY (`audit_id`),
   KEY `idx_sys_ai_audit_tenant_time` (`tenant_id`,`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI审计日志表';
+
+CREATE TABLE IF NOT EXISTS `sys_ai_session` (
+  `session_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '会话ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `user_id` bigint(20) NOT NULL COMMENT '所属用户ID',
+  `title` varchar(255) DEFAULT NULL COMMENT '会话标题',
+  `model` varchar(128) DEFAULT NULL COMMENT '会话使用的模型编号',
+  `message_count` int(11) NOT NULL DEFAULT 0 COMMENT '消息条数',
+  `last_message_time` datetime DEFAULT NULL COMMENT '最后一条消息时间',
+  `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`session_id`),
+  KEY `idx_sys_ai_session_owner` (`tenant_id`, `user_id`, `del_flag`, `last_message_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI会话表';
+
+CREATE TABLE IF NOT EXISTS `sys_ai_message` (
+  `message_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '消息ID',
+  `session_id` bigint(20) NOT NULL COMMENT '会话ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `user_id` bigint(20) NOT NULL COMMENT '所属用户ID',
+  `role` varchar(16) NOT NULL COMMENT '消息角色（user/assistant）',
+  `content` mediumtext COMMENT '消息内容',
+  `blocks_json` longtext COMMENT '结构化区块JSON（指标卡/表格/图表）',
+  `action_key` varchar(64) DEFAULT NULL COMMENT '关联动作编码',
+  `prompt_tokens` int(11) DEFAULT NULL COMMENT '输入token数',
+  `completion_tokens` int(11) DEFAULT NULL COMMENT '输出token数',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`message_id`),
+  KEY `idx_sys_ai_message_session` (`session_id`, `message_id`),
+  KEY `idx_sys_ai_message_owner` (`tenant_id`, `user_id`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI会话消息表';
 
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
 SELECT 'AI配置',
@@ -1399,6 +1438,8 @@ FROM (
   UNION ALL SELECT 'AI策略修改', 3, 'system:ai:policy:edit'
   UNION ALL SELECT 'AI审计查看', 4, 'system:ai:audit:list'
   UNION ALL SELECT 'AI运营查看', 5, 'system:ai:ops:view'
+  UNION ALL SELECT 'AI会话查看', 6, 'system:ai:session:list'
+  UNION ALL SELECT 'AI会话删除', 7, 'system:ai:session:remove'
 ) button_def
 INNER JOIN `sys_menu` menu_parent ON menu_parent.path = '/system/ai-config'
 WHERE NOT EXISTS (
@@ -1420,7 +1461,9 @@ INNER JOIN `sys_menu` menu_item ON (
     'system:ai:config:edit',
     'system:ai:policy:edit',
     'system:ai:audit:list',
-    'system:ai:ops:view'
+    'system:ai:ops:view',
+    'system:ai:session:list',
+    'system:ai:session:remove'
   )
 )
 LEFT JOIN `sys_role_menu` existed_role_menu ON existed_role_menu.role_id = role_item.role_id

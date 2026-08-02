@@ -38,6 +38,19 @@ erp:
     max-history-turns: ${ERP_AI_MAX_HISTORY_TURNS:12}
     max-todo-items: ${ERP_AI_MAX_TODO_ITEMS:10}
     max-notice-items: ${ERP_AI_MAX_NOTICE_ITEMS:10}
+    # 一次 SSE 对话独占一个线程，线程数即并发对话上限
+    stream-core-pool-size: ${ERP_AI_STREAM_CORE_POOL_SIZE:16}
+    stream-max-pool-size: ${ERP_AI_STREAM_MAX_POOL_SIZE:64}
+    stream-queue-capacity: ${ERP_AI_STREAM_QUEUE_CAPACITY:128}
+    # SSE 超时兜底，避免上游模型卡死时连接与线程一直被占用
+    sse-timeout-ms: ${ERP_AI_SSE_TIMEOUT_MS:300000}
+    # Agent 循环：最多几轮工具调用、单轮并行工具数、整轮对话耗时上限
+    max-tool-rounds: ${ERP_AI_MAX_TOOL_ROUNDS:4}
+    max-tool-calls-per-round: ${ERP_AI_MAX_TOOL_CALLS_PER_ROUND:3}
+    max-conversation-ms: ${ERP_AI_MAX_CONVERSATION_MS:180000}
+    read-tools-enabled: ${ERP_AI_READ_TOOLS_ENABLED:true}
+    max-dataset-rows: ${ERP_AI_MAX_DATASET_ROWS:20}
+    session-persist-enabled: ${ERP_AI_SESSION_PERSIST_ENABLED:true}
 
 management:
   endpoints:

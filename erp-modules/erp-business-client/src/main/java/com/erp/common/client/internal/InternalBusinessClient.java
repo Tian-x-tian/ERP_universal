@@ -1,5 +1,7 @@
 package com.erp.common.client.internal;
 
+import com.erp.platform.contract.model.PlatformAiDataSet;
+import com.erp.platform.contract.model.PlatformAiDataSetRequest;
 import com.erp.platform.contract.model.WarehouseReferenceUsage;
 import com.erp.workflow.contract.domain.vo.WorkflowCallbackEvent;
 import org.springframework.http.HttpEntity;
@@ -11,6 +13,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.util.Map;
 
 /**
  * 业务内部接口客户端。
@@ -54,6 +57,20 @@ public class InternalBusinessClient {
                 HttpMethod.GET,
                 null,
                 WarehouseReferenceUsage.class);
+    }
+
+    /**
+     * 查询业务域 AI 只读数据集。
+     *
+     * @param datasetKey 数据集编码
+     * @param params     查询参数
+     * @return 数据集结果
+     */
+    public PlatformAiDataSet queryAiDataset(String datasetKey, Map<String, Object> params) {
+        return exchange(buildUri("/business/internal/ai/dataset"),
+                HttpMethod.POST,
+                new PlatformAiDataSetRequest(datasetKey, params),
+                PlatformAiDataSet.class);
     }
 
     /**
