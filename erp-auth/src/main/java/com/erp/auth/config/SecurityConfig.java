@@ -55,7 +55,7 @@ public class SecurityConfig {
     /**
      * 认证中心跨域配置。
      *
-     * <p>本地开发会经过前端代理和浏览器预检，请求头中会带 tenantId / Authorization，
+     * <p>本地开发会经过前端代理和浏览器预检，请求头中会带 Authorization，
      * 这里统一放行常见方法与请求头，避免登录接口在进入控制器前被 CORS 拦截。</p>
      *
      * @return 跨域配置源
@@ -66,7 +66,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(List.of("*"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("Authorization", "tenantId", "Tenantid"));
+        configuration.setExposedHeaders(List.of("Authorization"));
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);
 

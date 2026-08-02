@@ -4,10 +4,13 @@ import com.erp.auth.domain.SysUser;
 import com.erp.auth.domain.vo.LoginBody;
 import com.erp.auth.security.CaptchaVerifier;
 import com.erp.auth.security.LoginGuardService;
+import com.erp.auth.security.ResolvedTenantAssertionException;
+import com.erp.auth.security.ResolvedTenantAssertionVerifier;
 import com.erp.auth.service.AuthAccountService;
 import com.erp.auth.service.AuthLoginLogService;
 import com.erp.auth.service.AuthTokenService;
 import com.erp.common.core.domain.R;
+import com.erp.common.core.domain.ResultCode;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
@@ -30,19 +33,22 @@ public class LoginController {
     private final LoginGuardService loginGuardService;
     private final CaptchaVerifier captchaVerifier;
     private final AuthTokenService authTokenService;
+    private final ResolvedTenantAssertionVerifier tenantAssertionVerifier;
 
     public LoginController(AuthAccountService accountService,
             AuthLoginLogService loginLogService,
             PasswordEncoder passwordEncoder,
             LoginGuardService loginGuardService,
             CaptchaVerifier captchaVerifier,
-            AuthTokenService authTokenService) {
+            AuthTokenService authTokenService,
+            ResolvedTenantAssertionVerifier tenantAssertionVerifier) {
         this.accountService = accountService;
         this.loginLogService = loginLogService;
         this.passwordEncoder = passwordEncoder;
         this.loginGuardService = loginGuardService;
         this.captchaVerifier = captchaVerifier;
         this.authTokenService = authTokenService;
+        this.tenantAssertionVerifier = tenantAssertionVerifier;
     }
 
     /**
@@ -51,17 +57,19 @@ public class LoginController {
     @PostMapping("/login")
     public R<Map<String, Object>> login(@RequestBody LoginBody loginBody, HttpServletRequest request) {
         String username = loginBody == null ? null : trim(loginBody.getUsername());
-        String loginTenantId = resolveTenantId(request);
         String requestIp = resolveRequestIp(request);
 
         if (!loginGuardService.allowIpAttempt(requestIp)) {
-            loginLogService.record(loginTenantId, username, "1", "登录请求过于频繁，请稍后再试", requestIp);
+            loginLogService.record(null, username, "1", "登录请求过于频繁，请稍后再试", requestIp);
             return R.failed("登录请求过于频繁，请稍后再试");
         }
 
-        if (!StringUtils.hasText(loginTenantId)) {
-            loginLogService.record(null, username, "1", "租户编号不能为空", requestIp);
-            return R.failed("租户编号不能为空");
+        final String loginTenantId;
+        try {
+            loginTenantId = tenantAssertionVerifier.verify(request).getTenantId();
+        } catch (ResolvedTenantAssertionException error) {
+            loginLogService.record(null, username, "1", "租户上下文无效或已过期", requestIp);
+            return R.failed(ResultCode.UNAUTHORIZED, "租户上下文无效或已过期");
         }
         if (loginBody == null || !StringUtils.hasText(loginBody.getUsername())
                 || !StringUtils.hasText(loginBody.getPassword())) {
@@ -111,7 +119,12 @@ public class LoginController {
      */
     @PostMapping("/logout")
     public R<Void> logout(HttpServletRequest request) {
-        String tenantId = resolveTenantId(request);
+        final String tenantId;
+        try {
+            tenantId = tenantAssertionVerifier.verify(request).getTenantId();
+        } catch (ResolvedTenantAssertionException error) {
+            return R.failed(ResultCode.UNAUTHORIZED, "租户上下文无效或已过期");
+        }
         String authorization = request == null ? null : request.getHeader("Authorization");
         Long userId = resolveUserIdFromAuthorization(authorization, tenantId);
 
@@ -137,20 +150,6 @@ public class LoginController {
         } catch (Exception ex) {
             return null;
         }
-    }
-
-    private String resolveTenantId(HttpServletRequest request) {
-        if (request == null) {
-            return null;
-        }
-        String tenantId = request.getHeader("tenantId");
-        if (!StringUtils.hasText(tenantId)) {
-            tenantId = request.getHeader("Tenantid");
-        }
-        if (!StringUtils.hasText(tenantId)) {
-            return null;
-        }
-        return tenantId.trim();
     }
 
     private String resolveRequestIp(HttpServletRequest request) {

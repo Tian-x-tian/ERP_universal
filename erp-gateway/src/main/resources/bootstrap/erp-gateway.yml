@@ -61,6 +61,10 @@ spring:
 erp:
   internal:
     auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    saas-base-url: ${ERP_SAAS_CONTROL_BASE_URL:http://erp-saas-control}
+  saas:
+    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:}
+    domain-resolve-timeout-ms: ${ERP_SAAS_DOMAIN_RESOLVE_TIMEOUT_MS:2000}
 
 management:
   endpoints:

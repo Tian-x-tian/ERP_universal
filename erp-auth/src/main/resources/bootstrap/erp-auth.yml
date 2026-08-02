@@ -36,6 +36,8 @@ mybatis-plus:
     map-underline-to-camel-case: true
 
 erp:
+  saas:
+    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:}
   auth:
     login:
       fail:

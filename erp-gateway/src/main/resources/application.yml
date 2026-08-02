@@ -14,3 +14,11 @@ spring:
         enabled: ${NACOS_DISCOVERY_ENABLED:true}
         register-enabled: ${NACOS_DISCOVERY_ENABLED:true}
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+
+erp:
+  internal:
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    saas-base-url: ${ERP_SAAS_CONTROL_BASE_URL:http://erp-saas-control}
+  saas:
+    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:}
+    domain-resolve-timeout-ms: ${ERP_SAAS_DOMAIN_RESOLVE_TIMEOUT_MS:2000}
