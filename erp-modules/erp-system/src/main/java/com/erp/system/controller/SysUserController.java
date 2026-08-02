@@ -286,7 +286,7 @@ public class SysUserController {
         if (!canAccessUser(dataScope, user)) {
             return R.failed(ResultCode.FORBIDDEN);
         }
-        return R.success(userService.removeById(userId));
+        return R.success(userService.removeUserById(userId));
     }
 
     /**

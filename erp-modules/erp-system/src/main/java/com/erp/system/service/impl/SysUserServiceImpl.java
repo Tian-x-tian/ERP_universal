@@ -3,6 +3,9 @@ package com.erp.system.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.erp.common.core.context.TenantContextHolder;
+import com.erp.saas.contract.model.SaasQuotaKeys;
+import com.erp.saas.contract.model.SaasUsageEvent;
+import com.erp.saas.contract.model.SaasUsageOperation;
 import com.erp.system.domain.SysUser;
 import com.erp.system.mapper.SysUserMapper;
 import com.erp.system.service.ISysUserService;
@@ -12,10 +15,12 @@ import org.springframework.stereotype.Service;
 import com.erp.system.domain.SysUserRole;
 import com.erp.system.domain.SysUserPost;
 import com.erp.system.service.ISysUserRoleService;
+import com.erp.system.saas.SaasLocalQuotaService;
 import com.erp.system.service.ISysUserPostService;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.util.StringUtils;
 
@@ -28,13 +33,16 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final PasswordEncoder passwordEncoder;
     private final ISysUserRoleService userRoleService;
     private final ISysUserPostService userPostService;
+    private final SaasLocalQuotaService quotaService;
 
     public SysUserServiceImpl(PasswordEncoder passwordEncoder,
             ISysUserRoleService userRoleService,
-            ISysUserPostService userPostService) {
+            ISysUserPostService userPostService,
+            SaasLocalQuotaService quotaService) {
         this.passwordEncoder = passwordEncoder;
         this.userRoleService = userRoleService;
         this.userPostService = userPostService;
+        this.quotaService = quotaService;
     }
 
     @Override
@@ -106,12 +114,19 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (entity.getPassword() != null) {
             entity.setPassword(passwordEncoder.encode(entity.getPassword()));
         }
+        String quotaReference = isCountedOnCreate(entity) ? reserveUserQuota(tenantId) : null;
         boolean success = super.save(entity);
+        if (!success && quotaReference != null) {
+            releaseUserQuota(tenantId, quotaReference);
+        }
         if (success && entity.getRoleIds() != null && !entity.getRoleIds().isEmpty()) {
             insertUserRole(entity);
         }
         if (success && entity.getPostIds() != null && !entity.getPostIds().isEmpty()) {
             insertUserPost(entity);
+        }
+        if (success && quotaReference != null) {
+            settleUserQuota(tenantId, quotaReference);
         }
         return success;
     }
@@ -131,6 +146,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             return false;
         }
         entity.setTenantId(tenantId);
+        boolean countedBefore = isCounted(existedUser.getStatus(), existedUser.getDelFlag());
+        boolean countedAfter = isCounted(
+                valueOrExisting(entity.getStatus(), existedUser.getStatus()),
+                valueOrExisting(entity.getDelFlag(), existedUser.getDelFlag()));
+        String quotaReference = !countedBefore && countedAfter ? reserveUserQuota(tenantId) : null;
         if (StringUtils.hasText(entity.getUserName())) {
             entity.setUserName(entity.getUserName().trim());
         }
@@ -147,7 +167,33 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (entity.getPostIds() != null && !entity.getPostIds().isEmpty()) {
             insertUserPost(entity);
         }
-        return super.updateById(entity);
+        boolean success = super.updateById(entity);
+        if (!success && quotaReference != null) {
+            releaseUserQuota(tenantId, quotaReference);
+        }
+        if (success && quotaReference != null) {
+            settleUserQuota(tenantId, quotaReference);
+        } else if (success && countedBefore && !countedAfter) {
+            quotaService.decreaseUsed(SaasQuotaKeys.USER_COUNT, 1L, "user-service");
+        }
+        return success;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean removeUserById(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        SysUser existedUser = getById(userId);
+        if (existedUser == null) {
+            return false;
+        }
+        boolean success = baseMapper.deleteById(userId) > 0;
+        if (success && isCounted(existedUser.getStatus(), existedUser.getDelFlag())) {
+            quotaService.decreaseUsed(SaasQuotaKeys.USER_COUNT, 1L, "user-service");
+        }
+        return success;
     }
 
     /**
@@ -245,5 +291,38 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      */
     private String normalizeTenantId(String tenantId) {
         return StringUtils.hasText(tenantId) ? tenantId.trim() : null;
+    }
+
+    private String reserveUserQuota(String tenantId) {
+        String reference = "user-" + UUID.randomUUID();
+        quotaService.apply(quotaEvent(tenantId, reference, SaasUsageOperation.RESERVE, 1L));
+        return reference;
+    }
+
+    private void settleUserQuota(String tenantId, String reference) {
+        quotaService.apply(quotaEvent(tenantId, reference, SaasUsageOperation.SETTLE, 1L));
+    }
+
+    private void releaseUserQuota(String tenantId, String reference) {
+        quotaService.apply(quotaEvent(tenantId, reference, SaasUsageOperation.RELEASE, null));
+    }
+
+    private SaasUsageEvent quotaEvent(String tenantId, String reference,
+            SaasUsageOperation operation, Long amount) {
+        long now = System.currentTimeMillis();
+        return new SaasUsageEvent(operation.name().toLowerCase() + "-" + UUID.randomUUID(),
+                tenantId, SaasQuotaKeys.USER_COUNT, operation, reference, amount, null, now);
+    }
+
+    private boolean isCountedOnCreate(SysUser user) {
+        return isCounted(valueOrExisting(user.getStatus(), "0"), valueOrExisting(user.getDelFlag(), "0"));
+    }
+
+    private boolean isCounted(String status, String delFlag) {
+        return "0".equals(status) && "0".equals(delFlag);
+    }
+
+    private String valueOrExisting(String value, String existing) {
+        return value == null ? existing : value;
     }
 }

@@ -1,6 +1,9 @@
 package com.erp.common.client.internal;
 
 import com.erp.platform.contract.model.PlatformRoleView;
+import com.erp.saas.contract.model.SaasQuotaUsage;
+import com.erp.saas.contract.model.SaasUsageEvent;
+import com.erp.saas.contract.model.SaasUsageOperation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -77,5 +80,28 @@ class InternalPlatformClientRoutingTest {
         verify(restTemplate).exchange(uriCaptor.capture(), eq(HttpMethod.GET), any(HttpEntity.class), eq(String.class));
         verify(headerFactory).buildHeaders();
         Assertions.assertEquals("http://erp-system/system/internal/config/erp.ai.enabled", uriCaptor.getValue().toString());
+    }
+
+    @Test
+    void shouldRouteQuotaEventsToSystemService() {
+        when(headerFactory.buildHeaders()).thenReturn(new HttpHeaders());
+        SaasQuotaUsage response = new SaasQuotaUsage("storage_bytes", 0L, 64L, null);
+        when(restTemplate.exchange(any(URI.class), eq(HttpMethod.POST), any(HttpEntity.class),
+                eq(SaasQuotaUsage.class))).thenReturn(ResponseEntity.ok(response));
+        InternalSystemClient client = new InternalSystemClient(restTemplate, headerFactory,
+                new InternalSystemClientProperties());
+        SaasUsageEvent event = new SaasUsageEvent("evt-1", "TENANT_A", "storage_bytes",
+                SaasUsageOperation.RESERVE, "object-1", 64L, null, 1L);
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+
+        SaasQuotaUsage actual = client.applyQuotaEvent(event);
+
+        verify(restTemplate).exchange(uriCaptor.capture(), eq(HttpMethod.POST), entityCaptor.capture(),
+                eq(SaasQuotaUsage.class));
+        Assertions.assertSame(response, actual);
+        Assertions.assertSame(event, entityCaptor.getValue().getBody());
+        Assertions.assertEquals("http://erp-system/system/internal/saas/quotas/events",
+                uriCaptor.getValue().toString());
     }
 }

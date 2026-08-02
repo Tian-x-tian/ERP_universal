@@ -1,6 +1,9 @@
 package com.erp.system.controller;
 
 import com.erp.common.logging.OperationLogRecorder;
+import com.erp.saas.contract.model.SaasQuotaUsage;
+import com.erp.saas.contract.model.SaasUsageEvent;
+import com.erp.saas.contract.model.SaasUsageOperation;
 import com.erp.platform.contract.model.PlatformDeptView;
 import com.erp.platform.contract.model.PlatformAiActionPolicyItem;
 import com.erp.platform.contract.model.PlatformAiAuditView;
@@ -32,6 +35,7 @@ import com.erp.system.service.ISysTenantService;
 import com.erp.system.service.ISysUserPostService;
 import com.erp.system.service.ISysUserRoleService;
 import com.erp.system.service.ISysUserService;
+import com.erp.system.saas.SaasLocalQuotaService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -85,6 +89,8 @@ class SystemInternalControllerTest {
     private ISysNoticeService noticeService;
     @Mock
     private OperationLogRecorder operationLogRecorder;
+    @Mock
+    private SaasLocalQuotaService quotaService;
 
     private SystemInternalController controller;
 
@@ -110,7 +116,20 @@ class SystemInternalControllerTest {
                 userRoleService,
                 userPostService,
                 noticeService,
-                operationLogRecorder);
+                operationLogRecorder,
+                quotaService);
+    }
+
+    @Test
+    void shouldApplyLocalQuotaEventThroughInternalEndpoint() {
+        SaasUsageEvent event = new SaasUsageEvent("evt-1", "TENANT_A", "storage_bytes",
+                SaasUsageOperation.RESERVE, "object-1", 128L, null, 1L);
+        SaasQuotaUsage expected = new SaasQuotaUsage("storage_bytes", 0L, 128L, null);
+        when(quotaService.apply(event)).thenReturn(expected);
+
+        SaasQuotaUsage actual = controller.applyQuotaEvent(event);
+
+        Assertions.assertSame(expected, actual);
     }
 
     /**

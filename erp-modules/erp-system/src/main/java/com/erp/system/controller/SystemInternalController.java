@@ -21,6 +21,8 @@ import com.erp.platform.contract.model.PlatformUserPostLink;
 import com.erp.platform.contract.model.PlatformUserRoleLink;
 import com.erp.platform.contract.model.PlatformUserView;
 import com.erp.platform.contract.model.PlatformWarehouseView;
+import com.erp.saas.contract.model.SaasQuotaUsage;
+import com.erp.saas.contract.model.SaasUsageEvent;
 import com.erp.system.domain.MdmItem;
 import com.erp.system.domain.MdmWarehouse;
 import com.erp.system.domain.SysDept;
@@ -50,6 +52,7 @@ import com.erp.system.service.ISysTenantService;
 import com.erp.system.service.ISysUserService;
 import com.erp.system.service.ISysUserPostService;
 import com.erp.system.service.ISysUserRoleService;
+import com.erp.system.saas.SaasLocalQuotaService;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -94,6 +97,7 @@ public class SystemInternalController {
     private final ISysUserRoleService userRoleService;
     private final ISysUserPostService userPostService;
     private final ISysNoticeService noticeService;
+    private final SaasLocalQuotaService quotaService;
 
     public SystemInternalController(SecurityUserResolver securityUserResolver,
             ISysRoleService roleService,
@@ -111,7 +115,8 @@ public class SystemInternalController {
             ISysUserRoleService userRoleService,
             ISysUserPostService userPostService,
             ISysNoticeService noticeService,
-            OperationLogRecorder operationLogRecorder) {
+            OperationLogRecorder operationLogRecorder,
+            SaasLocalQuotaService quotaService) {
         this.operationLogRecorder = operationLogRecorder;
         this.securityUserResolver = securityUserResolver;
         this.roleService = roleService;
@@ -129,6 +134,18 @@ public class SystemInternalController {
         this.userRoleService = userRoleService;
         this.userPostService = userPostService;
         this.noticeService = noticeService;
+        this.quotaService = quotaService;
+    }
+
+    /**
+     * Applies a tenant-local quota event for trusted internal callers.
+     *
+     * @param event quota event bound to the signed tenant context
+     * @return current local usage
+     */
+    @PostMapping("/saas/quotas/events")
+    public SaasQuotaUsage applyQuotaEvent(@RequestBody SaasUsageEvent event) {
+        return quotaService.apply(event);
     }
 
     /**

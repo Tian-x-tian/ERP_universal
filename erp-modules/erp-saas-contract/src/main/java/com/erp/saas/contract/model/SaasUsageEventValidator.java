@@ -15,9 +15,9 @@ public final class SaasUsageEventValidator {
         if (event == null) {
             throw new IllegalArgumentException("event must not be null");
         }
-        requireText(event.getIdempotencyKey(), "idempotencyKey");
-        requireText(event.getTenantId(), "tenantId");
-        requireText(event.getMetricKey(), "metricKey");
+        requireText(event.getIdempotencyKey(), "idempotencyKey", 128);
+        requireText(event.getTenantId(), "tenantId", 20);
+        requireText(event.getMetricKey(), "metricKey", 64);
         if (!SaasQuotaKeys.isKnown(event.getMetricKey())) {
             throw new IllegalArgumentException("unknown metricKey");
         }
@@ -30,15 +30,15 @@ public final class SaasUsageEventValidator {
         validatePeriod(event.getMetricKey(), event.getPeriodStartEpochMs());
         switch (event.getOperation()) {
             case RESERVE -> {
-                requireText(event.getReferenceKey(), "referenceKey");
+                requireText(event.getReferenceKey(), "referenceKey", 128);
                 requireAmount(event.getAmount(), true);
             }
             case SETTLE -> {
-                requireText(event.getReferenceKey(), "referenceKey");
+                requireText(event.getReferenceKey(), "referenceKey", 128);
                 requireAmount(event.getAmount(), false);
             }
             case RELEASE -> {
-                requireText(event.getReferenceKey(), "referenceKey");
+                requireText(event.getReferenceKey(), "referenceKey", 128);
                 if (event.getAmount() != null) {
                     throw new IllegalArgumentException("RELEASE amount must be null");
                 }
@@ -75,9 +75,12 @@ public final class SaasUsageEventValidator {
         }
     }
 
-    private static void requireText(String value, String field) {
+    private static void requireText(String value, String field, int maxLength) {
         if (!hasText(value)) {
             throw new IllegalArgumentException(field + " must not be blank");
+        }
+        if (value.length() > maxLength) {
+            throw new IllegalArgumentException(field + " exceeds " + maxLength + " characters");
         }
     }
 

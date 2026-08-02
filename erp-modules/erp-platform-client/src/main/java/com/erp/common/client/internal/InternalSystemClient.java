@@ -14,6 +14,8 @@ import com.erp.platform.contract.model.PlatformNoticeCreateRequest;
 import com.erp.platform.contract.model.PlatformTenantView;
 import com.erp.platform.contract.model.PlatformUserView;
 import com.erp.platform.contract.model.PlatformWarehouseView;
+import com.erp.saas.contract.model.SaasQuotaUsage;
+import com.erp.saas.contract.model.SaasUsageEvent;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -300,6 +302,17 @@ public class InternalSystemClient {
      */
     public void recordAiAudit(PlatformAiAuditCreateRequest request) {
         exchange(buildUri("/system/internal/platform/ai/audit"), HttpMethod.POST, request, Void.class);
+    }
+
+    /**
+     * Applies a quota reservation, settlement, or release in the tenant-local counter.
+     *
+     * @param event idempotent quota event
+     * @return current local quota usage
+     */
+    public SaasQuotaUsage applyQuotaEvent(SaasUsageEvent event) {
+        return exchange(buildUri("/system/internal/saas/quotas/events"), HttpMethod.POST, event,
+                SaasQuotaUsage.class);
     }
 
     /**

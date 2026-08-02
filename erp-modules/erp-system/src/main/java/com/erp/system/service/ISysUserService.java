@@ -36,4 +36,12 @@ public interface ISysUserService extends IService<SysUser> {
      * @return 更新是否成功
      */
     boolean incrementTokenVersion(Long userId);
+
+    /**
+     * Deletes a user and releases the active-user quota in the same transaction.
+     *
+     * @param userId user ID
+     * @return whether a user was deleted
+     */
+    boolean removeUserById(Long userId);
 }

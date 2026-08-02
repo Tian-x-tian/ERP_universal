@@ -203,6 +203,19 @@ class SaasContractTest {
         Assertions.assertThrows(IllegalArgumentException.class, () -> SaasUsageEventValidator.validate(missing));
     }
 
+    @Test
+    void shouldRejectUsageFieldsThatExceedPersistenceBoundaries() {
+        SaasUsageEvent invalid = event(SaasUsageOperation.RESERVE, SaasQuotaKeys.USER_COUNT, "ref", 1L, null);
+        invalid.setIdempotencyKey("e".repeat(129));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> SaasUsageEventValidator.validate(invalid));
+        invalid.setIdempotencyKey("event-a");
+        invalid.setTenantId("t".repeat(21));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> SaasUsageEventValidator.validate(invalid));
+        invalid.setTenantId("tenant-a");
+        invalid.setReferenceKey("r".repeat(129));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> SaasUsageEventValidator.validate(invalid));
+    }
+
     private SaasUsageEvent event(SaasUsageOperation operation, String metric, String reference, Long amount,
             Long period) {
         return new SaasUsageEvent("event-a", "tenant-a", metric, operation, reference, amount, period,
