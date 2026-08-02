@@ -37,10 +37,13 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
     private static final int MAX_RETRY_ATTEMPTS = 2;
     private final ErpAiProperties erpAiProperties;
     private final ObjectMapper objectMapper;
+    private final AiQuotaGuard quotaGuard;
 
-    public AiOpenAiCompatibleClient(ErpAiProperties erpAiProperties, ObjectMapper objectMapper) {
+    public AiOpenAiCompatibleClient(ErpAiProperties erpAiProperties, ObjectMapper objectMapper,
+            AiQuotaGuard quotaGuard) {
         this.erpAiProperties = erpAiProperties;
         this.objectMapper = objectMapper;
+        this.quotaGuard = quotaGuard;
     }
 
     /**
@@ -96,27 +99,37 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
     @Override
     public AiModelCompletion completeChat(String model, List<AiChatMessage> messages, List<AiToolDefinition> tools)
             throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(resolveUri(erpAiProperties.getChatPath()))
-                .timeout(Duration.ofMillis(Math.max(5000L, erpAiProperties.getReadTimeoutMs())))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json, text/event-stream")
-                .POST(HttpRequest.BodyPublishers.ofString(buildChatRequestBody(model, messages, false, tools)))
-                .build();
+        String requestBody = buildChatRequestBody(model, messages, false, tools);
+        AiQuotaReservation reservation = quotaGuard.reserve(inputTokenUpperBound(requestBody));
+        AiModelCompletion completion;
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(resolveUri(erpAiProperties.getChatPath()))
+                    .timeout(Duration.ofMillis(Math.max(5000L, erpAiProperties.getReadTimeoutMs())))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json, text/event-stream")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
 
-        HttpResponse<InputStream> response = sendWithRetry(request);
-        try (InputStream inputStream = response.body()) {
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IOException(resolveErrorMessage(readAsString(inputStream), response.statusCode()));
+            HttpResponse<InputStream> response = sendWithRetry(request);
+            try (InputStream inputStream = response.body()) {
+                if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                    throw new IOException(resolveErrorMessage(readAsString(inputStream), response.statusCode()));
+                }
+                String contentType = response.headers().firstValue("Content-Type").orElse("");
+                if (isEventStreamResponse(contentType)) {
+                    completion = readEventStream(inputStream, null, new AiModelCompletion());
+                } else {
+                    completion = extractCompletion(readAsString(inputStream));
+                }
             }
-            String contentType = response.headers().firstValue("Content-Type").orElse("");
-            if (isEventStreamResponse(contentType)) {
-                AiModelCompletion completion = new AiModelCompletion();
-                completion.setContent(readEventStream(inputStream, null));
-                return completion;
-            }
-            return extractCompletion(readAsString(inputStream));
+        } catch (IOException | InterruptedException | RuntimeException ex) {
+            releaseAfterFailure(reservation, ex);
+            throw ex;
         }
+        quotaGuard.settle(reservation, completion.getInputTokens(), completion.getOutputTokens(),
+                completion.isUsageReported());
+        return completion;
     }
 
     /**
@@ -146,33 +159,66 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
     @Override
     public String streamChat(String model, List<AiChatMessage> messages, Consumer<String> deltaConsumer)
             throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(resolveUri(erpAiProperties.getChatPath()))
-                .timeout(Duration.ofMillis(Math.max(5000L, erpAiProperties.getReadTimeoutMs())))
-                .header("Content-Type", "application/json")
-                .header("Accept", "text/event-stream, application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(buildChatRequestBody(model, messages, true, Collections.emptyList())))
-                .build();
+        String requestBody = buildChatRequestBody(model, messages, true, Collections.emptyList());
+        AiQuotaReservation reservation = quotaGuard.reserve(inputTokenUpperBound(requestBody));
+        AiModelCompletion completion = new AiModelCompletion();
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(resolveUri(erpAiProperties.getChatPath()))
+                    .timeout(Duration.ofMillis(Math.max(5000L, erpAiProperties.getReadTimeoutMs())))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "text/event-stream, application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
 
-        HttpResponse<InputStream> response = sendWithRetry(request);
-        try (InputStream inputStream = response.body()) {
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IOException(resolveErrorMessage(readAsString(inputStream), response.statusCode()));
-            }
-            String contentType = response.headers().firstValue("Content-Type").orElse("");
-            if (isEventStreamResponse(contentType)) {
-                String streamedText = readEventStream(inputStream, deltaConsumer);
-                if (StringUtils.hasText(streamedText)) {
-                    return streamedText;
+            HttpResponse<InputStream> response = sendWithRetry(request);
+            try (InputStream inputStream = response.body()) {
+                if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                    throw new IOException(resolveErrorMessage(readAsString(inputStream), response.statusCode()));
                 }
-                throw new IOException("AI 未返回有效内容");
+                String contentType = response.headers().firstValue("Content-Type").orElse("");
+                if (isEventStreamResponse(contentType)) {
+                    completion = readEventStream(inputStream, deltaConsumer, completion);
+                } else {
+                    completion = extractCompletion(readAsString(inputStream));
+                }
+                if (!StringUtils.hasText(completion.getContent())) {
+                    throw new IOException("AI 未返回有效内容");
+                }
             }
-            String body = readAsString(inputStream);
-            String content = extractResponseContent(body);
-            if (StringUtils.hasText(content)) {
-                return content;
+        } catch (IOException | InterruptedException | RuntimeException ex) {
+            if (completion.isUsageReported()) {
+                settleAfterFailure(reservation, completion, ex);
+            } else {
+                releaseAfterFailure(reservation, ex);
             }
-            throw new IOException("AI 未返回有效内容");
+            throw ex;
+        }
+        quotaGuard.settle(reservation, completion.getInputTokens(), completion.getOutputTokens(),
+                completion.isUsageReported());
+        return completion.getContent();
+    }
+
+    private long inputTokenUpperBound(String requestBody) {
+        if (!StringUtils.hasText(requestBody)) {
+            return 1L;
+        }
+        return Math.max(1L, requestBody.getBytes(StandardCharsets.UTF_8).length);
+    }
+
+    private void settleAfterFailure(AiQuotaReservation reservation, AiModelCompletion completion, Throwable failure) {
+        try {
+            quotaGuard.settle(reservation, completion.getInputTokens(), completion.getOutputTokens(), true);
+        } catch (RuntimeException settlementFailure) {
+            failure.addSuppressed(settlementFailure);
+        }
+    }
+
+    private void releaseAfterFailure(AiQuotaReservation reservation, Throwable failure) {
+        try {
+            quotaGuard.release(reservation);
+        } catch (RuntimeException releaseFailure) {
+            failure.addSuppressed(releaseFailure);
         }
     }
 
@@ -188,6 +234,14 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
         Map<String, Object> requestBody = new LinkedHashMap<>();
         requestBody.put("model", resolveModel(model));
         requestBody.put("stream", stream);
+        int maxOutputTokens = erpAiProperties.getMaxOutputTokens();
+        if (maxOutputTokens <= 0) {
+            throw new IllegalStateException("erp.ai.max-output-tokens must be positive");
+        }
+        requestBody.put("max_tokens", maxOutputTokens);
+        if (stream) {
+            requestBody.put("stream_options", Map.of("include_usage", true));
+        }
         List<Map<String, String>> messageList = new ArrayList<>();
         for (AiChatMessage message : messages) {
             if (message == null || !StringUtils.hasText(message.getRole()) || !StringUtils.hasText(message.getContent())) {
@@ -256,14 +310,15 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
      * @return 完整回复文本
      * @throws IOException IO 异常
      */
-    private String readEventStream(InputStream inputStream, Consumer<String> deltaConsumer) throws IOException {
+    private AiModelCompletion readEventStream(InputStream inputStream, Consumer<String> deltaConsumer,
+            AiModelCompletion completion) throws IOException {
         StringBuilder fullContent = new StringBuilder();
         StringBuilder eventDataBuffer = new StringBuilder();
         try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
             String line;
             while ((line = bufferedReader.readLine()) != null) {
                 if (line.isBlank()) {
-                    if (handleEventBlock(eventDataBuffer.toString(), deltaConsumer, fullContent)) {
+                    if (handleEventBlock(eventDataBuffer.toString(), deltaConsumer, fullContent, completion)) {
                         break;
                     }
                     eventDataBuffer.setLength(0);
@@ -277,10 +332,11 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
                 }
             }
             if (eventDataBuffer.length() > 0) {
-                handleEventBlock(eventDataBuffer.toString(), deltaConsumer, fullContent);
+                handleEventBlock(eventDataBuffer.toString(), deltaConsumer, fullContent, completion);
             }
         }
-        return fullContent.toString();
+        completion.setContent(fullContent.toString());
+        return completion;
     }
 
     /**
@@ -292,7 +348,8 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
      * @return true 表示流已结束
      * @throws IOException 解析异常
      */
-    private boolean handleEventBlock(String eventPayload, Consumer<String> deltaConsumer, StringBuilder fullContent) throws IOException {
+    private boolean handleEventBlock(String eventPayload, Consumer<String> deltaConsumer,
+            StringBuilder fullContent, AiModelCompletion completion) throws IOException {
         if (!StringUtils.hasText(eventPayload)) {
             return false;
         }
@@ -300,6 +357,7 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
             return true;
         }
         JsonNode rootNode = objectMapper.readTree(eventPayload);
+        applyUsage(rootNode, completion);
         JsonNode choicesNode = rootNode.path("choices");
         if (!choicesNode.isArray()) {
             return false;
@@ -344,6 +402,7 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
             return completion;
         }
         JsonNode rootNode = objectMapper.readTree(body);
+        applyUsage(rootNode, completion);
         String outputText = extractTextValue(rootNode.path("output_text"));
         if (StringUtils.hasText(outputText)) {
             completion.setContent(outputText);
@@ -369,6 +428,34 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
             }
         }
         return completion;
+    }
+
+    private void applyUsage(JsonNode rootNode, AiModelCompletion completion) {
+        if (rootNode == null || completion == null) {
+            return;
+        }
+        JsonNode usageNode = rootNode.path("usage");
+        if (!usageNode.isObject()) {
+            return;
+        }
+        Long inputTokens = tokenValue(usageNode, "prompt_tokens", "input_tokens");
+        Long outputTokens = tokenValue(usageNode, "completion_tokens", "output_tokens");
+        if (inputTokens != null || outputTokens != null) {
+            completion.setInputTokens(inputTokens);
+            completion.setOutputTokens(outputTokens);
+            completion.setUsageReported(true);
+        }
+    }
+
+    private Long tokenValue(JsonNode usageNode, String primaryField, String compatibleField) {
+        JsonNode value = usageNode.get(primaryField);
+        if (value == null || !value.canConvertToLong()) {
+            value = usageNode.get(compatibleField);
+        }
+        if (value == null || !value.canConvertToLong() || value.asLong() < 0) {
+            return null;
+        }
+        return value.asLong();
     }
 
     /**

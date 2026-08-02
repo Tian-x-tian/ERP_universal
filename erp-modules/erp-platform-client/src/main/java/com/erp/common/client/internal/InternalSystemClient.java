@@ -316,6 +316,23 @@ public class InternalSystemClient {
     }
 
     /**
+     * Applies multiple local quota events in one system-service transaction.
+     *
+     * @param events quota events
+     * @return current usages in request order
+     */
+    public List<SaasQuotaUsage> applyQuotaEvents(List<SaasUsageEvent> events) {
+        ResponseEntity<List<SaasQuotaUsage>> response = restTemplate.exchange(
+                buildUri("/system/internal/saas/quotas/events/batch"),
+                HttpMethod.POST,
+                new HttpEntity<>(events, headerFactory.buildHeaders()),
+                new ParameterizedTypeReference<List<SaasQuotaUsage>>() {
+                });
+        List<SaasQuotaUsage> body = response.getBody();
+        return body == null ? Collections.emptyList() : body;
+    }
+
+    /**
      * 查询当前租户 AI 审计记录。
      *
      * @param limit 限制条数

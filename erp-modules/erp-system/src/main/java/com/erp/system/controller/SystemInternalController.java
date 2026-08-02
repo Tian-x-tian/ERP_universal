@@ -148,6 +148,11 @@ public class SystemInternalController {
         return quotaService.apply(event);
     }
 
+    @PostMapping("/saas/quotas/events/batch")
+    public List<SaasQuotaUsage> applyQuotaEvents(@RequestBody List<SaasUsageEvent> events) {
+        return quotaService.applyBatch(events);
+    }
+
     /**
      * 查询当前内部主体的权限包。
      *

@@ -104,4 +104,26 @@ class InternalPlatformClientRoutingTest {
         Assertions.assertEquals("http://erp-system/system/internal/saas/quotas/events",
                 uriCaptor.getValue().toString());
     }
+
+    @Test
+    void shouldRouteQuotaEventBatchToSystemService() {
+        when(headerFactory.buildHeaders()).thenReturn(new HttpHeaders());
+        List<SaasQuotaUsage> response = List.of(new SaasQuotaUsage("ai_input_tokens", 0L, 100L, 1L));
+        when(restTemplate.exchange(any(URI.class), eq(HttpMethod.POST), any(HttpEntity.class),
+                org.mockito.ArgumentMatchers.<ParameterizedTypeReference<List<SaasQuotaUsage>>>any()))
+                .thenReturn(ResponseEntity.ok(response));
+        InternalSystemClient client = new InternalSystemClient(restTemplate, headerFactory,
+                new InternalSystemClientProperties());
+        List<SaasUsageEvent> events = List.of(new SaasUsageEvent("evt", "TENANT_A", "ai_input_tokens",
+                SaasUsageOperation.RESERVE, "ref", 100L, 1L, 1L));
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+
+        List<SaasQuotaUsage> actual = client.applyQuotaEvents(events);
+
+        verify(restTemplate).exchange(uriCaptor.capture(), eq(HttpMethod.POST), any(HttpEntity.class),
+                org.mockito.ArgumentMatchers.<ParameterizedTypeReference<List<SaasQuotaUsage>>>any());
+        Assertions.assertSame(response, actual);
+        Assertions.assertEquals("http://erp-system/system/internal/saas/quotas/events/batch",
+                uriCaptor.getValue().toString());
+    }
 }

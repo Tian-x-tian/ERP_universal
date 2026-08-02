@@ -49,6 +49,16 @@ public class ErpAiProperties {
      */
     private int maxNoticeItems = 10;
 
+    /**
+     * 单次模型调用允许预留的最大输入 Token 数。
+     */
+    private int maxInputTokens = 32768;
+
+    /**
+     * 单次模型调用预留并传给上游的最大输出 Token 数。
+     */
+    private int maxOutputTokens = 4096;
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -119,5 +129,21 @@ public class ErpAiProperties {
 
     public void setMaxNoticeItems(int maxNoticeItems) {
         this.maxNoticeItems = maxNoticeItems;
+    }
+
+    public int getMaxInputTokens() {
+        return maxInputTokens;
+    }
+
+    public void setMaxInputTokens(int maxInputTokens) {
+        this.maxInputTokens = maxInputTokens;
+    }
+
+    public int getMaxOutputTokens() {
+        return maxOutputTokens;
+    }
+
+    public void setMaxOutputTokens(int maxOutputTokens) {
+        this.maxOutputTokens = maxOutputTokens;
     }
 }

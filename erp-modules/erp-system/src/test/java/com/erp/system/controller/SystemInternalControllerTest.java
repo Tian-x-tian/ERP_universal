@@ -132,6 +132,22 @@ class SystemInternalControllerTest {
         Assertions.assertSame(expected, actual);
     }
 
+    @Test
+    void shouldApplyQuotaEventBatchAtomicallyThroughInternalEndpoint() {
+        SaasUsageEvent input = new SaasUsageEvent("evt-input", "TENANT_A", "ai_input_tokens",
+                SaasUsageOperation.RESERVE, "ai-input", 100L, 1785542400000L, 1L);
+        SaasUsageEvent output = new SaasUsageEvent("evt-output", "TENANT_A", "ai_output_tokens",
+                SaasUsageOperation.RESERVE, "ai-output", 50L, 1785542400000L, 1L);
+        List<SaasQuotaUsage> expected = List.of(
+                new SaasQuotaUsage("ai_input_tokens", 0L, 100L, 1785542400000L),
+                new SaasQuotaUsage("ai_output_tokens", 0L, 50L, 1785542400000L));
+        when(quotaService.applyBatch(List.of(input, output))).thenReturn(expected);
+
+        List<SaasQuotaUsage> actual = controller.applyQuotaEvents(List.of(input, output));
+
+        Assertions.assertSame(expected, actual);
+    }
+
     /**
      * 验证用户相关只读接口会返回部门字段。
      */

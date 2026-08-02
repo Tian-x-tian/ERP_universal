@@ -38,6 +38,8 @@ erp:
     max-history-turns: ${ERP_AI_MAX_HISTORY_TURNS:12}
     max-todo-items: ${ERP_AI_MAX_TODO_ITEMS:10}
     max-notice-items: ${ERP_AI_MAX_NOTICE_ITEMS:10}
+    max-input-tokens: ${ERP_AI_MAX_INPUT_TOKENS:32768}
+    max-output-tokens: ${ERP_AI_MAX_OUTPUT_TOKENS:4096}
 
 management:
   endpoints:

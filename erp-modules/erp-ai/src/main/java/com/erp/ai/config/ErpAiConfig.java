@@ -2,6 +2,7 @@ package com.erp.ai.config;
 
 import com.erp.common.core.context.TenantContextHolder;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskDecorator;
@@ -11,6 +12,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.concurrent.Executor;
+import java.time.Clock;
 
 /**
  * ERP AI 基础配置。
@@ -27,6 +29,12 @@ public class ErpAiConfig {
     @ConfigurationProperties(prefix = "erp.ai")
     public ErpAiProperties erpAiProperties() {
         return new ErpAiProperties();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(Clock.class)
+    public Clock aiQuotaClock() {
+        return Clock.systemUTC();
     }
 
     /**

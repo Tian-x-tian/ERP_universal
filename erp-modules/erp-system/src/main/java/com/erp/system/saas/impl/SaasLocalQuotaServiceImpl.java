@@ -24,6 +24,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -66,6 +68,19 @@ public class SaasLocalQuotaServiceImpl implements SaasLocalQuotaService {
             case RELEASE -> release(tenantId, event, period, now);
             case REPORT -> throw validation("Unsupported local quota operation");
         };
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<SaasQuotaUsage> applyBatch(List<SaasUsageEvent> events) {
+        if (events == null || events.isEmpty() || events.size() > 16) {
+            throw validation("Quota event batch must contain between 1 and 16 events");
+        }
+        List<SaasQuotaUsage> usages = new ArrayList<>(events.size());
+        for (SaasUsageEvent event : events) {
+            usages.add(apply(event));
+        }
+        return usages;
     }
 
     @Override
