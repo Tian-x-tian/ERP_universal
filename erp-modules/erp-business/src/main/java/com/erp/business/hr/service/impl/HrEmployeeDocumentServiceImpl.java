@@ -11,15 +11,20 @@ import com.erp.business.hr.mapper.HrEmployeeDocumentMapper;
 import com.erp.business.hr.service.IHrEmployeeDocumentService;
 import com.erp.business.hr.service.IHrObjectStorageService;
 import com.erp.business.hr.support.HrEmployeeSupport;
+import com.erp.business.saas.domain.SaasStorageObject;
+import com.erp.business.saas.service.SaasStorageObjectService;
 import com.erp.business.security.service.SecurityUserResolver;
+import com.erp.common.client.internal.InternalSystemClient;
 import com.erp.common.core.domain.ResultCode;
 import com.erp.common.core.exception.ServiceException;
+import com.erp.saas.contract.model.SaasQuotaKeys;
+import com.erp.saas.contract.model.SaasUsageEvent;
+import com.erp.saas.contract.model.SaasUsageOperation;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Date;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -32,15 +37,21 @@ public class HrEmployeeDocumentServiceImpl implements IHrEmployeeDocumentService
     private final HrEmployeeCoreMapper employeeCoreMapper;
     private final IHrObjectStorageService objectStorageService;
     private final SecurityUserResolver securityUserResolver;
+    private final InternalSystemClient internalSystemClient;
+    private final SaasStorageObjectService storageObjectService;
 
     public HrEmployeeDocumentServiceImpl(HrEmployeeDocumentMapper documentMapper,
             HrEmployeeCoreMapper employeeCoreMapper,
             IHrObjectStorageService objectStorageService,
-            SecurityUserResolver securityUserResolver) {
+            SecurityUserResolver securityUserResolver,
+            InternalSystemClient internalSystemClient,
+            SaasStorageObjectService storageObjectService) {
         this.documentMapper = documentMapper;
         this.employeeCoreMapper = employeeCoreMapper;
         this.objectStorageService = objectStorageService;
         this.securityUserResolver = securityUserResolver;
+        this.internalSystemClient = internalSystemClient;
+        this.storageObjectService = storageObjectService;
     }
 
     /**
@@ -95,15 +106,36 @@ public class HrEmployeeDocumentServiceImpl implements IHrEmployeeDocumentService
      * @return 档案详情
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public HrEmployeeDocument uploadDocument(HrEmployeeDocumentBody body, MultipartFile file) {
         HrEmployeeCore employee = requireEmployee(body == null ? null : body.getEmployeeId());
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("上传文件不能为空");
         }
         String objectKey = buildObjectKey(employee.getTenantId(), employee.getEmployeeId(), file.getOriginalFilename());
-        String storedKey = objectStorageService.upload(objectKey, file);
-        Date now = new Date();
+        long byteSize = file.getSize();
+        if (byteSize <= 0) {
+            throw new IllegalArgumentException("上传文件大小必须大于0");
+        }
+        String quotaReference = "storage-" + UUID.randomUUID();
+        boolean reserved = false;
+        boolean ledgerCreated = false;
+        boolean uploadAttempted = false;
+        String storedKey;
+        try {
+            internalSystemClient.applyQuotaEvent(quotaEvent(employee.getTenantId(), quotaReference,
+                    SaasUsageOperation.RESERVE, byteSize));
+            reserved = true;
+            storageObjectService.createUploading(employee.getTenantId(), objectKey, byteSize, quotaReference);
+            ledgerCreated = true;
+            uploadAttempted = true;
+            storedKey = objectStorageService.upload(objectKey, file);
+            internalSystemClient.applyQuotaEvent(quotaEvent(employee.getTenantId(), quotaReference,
+                    SaasUsageOperation.SETTLE, byteSize));
+        } catch (RuntimeException ex) {
+            compensateFailedUpload(employee.getTenantId(), objectKey, quotaReference,
+                    reserved, ledgerCreated, uploadAttempted, ex);
+            throw ex;
+        }
         HrEmployeeDocument document = new HrEmployeeDocument();
         document.setTenantId(employee.getTenantId());
         document.setEmployeeId(employee.getEmployeeId());
@@ -112,13 +144,19 @@ public class HrEmployeeDocumentServiceImpl implements IHrEmployeeDocumentService
                 ? body.getDocumentName().trim()
                 : file.getOriginalFilename());
         document.setFileUrl(storedKey);
+        document.setFileSize(byteSize);
         document.setExpireDate(body == null ? null : body.getExpireDate());
         document.setStatus(HrEmployeeSupport.defaultIfBlank(
                 HrEmployeeSupport.normalizeStatus(body == null ? null : body.getStatus()),
                 HrEmployeeSupport.DOCUMENT_STATUS_ACTIVE));
         document.setRemark(HrEmployeeSupport.trimToNull(body == null ? null : body.getRemark()));
-        documentMapper.insert(document);
-        return documentMapper.selectById(document.getDocumentId());
+        try {
+            return storageObjectService.completeUpload(document);
+        } catch (RuntimeException ex) {
+            compensateFailedUpload(employee.getTenantId(), objectKey, quotaReference,
+                    true, true, true, ex);
+            throw ex;
+        }
     }
 
     /**
@@ -153,9 +191,15 @@ public class HrEmployeeDocumentServiceImpl implements IHrEmployeeDocumentService
      * @return true 表示成功
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public boolean deleteDocument(Long documentId) {
         HrEmployeeDocument existed = getById(documentId);
+        SaasStorageObject storageObject = storageObjectService.find(existed.getTenantId(), existed.getFileUrl());
+        objectStorageService.delete(existed.getFileUrl());
+        if (storageObject != null && StringUtils.hasText(storageObject.getQuotaReferenceKey())) {
+            internalSystemClient.applyQuotaEvent(quotaEvent(existed.getTenantId(),
+                    storageObject.getQuotaReferenceKey(), SaasUsageOperation.RELEASE, null));
+            return storageObjectService.completeDelete(existed);
+        }
         HrEmployeeDocument updateEntity = new HrEmployeeDocument();
         updateEntity.setDocumentId(documentId);
         updateEntity.setTenantId(existed.getTenantId());
@@ -231,6 +275,53 @@ public class HrEmployeeDocumentServiceImpl implements IHrEmployeeDocumentService
      */
     private String currentTenantId() {
         return securityUserResolver.getCurrentTenantId();
+    }
+
+    private SaasUsageEvent quotaEvent(String tenantId, String reference,
+            SaasUsageOperation operation, Long amount) {
+        return new SaasUsageEvent(operation.name().toLowerCase(Locale.ROOT) + "-" + UUID.randomUUID(),
+                tenantId, SaasQuotaKeys.STORAGE_BYTES, operation, reference, amount, null,
+                System.currentTimeMillis());
+    }
+
+    private void compensateFailedUpload(String tenantId, String objectKey, String quotaReference,
+            boolean reserved, boolean ledgerCreated, boolean uploadAttempted, RuntimeException original) {
+        if (!reserved) {
+            return;
+        }
+        if (uploadAttempted) {
+            try {
+                objectStorageService.delete(objectKey);
+            } catch (RuntimeException cleanupError) {
+                original.addSuppressed(cleanupError);
+                if (ledgerCreated) {
+                    try {
+                        storageObjectService.markOrphaned(tenantId, objectKey,
+                                cleanupError.getClass().getSimpleName());
+                    } catch (RuntimeException ledgerError) {
+                        original.addSuppressed(ledgerError);
+                    }
+                }
+                return;
+            }
+        }
+        try {
+            internalSystemClient.applyQuotaEvent(quotaEvent(tenantId, quotaReference,
+                    SaasUsageOperation.RELEASE, null));
+            if (ledgerCreated) {
+                storageObjectService.markDeleted(tenantId, objectKey);
+            }
+        } catch (RuntimeException cleanupError) {
+            original.addSuppressed(cleanupError);
+            if (ledgerCreated) {
+                try {
+                    storageObjectService.markOrphaned(tenantId, objectKey,
+                            cleanupError.getClass().getSimpleName());
+                } catch (RuntimeException ledgerError) {
+                    original.addSuppressed(ledgerError);
+                }
+            }
+        }
     }
 
 }

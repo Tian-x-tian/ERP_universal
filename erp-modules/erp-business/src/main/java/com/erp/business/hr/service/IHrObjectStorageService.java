@@ -17,6 +17,13 @@ public interface IHrObjectStorageService {
     String upload(String objectKey, MultipartFile file);
 
     /**
+     * Deletes an object. Deleting a missing object is treated as success.
+     *
+     * @param objectKey object key
+     */
+    void delete(String objectKey);
+
+    /**
      * 生成预览链接。
      *
      * @param objectKey 对象键

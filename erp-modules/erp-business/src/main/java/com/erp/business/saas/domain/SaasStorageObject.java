@@ -1,4 +1,4 @@
-package com.erp.business.hr.domain;
+package com.erp.business.saas.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -8,26 +8,19 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
-import java.util.Date;
 
-/**
- * 员工电子档案底座对象。
- */
 @Data
 @EqualsAndHashCode(callSuper = false)
-@TableName("hr_employee_document")
-public class HrEmployeeDocument extends BaseAuditEntity implements Serializable {
+@TableName("biz_saas_storage_object")
+public class SaasStorageObject extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.AUTO)
-    private Long documentId;
+    private Long storageObjectId;
     private String tenantId;
-    private Long employeeId;
-    private String documentType;
-    private String documentName;
-    private String fileUrl;
-    private Long fileSize;
-    private Date expireDate;
+    private String objectKey;
+    private Long byteSize;
     private String status;
-    private String remark;
+    private String quotaReferenceKey;
+    private String lastError;
 }

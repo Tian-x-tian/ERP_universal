@@ -12,6 +12,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -54,6 +55,20 @@ public class HrObjectStorageServiceImpl implements IHrObjectStorageService {
             return objectKey;
         } catch (IOException ex) {
             throw new IllegalStateException("上传电子档案失败", ex);
+        }
+    }
+
+    @Override
+    public void delete(String objectKey) {
+        validateStorageReady();
+        if (!StringUtils.hasText(objectKey)) {
+            throw new IllegalArgumentException("对象键不能为空");
+        }
+        try (S3Client s3Client = buildS3Client()) {
+            s3Client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(properties.getBucket())
+                    .key(objectKey)
+                    .build());
         }
     }
 

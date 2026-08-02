@@ -244,6 +244,7 @@ CREATE TABLE IF NOT EXISTS `hr_employee_document` (
   `document_type` varchar(32) DEFAULT NULL COMMENT '档案类型',
   `document_name` varchar(128) DEFAULT NULL COMMENT '档案名称',
   `file_url` varchar(255) DEFAULT NULL COMMENT '文件地址',
+  `file_size` bigint(20) NOT NULL DEFAULT 0 COMMENT '文件字节数',
   `expire_date` datetime DEFAULT NULL COMMENT '到期日期',
   `status` varchar(32) DEFAULT 'ACTIVE' COMMENT '状态',
   `remark` varchar(500) DEFAULT NULL COMMENT '备注',
@@ -254,6 +255,25 @@ CREATE TABLE IF NOT EXISTS `hr_employee_document` (
   PRIMARY KEY (`document_id`),
   KEY `idx_hr_employee_document_emp` (`tenant_id`, `employee_id`, `document_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='员工电子档案表';
+
+CREATE TABLE IF NOT EXISTS `biz_saas_storage_object` (
+  `storage_object_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '存储对象ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `object_key` varchar(512) NOT NULL COMMENT '对象存储键',
+  `byte_size` bigint(20) NOT NULL COMMENT '对象字节数',
+  `status` varchar(16) NOT NULL COMMENT 'UPLOADING, ACTIVE, ORPHANED, or DELETED',
+  `quota_reference_key` varchar(128) DEFAULT NULL COMMENT '本地配额预留引用',
+  `last_error` varchar(128) DEFAULT NULL COMMENT '最近补偿错误类型',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime(3) NOT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime(3) NOT NULL COMMENT '更新时间',
+  PRIMARY KEY (`storage_object_id`),
+  UNIQUE KEY `uk_biz_saas_storage_object` (`tenant_id`, `object_key`),
+  KEY `idx_biz_saas_storage_status` (`tenant_id`, `status`, `update_time`),
+  CONSTRAINT `ck_biz_saas_storage_size` CHECK (`byte_size` >= 0),
+  CONSTRAINT `ck_biz_saas_storage_status` CHECK (`status` IN ('UPLOADING', 'ACTIVE', 'ORPHANED', 'DELETED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='租户对象存储用量台账';
 
 CREATE TABLE IF NOT EXISTS `hr_salary_field_mapping` (
   `mapping_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '映射ID',
