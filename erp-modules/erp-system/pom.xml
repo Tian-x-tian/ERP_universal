@@ -58,6 +58,11 @@
         </dependency>
         <dependency>
             <groupId>com.erp</groupId>
+            <artifactId>erp-saas-client</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.erp</groupId>
             <artifactId>erp-platform-contract</artifactId>
             <version>${project.version}</version>
         </dependency>
