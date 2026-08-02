@@ -19,6 +19,36 @@ public class PlatformAiConfigView implements Serializable {
     private String configVersion;
     private String updateBy;
     private Date updateTime;
+    /** 租户每日请求上限，0 或空表示不限制 */
+    private Integer tenantDailyRequestLimit;
+    /** 租户每日 token 上限，0 或空表示不限制 */
+    private Integer tenantDailyTokenLimit;
+    /** 单用户每日请求上限，0 或空表示不限制 */
+    private Integer userDailyRequestLimit;
+
+    public Integer getTenantDailyRequestLimit() {
+        return tenantDailyRequestLimit;
+    }
+
+    public void setTenantDailyRequestLimit(Integer tenantDailyRequestLimit) {
+        this.tenantDailyRequestLimit = tenantDailyRequestLimit;
+    }
+
+    public Integer getTenantDailyTokenLimit() {
+        return tenantDailyTokenLimit;
+    }
+
+    public void setTenantDailyTokenLimit(Integer tenantDailyTokenLimit) {
+        this.tenantDailyTokenLimit = tenantDailyTokenLimit;
+    }
+
+    public Integer getUserDailyRequestLimit() {
+        return userDailyRequestLimit;
+    }
+
+    public void setUserDailyRequestLimit(Integer userDailyRequestLimit) {
+        this.userDailyRequestLimit = userDailyRequestLimit;
+    }
 
     public String getTenantId() {
         return tenantId;

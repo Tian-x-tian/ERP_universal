@@ -103,6 +103,33 @@ public class ErpAiProperties {
      */
     private boolean sessionPersistEnabled = true;
 
+    /**
+     * 是否启用真流式（按 token 边生成边推送）。
+     *
+     * <p>关闭后回退到「非流式补全 + 服务端分片回放」的旧行为。</p>
+     */
+    private boolean streamingEnabled = true;
+
+    /**
+     * 每日简报缓存的有效时长（分钟），超过后重新生成。
+     */
+    private int briefTtlMinutes = 240;
+
+    /**
+     * 租户每日请求上限，0 表示不限制。
+     */
+    private int tenantDailyRequestLimit = 0;
+
+    /**
+     * 租户每日 token 上限，0 表示不限制。
+     */
+    private int tenantDailyTokenLimit = 0;
+
+    /**
+     * 单用户每日请求上限，0 表示不限制。
+     */
+    private int userDailyRequestLimit = 0;
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -253,5 +280,45 @@ public class ErpAiProperties {
 
     public void setSessionPersistEnabled(boolean sessionPersistEnabled) {
         this.sessionPersistEnabled = sessionPersistEnabled;
+    }
+
+    public boolean isStreamingEnabled() {
+        return streamingEnabled;
+    }
+
+    public void setStreamingEnabled(boolean streamingEnabled) {
+        this.streamingEnabled = streamingEnabled;
+    }
+
+    public int getBriefTtlMinutes() {
+        return briefTtlMinutes;
+    }
+
+    public void setBriefTtlMinutes(int briefTtlMinutes) {
+        this.briefTtlMinutes = briefTtlMinutes;
+    }
+
+    public int getTenantDailyRequestLimit() {
+        return tenantDailyRequestLimit;
+    }
+
+    public void setTenantDailyRequestLimit(int tenantDailyRequestLimit) {
+        this.tenantDailyRequestLimit = tenantDailyRequestLimit;
+    }
+
+    public int getTenantDailyTokenLimit() {
+        return tenantDailyTokenLimit;
+    }
+
+    public void setTenantDailyTokenLimit(int tenantDailyTokenLimit) {
+        this.tenantDailyTokenLimit = tenantDailyTokenLimit;
+    }
+
+    public int getUserDailyRequestLimit() {
+        return userDailyRequestLimit;
+    }
+
+    public void setUserDailyRequestLimit(int userDailyRequestLimit) {
+        this.userDailyRequestLimit = userDailyRequestLimit;
     }
 }

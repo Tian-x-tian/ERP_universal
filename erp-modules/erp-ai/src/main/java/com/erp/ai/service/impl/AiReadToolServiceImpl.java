@@ -2,6 +2,7 @@ package com.erp.ai.service.impl;
 
 import com.erp.ai.config.ErpAiProperties;
 import com.erp.ai.context.AiInvocationScope;
+import com.erp.ai.model.AiPanelCardVO;
 import com.erp.ai.model.AiReadToolResult;
 import com.erp.ai.model.AiStructuredBlock;
 import com.erp.ai.model.AiToolDefinition;
@@ -95,6 +96,58 @@ public class AiReadToolServiceImpl implements AiReadToolService {
             }
             return tools;
         });
+    }
+
+    /**
+     * 列出当前用户可用的面板卡片。
+     *
+     * @return 卡片列表
+     */
+    @Override
+    public List<AiPanelCardVO> listAvailableCards() {
+        List<AiPanelCardVO> cards = new ArrayList<>();
+        if (!erpAiProperties.isReadToolsEnabled()) {
+            return cards;
+        }
+        for (ReadToolDescriptor descriptor : TOOL_REGISTRY.values()) {
+            if (!hasAnyPermission(descriptor.permissions())) {
+                continue;
+            }
+            cards.add(new AiPanelCardVO(descriptor.name(),
+                    resolveToolLabel(descriptor.name()),
+                    descriptor.description(),
+                    descriptor.parameters()));
+        }
+        return cards;
+    }
+
+    /**
+     * 解析只读工具的展示名。
+     *
+     * @param toolName 工具名称
+     * @return 展示名
+     */
+    @Override
+    public String resolveToolLabel(String toolName) {
+        if (!StringUtils.hasText(toolName)) {
+            return "数据查询";
+        }
+        return switch (toolName.trim()) {
+            case "query_todo_backlog" -> "待办积压分布";
+            case "query_todo_aging" -> "待办滞留明细";
+            case "query_approval_duration" -> "审批节点耗时";
+            case "query_process_instance_stats" -> "流程实例分布";
+            case "query_user_workload" -> "人员负载排行";
+            case "query_approval_trend" -> "审批动作趋势";
+            case "query_notice_overview" -> "消息分布";
+            case "query_operation_trend" -> "系统操作趋势";
+            case "query_ai_usage_trend" -> "AI 使用量";
+            case "query_stock_overview" -> "库存概览";
+            case "query_stock_warning" -> "库存预警";
+            case "query_hr_headcount" -> "在岗人数";
+            case "query_hr_warning" -> "HR 预警";
+            default -> "数据查询";
+        };
     }
 
     /**

@@ -2,6 +2,7 @@ package com.erp.system.service;
 
 import com.erp.platform.contract.model.PlatformAiDataSet;
 import com.erp.platform.contract.model.PlatformAiDataSetRequest;
+import com.erp.platform.contract.model.PlatformAiQuotaUsage;
 
 import java.util.List;
 
@@ -24,4 +25,12 @@ public interface IAiDatasetService {
      * @return 数据集编码列表
      */
     List<String> supportedKeys();
+
+    /**
+     * 查询当日 AI 用量。
+     *
+     * @param userId 当前用户ID
+     * @return 用量统计
+     */
+    PlatformAiQuotaUsage queryQuotaUsage(Long userId);
 }

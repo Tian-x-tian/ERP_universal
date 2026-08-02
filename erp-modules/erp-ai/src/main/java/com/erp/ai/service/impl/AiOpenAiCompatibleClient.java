@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 
 /**
@@ -175,6 +176,213 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
             }
             throw new IOException("AI 未返回有效内容");
         }
+    }
+
+    /**
+     * 以流式方式请求补全，同时支持文本增量与工具调用。
+     *
+     * @param model         模型编号
+     * @param messages      对话消息列表
+     * @param tools         可用工具列表
+     * @param deltaConsumer 文本增量回调
+     * @return 模型补全结果
+     * @throws IOException          IO 异常
+     * @throws InterruptedException 中断异常
+     */
+    @Override
+    public AiModelCompletion streamCompletion(String model,
+            List<AiChatMessage> messages,
+            List<AiToolDefinition> tools,
+            Consumer<String> deltaConsumer) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(resolveUri(erpAiProperties.getChatPath()))
+                .timeout(Duration.ofMillis(Math.max(5000L, erpAiProperties.getReadTimeoutMs())))
+                .header("Content-Type", "application/json")
+                .header("Accept", "text/event-stream, application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(buildChatRequestBody(model, messages, true, tools)))
+                .build();
+
+        HttpResponse<InputStream> response = sendWithRetry(request);
+        try (InputStream inputStream = response.body()) {
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IOException(resolveErrorMessage(readAsString(inputStream), response.statusCode()));
+            }
+            String contentType = response.headers().firstValue("Content-Type").orElse("");
+            if (!isEventStreamResponse(contentType)) {
+                // 上游忽略了 stream=true 时按普通响应解析，并把文本一次性回放给调用方。
+                AiModelCompletion completion = extractCompletion(readAsString(inputStream));
+                if (deltaConsumer != null && StringUtils.hasText(completion.getContent())) {
+                    deltaConsumer.accept(completion.getContent());
+                }
+                return completion;
+            }
+            return readCompletionStream(inputStream, deltaConsumer);
+        }
+    }
+
+    /**
+     * 读取流式补全，边推文本边拼装工具调用。
+     *
+     * @param inputStream   响应输入流
+     * @param deltaConsumer 文本增量回调
+     * @return 模型补全结果
+     * @throws IOException IO 异常
+     */
+    private AiModelCompletion readCompletionStream(InputStream inputStream, Consumer<String> deltaConsumer)
+            throws IOException {
+        AiModelCompletion completion = new AiModelCompletion();
+        StringBuilder fullContent = new StringBuilder();
+        Map<Integer, ToolCallDraft> toolCallDrafts = new TreeMap<>();
+        StringBuilder eventDataBuffer = new StringBuilder();
+
+        try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            String line;
+            boolean finished = false;
+            while (!finished && (line = bufferedReader.readLine()) != null) {
+                if (line.isBlank()) {
+                    finished = handleCompletionEvent(eventDataBuffer.toString(), deltaConsumer, fullContent,
+                            toolCallDrafts, completion);
+                    eventDataBuffer.setLength(0);
+                    continue;
+                }
+                if (line.startsWith("data:")) {
+                    if (eventDataBuffer.length() > 0) {
+                        eventDataBuffer.append('\n');
+                    }
+                    eventDataBuffer.append(line.substring(5).trim());
+                }
+            }
+            if (!finished && eventDataBuffer.length() > 0) {
+                handleCompletionEvent(eventDataBuffer.toString(), deltaConsumer, fullContent, toolCallDrafts, completion);
+            }
+        }
+
+        completion.setContent(fullContent.length() == 0 ? null : fullContent.toString());
+        completion.setToolCalls(materializeToolCalls(toolCallDrafts));
+        return completion;
+    }
+
+    /**
+     * 处理单个流式补全事件块。
+     *
+     * @param eventPayload   SSE 事件负载
+     * @param deltaConsumer  文本增量回调
+     * @param fullContent    完整文本缓冲区
+     * @param toolCallDrafts 工具调用拼装缓冲区
+     * @param completion     补全结果
+     * @return true 表示流已结束
+     * @throws IOException 解析异常
+     */
+    private boolean handleCompletionEvent(String eventPayload,
+            Consumer<String> deltaConsumer,
+            StringBuilder fullContent,
+            Map<Integer, ToolCallDraft> toolCallDrafts,
+            AiModelCompletion completion) throws IOException {
+        if (!StringUtils.hasText(eventPayload)) {
+            return false;
+        }
+        if ("[DONE]".equals(eventPayload.trim())) {
+            return true;
+        }
+        JsonNode rootNode = objectMapper.readTree(eventPayload);
+        JsonNode usageNode = rootNode.path("usage");
+        if (usageNode.isObject()) {
+            // include_usage 开启后，用量通常随最后一个（choices 为空的）事件块下发。
+            completion.setUsage(extractUsage(usageNode));
+        }
+        JsonNode choicesNode = rootNode.path("choices");
+        if (!choicesNode.isArray()) {
+            return false;
+        }
+        for (JsonNode choiceNode : choicesNode) {
+            JsonNode deltaNode = choiceNode.path("delta");
+            String deltaText = extractTextValue(deltaNode.path("content"));
+            if (!StringUtils.hasText(deltaText)) {
+                deltaText = extractTextValue(choiceNode.path("message").path("content"));
+            }
+            if (StringUtils.hasText(deltaText)) {
+                fullContent.append(deltaText);
+                if (deltaConsumer != null) {
+                    deltaConsumer.accept(deltaText);
+                }
+            }
+            accumulateToolCalls(deltaNode.path("tool_calls"), toolCallDrafts);
+            accumulateToolCalls(choiceNode.path("message").path("tool_calls"), toolCallDrafts);
+
+            String finishReason = extractTextValue(choiceNode.path("finish_reason"));
+            if (StringUtils.hasText(finishReason)) {
+                completion.setFinishReason(finishReason);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 按 index 累积工具调用分片。
+     *
+     * <p>OpenAI 流式协议中，工具名与 id 通常只在首个分片出现，而 arguments 会被拆成多段，
+     * 必须按 index 归并后拼接，否则拿到的是残缺 JSON。</p>
+     *
+     * @param toolCallsNode  工具调用节点
+     * @param toolCallDrafts 拼装缓冲区
+     */
+    private void accumulateToolCalls(JsonNode toolCallsNode, Map<Integer, ToolCallDraft> toolCallDrafts) {
+        if (toolCallsNode == null || !toolCallsNode.isArray()) {
+            return;
+        }
+        for (JsonNode toolCallNode : toolCallsNode) {
+            int index = toolCallNode.path("index").asInt(toolCallDrafts.size());
+            ToolCallDraft draft = toolCallDrafts.computeIfAbsent(index, key -> new ToolCallDraft());
+
+            String id = extractTextValue(toolCallNode.path("id"));
+            if (StringUtils.hasText(id)) {
+                draft.id = id;
+            }
+            JsonNode functionNode = toolCallNode.path("function");
+            String name = extractTextValue(functionNode.path("name"));
+            if (StringUtils.hasText(name)) {
+                draft.name = name;
+            }
+            JsonNode argumentsNode = functionNode.path("arguments");
+            if (argumentsNode.isTextual()) {
+                draft.arguments.append(argumentsNode.asText());
+            } else if (argumentsNode.isObject()) {
+                // 少数实现直接给完整对象而非字符串分片，此时覆盖而不是追加。
+                draft.arguments.setLength(0);
+                draft.arguments.append(argumentsNode.toString());
+            }
+        }
+    }
+
+    /**
+     * 把拼装缓冲区转成最终工具调用列表。
+     *
+     * @param toolCallDrafts 拼装缓冲区
+     * @return 工具调用列表
+     */
+    private List<AiToolCall> materializeToolCalls(Map<Integer, ToolCallDraft> toolCallDrafts) {
+        List<AiToolCall> toolCallList = new ArrayList<>();
+        for (ToolCallDraft draft : toolCallDrafts.values()) {
+            if (!StringUtils.hasText(draft.name)) {
+                continue;
+            }
+            AiToolCall toolCall = new AiToolCall();
+            toolCall.setId(StringUtils.hasText(draft.id) ? draft.id : draft.name);
+            toolCall.setName(draft.name);
+            String arguments = draft.arguments.toString().trim();
+            toolCall.setArgumentsJson(arguments.isEmpty() ? "{}" : arguments);
+            toolCallList.add(toolCall);
+        }
+        return toolCallList;
+    }
+
+    /**
+     * 流式工具调用分片的拼装缓冲。
+     */
+    private static final class ToolCallDraft {
+        private String id;
+        private String name;
+        private final StringBuilder arguments = new StringBuilder();
     }
 
     /**

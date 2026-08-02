@@ -1332,6 +1332,9 @@ CREATE TABLE IF NOT EXISTS `sys_ai_config` (
   `max_notice_items` int(11) DEFAULT 10 COMMENT '提示词注入消息上限',
   `prompt_template` text COMMENT '租户提示词模板',
   `action_policy_json` longtext COMMENT '动作策略JSON',
+  `tenant_daily_request_limit` int(11) DEFAULT NULL COMMENT '租户每日请求上限（0不限制，NULL按实例配置）',
+  `tenant_daily_token_limit` int(11) DEFAULT NULL COMMENT '租户每日token上限（0不限制，NULL按实例配置）',
+  `user_daily_request_limit` int(11) DEFAULT NULL COMMENT '单用户每日请求上限（0不限制，NULL按实例配置）',
   `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
@@ -1399,6 +1402,42 @@ CREATE TABLE IF NOT EXISTS `sys_ai_message` (
   KEY `idx_sys_ai_message_owner` (`tenant_id`, `user_id`, `create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI会话消息表';
 
+CREATE TABLE IF NOT EXISTS `sys_ai_brief` (
+  `brief_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '简报ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `user_id` bigint(20) NOT NULL COMMENT '所属用户ID',
+  `brief_date` date NOT NULL COMMENT '简报日期',
+  `brief_type` varchar(32) NOT NULL DEFAULT 'daily' COMMENT '简报类型',
+  `status` varchar(16) NOT NULL DEFAULT 'PENDING' COMMENT '状态（PENDING生成中 READY可用 FAILED失败）',
+  `summary` text COMMENT '简报解读文本',
+  `blocks_json` longtext COMMENT '结构化区块JSON（指标卡/表格/图表）',
+  `model` varchar(128) DEFAULT NULL COMMENT '生成使用的模型编号',
+  `generate_ms` bigint(20) DEFAULT NULL COMMENT '生成耗时毫秒',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`brief_id`),
+  UNIQUE KEY `uk_sys_ai_brief_owner_date` (`tenant_id`,`user_id`,`brief_date`,`brief_type`),
+  KEY `idx_sys_ai_brief_status` (`tenant_id`,`status`,`update_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI每日简报表';
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT 'AI面板',
+       COALESCE((SELECT parent_id FROM `sys_menu` WHERE `path` = '/system/config' LIMIT 1), 0),
+       3,
+       '/system/ai-panel',
+       '/views/system/ai-panel/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:ai:panel:view',
+       NULL,
+       'system',
+       NOW(),
+       'AI 面板菜单'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/system/ai-panel');
+
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
 SELECT 'AI配置',
        COALESCE((SELECT parent_id FROM `sys_menu` WHERE `path` = '/system/config' LIMIT 1), 0),
@@ -1463,7 +1502,8 @@ INNER JOIN `sys_menu` menu_item ON (
     'system:ai:audit:list',
     'system:ai:ops:view',
     'system:ai:session:list',
-    'system:ai:session:remove'
+    'system:ai:session:remove',
+    'system:ai:panel:view'
   )
 )
 LEFT JOIN `sys_role_menu` existed_role_menu ON existed_role_menu.role_id = role_item.role_id

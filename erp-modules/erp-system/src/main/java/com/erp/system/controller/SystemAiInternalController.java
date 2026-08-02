@@ -1,12 +1,16 @@
 package com.erp.system.controller;
 
+import com.erp.platform.contract.model.PlatformAiBriefSaveRequest;
+import com.erp.platform.contract.model.PlatformAiBriefView;
 import com.erp.platform.contract.model.PlatformAiDataSet;
 import com.erp.platform.contract.model.PlatformAiDataSetRequest;
 import com.erp.platform.contract.model.PlatformAiMessageAppendRequest;
 import com.erp.platform.contract.model.PlatformAiMessageView;
+import com.erp.platform.contract.model.PlatformAiQuotaUsage;
 import com.erp.platform.contract.model.PlatformAiSessionView;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IAiDatasetService;
+import com.erp.system.service.ISysAiBriefService;
 import com.erp.system.service.ISysAiSessionService;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,13 +34,16 @@ import java.util.List;
 public class SystemAiInternalController {
     private final IAiDatasetService aiDatasetService;
     private final ISysAiSessionService aiSessionService;
+    private final ISysAiBriefService aiBriefService;
     private final SecurityUserResolver securityUserResolver;
 
     public SystemAiInternalController(IAiDatasetService aiDatasetService,
             ISysAiSessionService aiSessionService,
+            ISysAiBriefService aiBriefService,
             SecurityUserResolver securityUserResolver) {
         this.aiDatasetService = aiDatasetService;
         this.aiSessionService = aiSessionService;
+        this.aiBriefService = aiBriefService;
         this.securityUserResolver = securityUserResolver;
     }
 
@@ -59,6 +66,61 @@ public class SystemAiInternalController {
     @GetMapping("/dataset/keys")
     public List<String> datasetKeys() {
         return aiDatasetService.supportedKeys();
+    }
+
+    /**
+     * 查询当日简报。
+     *
+     * @param userId    用户ID，为空时取当前登录用户
+     * @param briefType 简报类型
+     * @return 简报视图
+     */
+    @GetMapping("/brief")
+    public PlatformAiBriefView brief(@RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam(value = "briefType", required = false) String briefType) {
+        return aiBriefService.getToday(securityUserResolver.getCurrentTenantId(), resolveUserId(userId), briefType);
+    }
+
+    /**
+     * 抢占当日简报生成权。
+     *
+     * @param userId       用户ID，为空时取当前登录用户
+     * @param briefType    简报类型
+     * @param staleMinutes 生成中状态的陈旧判定分钟数
+     * @return true 表示抢占成功
+     */
+    @PostMapping("/brief/claim")
+    public Boolean claimBrief(@RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam(value = "briefType", required = false) String briefType,
+            @RequestParam(value = "staleMinutes", required = false) Integer staleMinutes) {
+        return aiBriefService.claimToday(securityUserResolver.getCurrentTenantId(),
+                resolveUserId(userId),
+                briefType,
+                staleMinutes == null ? 5 : staleMinutes);
+    }
+
+    /**
+     * 回写简报生成结果。
+     *
+     * @param userId  用户ID，为空时取当前登录用户
+     * @param request 回写请求
+     * @return 回写后的简报视图
+     */
+    @PostMapping("/brief")
+    public PlatformAiBriefView saveBrief(@RequestParam(value = "userId", required = false) Long userId,
+            @RequestBody PlatformAiBriefSaveRequest request) {
+        return aiBriefService.saveResult(securityUserResolver.getCurrentTenantId(), resolveUserId(userId), request);
+    }
+
+    /**
+     * 查询当日 AI 用量，用于配额判定。
+     *
+     * @param userId 用户ID，为空时取当前登录用户
+     * @return 用量统计
+     */
+    @GetMapping("/quota/usage")
+    public PlatformAiQuotaUsage quotaUsage(@RequestParam(value = "userId", required = false) Long userId) {
+        return aiDatasetService.queryQuotaUsage(resolveUserId(userId));
     }
 
     /**

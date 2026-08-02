@@ -73,6 +73,19 @@ public interface AiDatasetMapper {
      * @param sinceTime 统计起始时间
      * @return 按天聚合的 AI 使用情况
      */
+    /**
+     * 统计当日 AI 用量，用于配额判定。
+     *
+     * @param userId    当前用户ID
+     * @param sinceTime 当日起始时间
+     * @return 用量统计
+     */
+    @Select("SELECT COUNT(1) AS tenant_request_count, "
+            + "SUM(COALESCE(total_tokens, 0)) AS tenant_token_count, "
+            + "SUM(CASE WHEN user_id = #{userId} THEN 1 ELSE 0 END) AS user_request_count "
+            + "FROM sys_ai_audit WHERE create_time >= #{sinceTime}")
+    Map<String, Object> selectQuotaUsage(@Param("userId") Long userId, @Param("sinceTime") Date sinceTime);
+
     @Select("SELECT DATE(create_time) AS stat_date, "
             + "COUNT(1) AS request_count, "
             + "SUM(CASE WHEN success_flag = '0' THEN 1 ELSE 0 END) AS failed_count, "
