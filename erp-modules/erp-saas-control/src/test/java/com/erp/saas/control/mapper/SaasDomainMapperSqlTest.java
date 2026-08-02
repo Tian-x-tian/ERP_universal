@@ -29,6 +29,8 @@ class SaasDomainMapperSqlTest {
         String sql = sql("resolveVerified");
         assertThat(sql).containsIgnoringCase("d.host = #{host}");
         assertThat(sql).containsIgnoringCase("d.verification_state = 'VERIFIED'");
+        assertThat(sql).containsIgnoringCase("JOIN saas_deployment p ON p.tenant_id = d.tenant_id");
+        assertThat(sql).containsIgnoringCase("p.status = 'HEALTHY'");
         assertThat(sql).containsIgnoringCase("t.lifecycle_state NOT IN ('ARCHIVED','PURGE_PENDING','PURGED')");
         assertThat(sql).doesNotContain("${", "FOR UPDATE");
     }

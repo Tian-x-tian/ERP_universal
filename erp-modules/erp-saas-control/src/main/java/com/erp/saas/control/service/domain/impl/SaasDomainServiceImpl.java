@@ -156,7 +156,7 @@ public class SaasDomainServiceImpl implements SaasDomainService {
             return Optional.empty();
         }
         return Optional.of(new ResolvedTenantDomain(row.getDomainId(), row.getTenantId(),
-                row.getHost(), row.getLifecycleState()));
+                row.getHost(), row.getDeploymentMode(), row.getLifecycleState()));
     }
 
     private SaasTenantEntity lockEligibleTenant(String tenantId) {

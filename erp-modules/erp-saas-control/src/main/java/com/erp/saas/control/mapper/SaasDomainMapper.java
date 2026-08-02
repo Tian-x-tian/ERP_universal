@@ -31,9 +31,13 @@ public interface SaasDomainMapper extends BaseMapper<SaasDomainEntity> {
     int markRevoked(@Param("domainId") Long domainId, @Param("expectedVersion") Long expectedVersion,
             @Param("operator") String operator, @Param("now") LocalDateTime now);
 
-    @Select("SELECT d.domain_id, d.tenant_id, d.host, t.lifecycle_state FROM saas_domain d "
-            + "JOIN saas_tenant t ON t.tenant_id = d.tenant_id WHERE d.host = #{host} "
+    @Select("SELECT d.domain_id, d.tenant_id, d.host, p.mode AS deployment_mode, t.lifecycle_state "
+            + "FROM saas_domain d "
+            + "JOIN saas_tenant t ON t.tenant_id = d.tenant_id "
+            + "JOIN saas_deployment p ON p.tenant_id = d.tenant_id "
+            + "WHERE d.host = #{host} "
             + "AND d.verification_state = 'VERIFIED' "
+            + "AND p.status = 'HEALTHY' "
             + "AND t.lifecycle_state NOT IN ('ARCHIVED','PURGE_PENDING','PURGED') LIMIT 1")
     ResolvedTenantDomainRow resolveVerified(@Param("host") String host);
 }

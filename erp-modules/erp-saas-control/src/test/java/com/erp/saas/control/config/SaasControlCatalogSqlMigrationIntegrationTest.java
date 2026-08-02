@@ -24,7 +24,7 @@ class SaasControlCatalogSqlMigrationIntegrationTest {
     private static final String URL = "ERP_SAAS_TEST_JDBC_URL";
     private static final String USER = "ERP_SAAS_TEST_DB_USER";
     private static final String PASSWORD = "ERP_SAAS_TEST_DB_PASSWORD";
-    private static final List<String> TABLES = List.of("saas_deployment", "saas_tenant_quota_override",
+    private static final List<String> TABLES = List.of("saas_entitlement_snapshot", "saas_deployment", "saas_tenant_quota_override",
             "saas_tenant_feature_override", "saas_subscription", "saas_plan_quota", "saas_plan_feature",
             "saas_feature", "saas_plan", "saas_domain", "saas_tenant");
 
@@ -35,8 +35,7 @@ class SaasControlCatalogSqlMigrationIntegrationTest {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(url, user, password);
         try {
             reset(url, user, password); executeTwice(dataSource, "sql/init_control.sql"); validate(dataSource);
-            reset(url, user, password); executeTwice(dataSource,
-                    "sql/upgrade/control/20260801_02_saas_control_catalog.sql"); validate(dataSource);
+            reset(url, user, password); executeCatalogUpgradesTwice(dataSource); validate(dataSource);
             assertRejected(dataSource, url, user, password,
                     "ALTER TABLE `saas_tenant` ALTER COLUMN `version_no` SET DEFAULT 1", "saas_tenant");
             assertRejected(dataSource, url, user, password,
@@ -71,11 +70,11 @@ class SaasControlCatalogSqlMigrationIntegrationTest {
     private void assertRejected(DriverManagerDataSource dataSource, String url, String user, String password,
             String mutation, String table) throws Exception {
         reset(url, user, password);
-        execute(dataSource, "sql/upgrade/control/20260801_02_saas_control_catalog.sql");
+        executeCatalogUpgrades(dataSource);
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
             statement.execute(mutation);
         }
-        execute(dataSource, "sql/upgrade/control/20260801_02_saas_control_catalog.sql");
+        executeCatalogUpgrades(dataSource);
         assertThatThrownBy(() -> validate(dataSource)).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(table);
     }
@@ -83,6 +82,13 @@ class SaasControlCatalogSqlMigrationIntegrationTest {
     private void validate(DriverManagerDataSource dataSource) { new SaasControlCatalogSchemaValidator(dataSource).validate(); }
     private void executeTwice(DriverManagerDataSource dataSource, String path) throws Exception {
         execute(dataSource, path); execute(dataSource, path);
+    }
+    private void executeCatalogUpgradesTwice(DriverManagerDataSource dataSource) throws Exception {
+        executeCatalogUpgrades(dataSource); executeCatalogUpgrades(dataSource);
+    }
+    private void executeCatalogUpgrades(DriverManagerDataSource dataSource) throws Exception {
+        execute(dataSource, "sql/upgrade/control/20260801_02_saas_control_catalog.sql");
+        execute(dataSource, "sql/upgrade/control/20260802_01_saas_entitlement_snapshot.sql");
     }
     private void execute(DriverManagerDataSource dataSource, String path) throws Exception {
         try (Connection connection = dataSource.getConnection()) {

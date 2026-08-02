@@ -44,6 +44,12 @@ erp:
   saas:
     schema-validation:
       enabled: ${ERP_SAAS_SCHEMA_VALIDATION_ENABLED:true}
+    snapshot:
+      signing:
+        key-id: ${ERP_SAAS_SNAPSHOT_SIGNING_KEY_ID:}
+        secret: ${ERP_SAAS_SNAPSHOT_SIGNING_SECRET:}
+        validity: ${ERP_SAAS_SNAPSHOT_VALIDITY:24h}
+        renew-before: ${ERP_SAAS_SNAPSHOT_RENEW_BEFORE:5m}
     sql:
       upgrade:
         enabled: ${ERP_SAAS_SQL_UPGRADE_ENABLED:true}

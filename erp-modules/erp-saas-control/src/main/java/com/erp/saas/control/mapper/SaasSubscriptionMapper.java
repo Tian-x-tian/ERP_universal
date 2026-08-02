@@ -15,6 +15,10 @@ public interface SaasSubscriptionMapper extends BaseMapper<SaasSubscriptionEntit
     SaasSubscriptionEntity findCurrentByTenantId(@Param("tenantId") String tenantId);
 
     @Select("SELECT * FROM saas_subscription WHERE tenant_id = #{tenantId} "
+            + "ORDER BY subscription_id DESC LIMIT 1")
+    SaasSubscriptionEntity findLatestByTenantId(@Param("tenantId") String tenantId);
+
+    @Select("SELECT * FROM saas_subscription WHERE tenant_id = #{tenantId} "
             + "AND state IN ('TRIAL','ACTIVE','GRACE') ORDER BY subscription_id DESC LIMIT 1 FOR UPDATE")
     SaasSubscriptionEntity findCurrentForUpdate(@Param("tenantId") String tenantId);
 

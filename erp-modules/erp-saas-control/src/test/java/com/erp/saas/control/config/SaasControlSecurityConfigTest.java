@@ -39,7 +39,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.cloud.discovery.enabled=false",
         "erp.saas.sql.upgrade.enabled=false",
         "erp.saas.schema-validation.enabled=false",
-        "erp.internal.auth-signature-secret=test-only-internal-secret"
+        "erp.internal.auth-signature-secret=test-only-internal-secret",
+        "erp.saas.snapshot.signing.key-id=test-primary",
+        "erp.saas.snapshot.signing.secret=0123456789abcdef0123456789abcdef"
 })
 @AutoConfigureMockMvc
 @Import({SaasControlSecurityConfigTest.TestController.class, SaasControlSecurityConfigTest.FixedClockConfig.class})

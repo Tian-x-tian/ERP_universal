@@ -23,7 +23,8 @@ class SaasControlPersistenceContractTest {
             Map.entry(SaasSubscriptionEntity.class, "saas_subscription"),
             Map.entry(SaasTenantFeatureOverrideEntity.class, "saas_tenant_feature_override"),
             Map.entry(SaasTenantQuotaOverrideEntity.class, "saas_tenant_quota_override"),
-            Map.entry(SaasDeploymentEntity.class, "saas_deployment"));
+            Map.entry(SaasDeploymentEntity.class, "saas_deployment"),
+            Map.entry(SaasEntitlementSnapshotEntity.class, "saas_entitlement_snapshot"));
 
     @Test void shouldFreezeTablesKeysAndFieldTypes() throws Exception {
         for (var entry : TABLES.entrySet()) {
@@ -31,8 +32,13 @@ class SaasControlPersistenceContractTest {
             List<Field> ids = List.of(entry.getKey().getDeclaredFields()).stream()
                     .filter(field -> field.isAnnotationPresent(TableId.class)).toList();
             assertThat(ids).hasSize(1);
-            assertThat(ids.get(0).getType()).isEqualTo(Long.class);
-            assertThat(ids.get(0).getAnnotation(TableId.class).type()).isEqualTo(IdType.ASSIGN_ID);
+            if (entry.getKey() == SaasEntitlementSnapshotEntity.class) {
+                assertThat(ids.get(0).getType()).isEqualTo(String.class);
+                assertThat(ids.get(0).getAnnotation(TableId.class).type()).isEqualTo(IdType.INPUT);
+            } else {
+                assertThat(ids.get(0).getType()).isEqualTo(Long.class);
+                assertThat(ids.get(0).getAnnotation(TableId.class).type()).isEqualTo(IdType.ASSIGN_ID);
+            }
         }
         assertType(SaasTenantEntity.class, "lifecycleState", com.erp.saas.contract.model.TenantLifecycleState.class);
         assertType(SaasDomainEntity.class, "verificationState", DomainVerificationState.class);

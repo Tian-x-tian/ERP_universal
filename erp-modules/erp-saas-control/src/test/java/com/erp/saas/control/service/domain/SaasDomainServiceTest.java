@@ -1,6 +1,7 @@
 package com.erp.saas.control.service.domain;
 
 import com.erp.saas.contract.model.TenantLifecycleState;
+import com.erp.saas.contract.model.DeploymentMode;
 import com.erp.saas.control.domain.DomainVerificationMethod;
 import com.erp.saas.control.domain.DomainVerificationState;
 import com.erp.saas.control.domain.entity.SaasDomainEntity;
@@ -163,11 +164,12 @@ class SaasDomainServiceTest {
         row.setDomainId(10L);
         row.setTenantId("tenant_1");
         row.setHost("customer.example.com");
+        row.setDeploymentMode(DeploymentMode.SHARED);
         row.setLifecycleState(TenantLifecycleState.READ_ONLY);
         when(domainMapper.resolveVerified("customer.example.com")).thenReturn(row);
         assertThat(service.resolve("Customer.Example.com:443")).get()
-                .extracting("tenantId", "lifecycleState")
-                .containsExactly("tenant_1", TenantLifecycleState.READ_ONLY);
+                .extracting("tenantId", "deploymentMode", "lifecycleState")
+                .containsExactly("tenant_1", DeploymentMode.SHARED, TenantLifecycleState.READ_ONLY);
         assertThat(service.resolve("https://bad.example.com")).isEmpty();
         when(domainMapper.resolveVerified("missing.example.com")).thenReturn(null);
         assertThat(service.resolve("missing.example.com")).isEmpty();

@@ -35,6 +35,9 @@ public final class SaasControlCatalogSchemaManifest {
                 "PRIMARY:U:override_id;uk_saas_tenant_quota_window:U:tenant_id,quota_key,effective_from;idx_saas_tenant_quota_effective:N:tenant_id,effective_from,effective_until", "ck_saas_tenant_quota_window=(effective_until IS NULL) OR (effective_until > effective_from);ck_saas_tenant_quota_limit=(limit_value IS NULL) OR (limit_value >= 0)");
         add(tables, "saas_deployment", "deployment_id:bigint:N:~:~:~;tenant_id:varchar(20):N:~:~:utf8mb4_unicode_ci;mode:varchar(32):N:~:~:utf8mb4_unicode_ci;status:varchar(32):N:~:~:utf8mb4_unicode_ci;deployment_ref:varchar(255):N:~:~:utf8mb4_unicode_ci;secret_ref:varchar(255):Y:~:~:utf8mb4_unicode_ci;create_by:varchar(64):N:~:~:utf8mb4_unicode_ci;create_time:datetime(3):N:~:~:~;update_by:varchar(64):N:~:~:utf8mb4_unicode_ci;update_time:datetime(3):N:~:~:~;version_no:bigint:N:0:~:~",
                 "PRIMARY:U:deployment_id;uk_saas_deployment_tenant:U:tenant_id", "");
+        add(tables, "saas_entitlement_snapshot", "tenant_id:varchar(20):N:~:~:utf8mb4_unicode_ci;snapshot_version:bigint:N:~:~:~;payload_hash:char(64):N:~:~:utf8mb4_unicode_ci;snapshot_json:longtext:N:~:~:utf8mb4_unicode_ci;issued_at:datetime(3):N:~:~:~;expires_at:datetime(3):N:~:~:~;signature_key_id:varchar(64):N:~:~:utf8mb4_unicode_ci;signature:varchar(128):N:~:~:utf8mb4_unicode_ci;create_by:varchar(64):N:~:~:utf8mb4_unicode_ci;create_time:datetime(3):N:~:~:~;update_by:varchar(64):N:~:~:utf8mb4_unicode_ci;update_time:datetime(3):N:~:~:~;version_no:bigint:N:0:~:~",
+                "PRIMARY:U:tenant_id;idx_saas_entitlement_snapshot_expiry:N:expires_at",
+                "ck_saas_entitlement_snapshot_version=snapshot_version >= 1;ck_saas_entitlement_snapshot_lease=expires_at > issued_at");
         return Collections.unmodifiableMap(tables);
     }
 
