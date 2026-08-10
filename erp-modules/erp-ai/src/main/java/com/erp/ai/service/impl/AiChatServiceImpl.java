@@ -597,7 +597,8 @@ public class AiChatServiceImpl implements AiChatService {
         try {
             AiModelCompletion completion = aiModelClient.streamCompletion(model, modelMessages, availableTools,
                     delta -> {
-                        if (!StringUtils.hasText(delta)) {
+                        // 同样不能用 hasText：纯空白增量承载着段落与列表的换行，丢了排版就没了。
+                        if (delta == null || delta.isEmpty()) {
                             return;
                         }
                         roundBuffer.append(delta);

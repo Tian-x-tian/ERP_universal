@@ -1,6 +1,8 @@
 package com.erp.system.domain;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.erp.common.mybatis.BaseAuditEntity;
@@ -24,11 +26,19 @@ public class SysAiConfig extends BaseAuditEntity implements Serializable {
     private Integer maxNoticeItems;
     private String promptTemplate;
     private String actionPolicyJson;
-    /** 租户每日请求上限，0 或空表示不限制 */
+    /*
+     * 配额是三态字段：NULL=按实例配置、0=本租户不限制、N=上限 N。
+     *
+     * 因此必须用 ALWAYS 更新策略——默认的 NOT_NULL 会把 null 从 SET 子句里省掉，
+     * 一旦写过具体数值就再也回不到 NULL，「按实例配置」这一档将永远不可达。
+     * 与同表其它字段的「不传即保持」不同，这三个字段是「不传即回到 NULL」，
+     * 这是三态语义的必然结果；当前唯一的写入方（AI 配置中心）每次都会提交全部三项。
+     */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Integer tenantDailyRequestLimit;
-    /** 租户每日 token 上限，0 或空表示不限制 */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Integer tenantDailyTokenLimit;
-    /** 单用户每日请求上限，0 或空表示不限制 */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Integer userDailyRequestLimit;
 
     public Integer getTenantDailyRequestLimit() {

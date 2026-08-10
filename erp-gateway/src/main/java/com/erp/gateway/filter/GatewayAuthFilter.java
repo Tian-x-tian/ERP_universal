@@ -47,6 +47,20 @@ import java.util.regex.Pattern;
 public class GatewayAuthFilter implements GlobalFilter, Ordered {
     private static final List<String> PROTECTED_PATTERNS =
             List.of("/system/**", "/workflow/**", "/business/**", "/saas/**");
+    /**
+     * 仅供服务间调用的内部契约路径，一律不允许从公网入口进入。
+     *
+     * <p>这些端点的设计前提是「调用方是可信服务」：它们普遍接受显式的 userId 入参并据此取数或写数，
+     * 自身不做归属校验。而网关对受保护路径签发的是**调用者本人**的身份头，下游的内部认证过滤器
+     * 只校验签名有效性、不校验主体是不是服务账号——两者叠加会让任何已登录用户通过
+     * {@code /system/internal/**} 传别人的 userId 读写他人数据。因此在入口直接拒绝，
+     * 内部调用走服务间网络，不经过网关。</p>
+     */
+    private static final List<String> INTERNAL_ONLY_PATTERNS = List.of(
+            "/system/internal/**",
+            "/workflow/internal/**",
+            "/business/internal/**",
+            "/saas/internal/**");
     private static final List<String> TENANT_PUBLIC_PATTERNS = List.of(
             "/login", "/logout", "/auth/**", "/system/public/saas/activation");
     private static final List<String> GLOBAL_PUBLIC_PATTERNS = List.of(
@@ -145,6 +159,11 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         String requestPath = exchange.getRequest().getURI().getPath();
         ServerHttpRequest sanitizedRequest = sanitize(exchange.getRequest());
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();
+
+        // 内部契约路径直接拒绝，必须排在放行判断之前，否则会被 GLOBAL_PUBLIC / 非租户作用域分支绕过。
+        if (matchesAny(requestPath, INTERNAL_ONLY_PATTERNS)) {
+            return writeForbidden(sanitizedExchange, "内部接口不对外开放");
+        }
 
         if (matchesAny(requestPath, GLOBAL_PUBLIC_PATTERNS) || !isTenantScoped(requestPath)) {
             return chain.filter(sanitizedExchange);
@@ -371,6 +390,17 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
     private String rawPath(ServerHttpRequest request) {
         String rawPath = request.getURI().getRawPath();
         return StringUtils.hasText(rawPath) ? rawPath : "/";
+    }
+
+    /**
+     * 写出内部接口拒绝响应。
+     *
+     * @param exchange 当前请求
+     * @param message  提示信息
+     * @return 响应流
+     */
+    private Mono<Void> writeForbidden(ServerWebExchange exchange, String message) {
+        return ApiErrorResponseWriter.writeReactive(exchange, objectMapper, ResultCode.FORBIDDEN, message);
     }
 
     private Mono<Void> writeError(ServerWebExchange exchange, Throwable error) {

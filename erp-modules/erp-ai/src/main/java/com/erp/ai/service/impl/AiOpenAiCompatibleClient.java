@@ -359,10 +359,12 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
         for (JsonNode choiceNode : choicesNode) {
             JsonNode deltaNode = choiceNode.path("delta");
             String deltaText = extractTextValue(deltaNode.path("content"));
-            if (!StringUtils.hasText(deltaText)) {
+            // 注意用 isEmpty 而不是 StringUtils.hasText：纯空白分片（"\n\n"、缩进）也是正文的一部分，
+            // 用 hasText 过滤会把段落、列表、代码块的换行整段吃掉，最终拼出一行流水账。
+            if (deltaText == null || deltaText.isEmpty()) {
                 deltaText = extractTextValue(choiceNode.path("message").path("content"));
             }
-            if (StringUtils.hasText(deltaText)) {
+            if (deltaText != null && !deltaText.isEmpty()) {
                 fullContent.append(deltaText);
                 if (deltaConsumer != null) {
                     deltaConsumer.accept(deltaText);
@@ -636,10 +638,11 @@ public class AiOpenAiCompatibleClient implements AiModelClient {
         }
         for (JsonNode choiceNode : choicesNode) {
             String deltaText = extractTextValue(choiceNode.path("delta").path("content"));
-            if (!StringUtils.hasText(deltaText)) {
+            // 与 handleCompletionEvent 保持一致：纯空白分片属于正文排版，不能按「空文本」丢弃。
+            if (deltaText == null || deltaText.isEmpty()) {
                 deltaText = extractTextValue(choiceNode.path("message").path("content"));
             }
-            if (!StringUtils.hasText(deltaText)) {
+            if (deltaText == null || deltaText.isEmpty()) {
                 continue;
             }
             fullContent.append(deltaText);

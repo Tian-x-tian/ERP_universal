@@ -191,15 +191,11 @@ public class SysAiConfigServiceImpl extends ServiceImpl<SysAiConfigMapper, SysAi
         if (request.getPromptTemplate() != null) {
             entity.setPromptTemplate(trimToNull(request.getPromptTemplate()));
         }
-        if (request.getTenantDailyRequestLimit() != null) {
-            entity.setTenantDailyRequestLimit(normalizeQuota(request.getTenantDailyRequestLimit()));
-        }
-        if (request.getTenantDailyTokenLimit() != null) {
-            entity.setTenantDailyTokenLimit(normalizeQuota(request.getTenantDailyTokenLimit()));
-        }
-        if (request.getUserDailyRequestLimit() != null) {
-            entity.setUserDailyRequestLimit(normalizeQuota(request.getUserDailyRequestLimit()));
-        }
+        // 配额是三态字段，这里刻意不加 != null 守卫：请求里不带值就意味着「回到 NULL / 按实例配置」，
+        // 加了守卫就再也清不掉已写入的数值。配合实体上的 ALWAYS 更新策略才能真正写回 NULL。
+        entity.setTenantDailyRequestLimit(normalizeQuota(request.getTenantDailyRequestLimit()));
+        entity.setTenantDailyTokenLimit(normalizeQuota(request.getTenantDailyTokenLimit()));
+        entity.setUserDailyRequestLimit(normalizeQuota(request.getUserDailyRequestLimit()));
     }
 
     /**

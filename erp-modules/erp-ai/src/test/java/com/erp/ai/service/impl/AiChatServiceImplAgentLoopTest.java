@@ -271,6 +271,33 @@ class AiChatServiceImplAgentLoopTest {
     }
 
     /**
+     * 验证纯空白增量不会被当成空文本丢弃。
+     *
+     * <p>模型把换行单独作为一个 token 下发是常态；如果按「空文本」过滤掉，
+     * 段落、列表、代码块的排版会整个塌成一行流水账。</p>
+     */
+    @Test
+    void shouldPreserveWhitespaceOnlyDeltas() throws Exception {
+        properties.setStreamingEnabled(true);
+        Mockito.when(modelClient.streamCompletion(Mockito.anyString(), Mockito.anyList(), Mockito.anyList(), Mockito.any()))
+                .thenAnswer(invocation -> {
+                    Consumer<String> consumer = invocation.getArgument(3);
+                    consumer.accept("今日要点：");
+                    consumer.accept("\n\n");
+                    consumer.accept("- 高优先级待办 3 条");
+                    consumer.accept("\n");
+                    consumer.accept("- 未读消息 5 条");
+                    return textCompletion("ignored-because-already-streamed");
+                });
+
+        chatService.streamChat(request("我的待办情况"), listener);
+
+        String expected = "今日要点：\n\n- 高优先级待办 3 条\n- 未读消息 5 条";
+        Assertions.assertEquals(expected, listener.deltas.toString());
+        Assertions.assertEquals(expected, listener.doneContent);
+    }
+
+    /**
      * 验证流式失败且尚未推送任何文本时，可以安全降级为非流式。
      */
     @Test
