@@ -21,14 +21,14 @@ public class AiModelCompletion implements Serializable {
     private List<AiToolCall> toolCalls = new ArrayList<>();
 
     /**
-     * 上游返回的输入 Token 用量。
+     * 本次调用的 token 用量。
      */
-    private Long inputTokens;
+    private AiTokenUsage usage = new AiTokenUsage();
 
     /**
-     * 上游返回的输出 Token 用量。
+     * 模型返回的结束原因（stop/tool_calls/length…）。
      */
-    private Long outputTokens;
+    private String finishReason;
 
     /**
      * 上游响应是否包含可信的 usage 数据。
@@ -48,23 +48,42 @@ public class AiModelCompletion implements Serializable {
     }
 
     public void setToolCalls(List<AiToolCall> toolCalls) {
-        this.toolCalls = toolCalls;
+        this.toolCalls = toolCalls == null ? new ArrayList<>() : toolCalls;
+    }
+
+    public AiTokenUsage getUsage() {
+        return usage;
+    }
+
+    public void setUsage(AiTokenUsage usage) {
+        this.usage = usage == null ? new AiTokenUsage() : usage;
+        this.usageReported = usage != null && usage.hasValue();
+    }
+
+    public String getFinishReason() {
+        return finishReason;
+    }
+
+    public void setFinishReason(String finishReason) {
+        this.finishReason = finishReason;
     }
 
     public Long getInputTokens() {
-        return inputTokens;
+        return usageReported ? (long) usage.getPromptTokens() : null;
     }
 
     public void setInputTokens(Long inputTokens) {
-        this.inputTokens = inputTokens;
+        usage.setPromptTokens(tokenValue(inputTokens));
+        usage.setTotalTokens(usage.getPromptTokens() + usage.getCompletionTokens());
     }
 
     public Long getOutputTokens() {
-        return outputTokens;
+        return usageReported ? (long) usage.getCompletionTokens() : null;
     }
 
     public void setOutputTokens(Long outputTokens) {
-        this.outputTokens = outputTokens;
+        usage.setCompletionTokens(tokenValue(outputTokens));
+        usage.setTotalTokens(usage.getPromptTokens() + usage.getCompletionTokens());
     }
 
     public boolean isUsageReported() {
@@ -73,5 +92,15 @@ public class AiModelCompletion implements Serializable {
 
     public void setUsageReported(boolean usageReported) {
         this.usageReported = usageReported;
+    }
+
+    private int tokenValue(Long value) {
+        if (value == null) {
+            return 0;
+        }
+        if (value < 0 || value > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Token usage is outside the supported range");
+        }
+        return value.intValue();
     }
 }

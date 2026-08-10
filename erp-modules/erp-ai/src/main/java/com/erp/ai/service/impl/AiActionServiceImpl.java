@@ -1,9 +1,9 @@
 package com.erp.ai.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.erp.common.client.internal.InternalWorkflowClient;
+import com.erp.ai.context.AiInvocationScope;
 import com.erp.ai.model.AiActionDescriptor;
 import com.erp.ai.model.AiActionHandleResult;
 import com.erp.ai.model.AiActionResultVO;
@@ -59,6 +59,7 @@ public class AiActionServiceImpl implements AiActionService {
     private static final String WORKFLOW_DEFINITION_STATUS_PUBLISHED = "1";
     private static final Set<String> TASK_TERMINAL_STATUS = new LinkedHashSet<>(Arrays.asList("2", "3", "4", "5"));
     private static final long CONFIRM_TOKEN_TTL_MILLIS = 5 * 60 * 1000L;
+    private static final String CACHE_KEY_ACTIONS = "ai:available-actions";
 
     private final SecurityUserResolver securityUserResolver;
     private final InternalSystemClient internalSystemClient;
@@ -88,6 +89,16 @@ public class AiActionServiceImpl implements AiActionService {
      */
     @Override
     public List<AiActionDescriptor> listAvailableActions() {
+        // 动作清单在一次对话里会被判权逻辑反复读取，收敛到调用作用域缓存。
+        return AiInvocationScope.compute(CACHE_KEY_ACTIONS, this::doListAvailableActions);
+    }
+
+    /**
+     * 实际计算当前用户可执行的动作列表。
+     *
+     * @return 动作列表
+     */
+    private List<AiActionDescriptor> doListAvailableActions() {
         Map<String, PlatformAiActionPolicyItem> policyMap = resolveActionPolicyMap();
         List<AiActionDescriptor> actionList = new ArrayList<>();
         appendActionIfAllowed(actionList, ACTION_TODO_CLAIM, "签收待办",
@@ -1149,28 +1160,34 @@ public class AiActionServiceImpl implements AiActionService {
         return Map.entry(name, property);
     }
 
+    // 判权统一走 AiTenantConfigService：它带调用作用域缓存，且把远程异常收敛成 false，
+    // 不会像直接调用内部客户端那样在返回 null 时因自动拆箱抛 NPE。
     private boolean hasTodoClaimPermission() {
-        return internalSystemClient.hasPermission("workflow:todo:claim") || internalSystemClient.hasPermission("workflow:todo:handle");
+        return aiTenantConfigService.hasPermission("workflow:todo:claim")
+                || aiTenantConfigService.hasPermission("workflow:todo:handle");
     }
 
     private boolean hasTodoFinishPermission() {
-        return internalSystemClient.hasPermission("workflow:todo:finish") || internalSystemClient.hasPermission("workflow:todo:handle");
+        return aiTenantConfigService.hasPermission("workflow:todo:finish")
+                || aiTenantConfigService.hasPermission("workflow:todo:handle");
     }
 
     private boolean hasNoticeReadPermission() {
-        return internalSystemClient.hasPermission("system:message:read");
+        return aiTenantConfigService.hasPermission("system:message:read");
     }
 
     private boolean hasWorkflowApprovePermission() {
-        return internalSystemClient.hasPermission("workflow:todo:approve") || internalSystemClient.hasPermission("workflow:todo:handle");
+        return aiTenantConfigService.hasPermission("workflow:todo:approve")
+                || aiTenantConfigService.hasPermission("workflow:todo:handle");
     }
 
     private boolean hasWorkflowRejectPermission() {
-        return internalSystemClient.hasPermission("workflow:todo:reject") || internalSystemClient.hasPermission("workflow:todo:handle");
+        return aiTenantConfigService.hasPermission("workflow:todo:reject")
+                || aiTenantConfigService.hasPermission("workflow:todo:handle");
     }
 
     private boolean hasWorkflowPublishPermission() {
-        return internalSystemClient.hasPermission("workflow:definition:publish");
+        return aiTenantConfigService.hasPermission("workflow:definition:publish");
     }
 
     private static final class PreparedAction {

@@ -68,6 +68,32 @@ class AiOpenAiCompatibleClientUsageTest {
     }
 
     @Test
+    void shouldReserveThenSettleReportedUsageForAgentStreamCompletion() throws Exception {
+        HttpServer server = startServer(200, "application/json",
+                "{\"choices\":[{\"message\":{\"content\":\"ok\"}}],"
+                        + "\"usage\":{\"prompt_tokens\":17,\"completion_tokens\":5}}");
+        try {
+            ErpAiProperties properties = properties(server);
+            AiQuotaGuard quotaGuard = mock(AiQuotaGuard.class);
+            AiQuotaReservation reservation = reservation();
+            when(quotaGuard.reserve(anyLong())).thenReturn(reservation);
+            AiOpenAiCompatibleClient client = new AiOpenAiCompatibleClient(properties,
+                    new ObjectMapper(), quotaGuard);
+
+            AiModelCompletion completion = client.streamCompletion(null,
+                    List.of(new AiChatMessage("user", "hello")), List.of(), delta -> {
+                    });
+
+            assertThat(completion.getContent()).isEqualTo("ok");
+            verify(quotaGuard).reserve(anyLong());
+            verify(quotaGuard).settle(reservation, 17L, 5L, true);
+            verify(quotaGuard, never()).release(reservation);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void shouldReleaseReservationWhenModelRequestFails() throws Exception {
         HttpServer server = startServer(500, "application/json",
                 "{\"error\":{\"message\":\"upstream unavailable\"}}");

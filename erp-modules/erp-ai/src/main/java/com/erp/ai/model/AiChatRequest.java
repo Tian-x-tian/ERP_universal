@@ -17,6 +17,11 @@ public class AiChatRequest {
      */
     private AiPageContext pageContext;
 
+    /**
+     * 服务端会话ID；为空表示本轮开启新会话。
+     */
+    private Long sessionId;
+
     public List<AiChatMessage> getMessages() {
         return messages;
     }
@@ -31,5 +36,13 @@ public class AiChatRequest {
 
     public void setPageContext(AiPageContext pageContext) {
         this.pageContext = pageContext;
+    }
+
+    public Long getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(Long sessionId) {
+        this.sessionId = sessionId;
     }
 }

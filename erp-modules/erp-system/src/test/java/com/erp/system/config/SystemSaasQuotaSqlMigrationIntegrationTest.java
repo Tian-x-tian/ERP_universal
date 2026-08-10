@@ -38,6 +38,9 @@ class SystemSaasQuotaSqlMigrationIntegrationTest {
 
         execute(dataSource, "sql/init_system.sql");
         execute(dataSource, "sql/init_system.sql");
+        executeTwice(dataSource, "sql/upgrade/system/20260801_01_ai_panel_audit_telemetry.sql");
+        executeTwice(dataSource, "sql/upgrade/system/20260801_02_ai_session_archive.sql");
+        executeTwice(dataSource, "sql/upgrade/system/20260802_01_ai_panel_brief_and_quota.sql");
         validateTables(dataSource);
         validateProvisioningTables(dataSource);
         validateMenuFeatures(dataSource);
@@ -208,6 +211,11 @@ class SystemSaasQuotaSqlMigrationIntegrationTest {
             ScriptUtils.executeSqlScript(connection,
                     new EncodedResource(new ClassPathResource(path), StandardCharsets.UTF_8));
         }
+    }
+
+    private void executeTwice(DriverManagerDataSource dataSource, String path) throws Exception {
+        execute(dataSource, path);
+        execute(dataSource, path);
     }
 
     private void validateUrl(String url) throws Exception {

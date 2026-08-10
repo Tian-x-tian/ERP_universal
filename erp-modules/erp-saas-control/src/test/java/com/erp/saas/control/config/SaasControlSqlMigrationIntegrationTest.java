@@ -7,6 +7,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.EncodedResource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -63,7 +64,9 @@ class SaasControlSqlMigrationIntegrationTest {
 
         SchemaSignature runnerSignature;
         try (Connection connection = dataSource.getConnection()) {
-            assertThat(historyCount(connection)).isEqualTo(2);
+            int upgradeScriptCount = new PathMatchingResourcePatternResolver()
+                    .getResources(UPGRADE_LOCATION).length;
+            assertThat(historyCount(connection)).isEqualTo(upgradeScriptCount);
             assertThat(historyChecksum(connection)).isEqualTo(checksum(UPGRADE_SCRIPT));
             assertScriptNameUnique(connection);
             runnerSignature = signature(connection);

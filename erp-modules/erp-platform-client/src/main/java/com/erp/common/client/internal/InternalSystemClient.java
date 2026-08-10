@@ -5,7 +5,15 @@ import com.erp.platform.contract.model.PlatformAiActionPolicyItem;
 import com.erp.platform.contract.model.PlatformAiAuditCreateRequest;
 import com.erp.platform.contract.model.PlatformAiAuditView;
 import com.erp.platform.contract.model.PlatformAiConfigUpdateRequest;
+import com.erp.platform.contract.model.PlatformAiBriefSaveRequest;
+import com.erp.platform.contract.model.PlatformAiBriefView;
 import com.erp.platform.contract.model.PlatformAiConfigView;
+import com.erp.platform.contract.model.PlatformAiDataSet;
+import com.erp.platform.contract.model.PlatformAiDataSetRequest;
+import com.erp.platform.contract.model.PlatformAiMessageAppendRequest;
+import com.erp.platform.contract.model.PlatformAiMessageView;
+import com.erp.platform.contract.model.PlatformAiQuotaUsage;
+import com.erp.platform.contract.model.PlatformAiSessionView;
 import com.erp.platform.contract.model.PlatformImexJob;
 import com.erp.platform.contract.model.PlatformImexJobCreateRequest;
 import com.erp.platform.contract.model.PlatformImexJobUpdateRequest;
@@ -35,6 +43,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 平台内部接口客户端。
@@ -405,6 +414,190 @@ public class InternalSystemClient {
                 });
         List<PlatformAiAuditView> body = response.getBody();
         return body == null ? Collections.emptyList() : body;
+    }
+
+    /**
+     * 查询平台域 AI 只读数据集。
+     *
+     * @param datasetKey 数据集编码
+     * @param params     查询参数
+     * @return 数据集结果
+     */
+    public PlatformAiDataSet queryAiDataset(String datasetKey, Map<String, Object> params) {
+        return exchange(buildUri("/system/internal/ai/dataset"),
+                HttpMethod.POST,
+                new PlatformAiDataSetRequest(datasetKey, params),
+                PlatformAiDataSet.class);
+    }
+
+    /**
+     * 查询当日 AI 简报。
+     *
+     * @param userId    用户ID
+     * @param briefType 简报类型
+     * @return 简报视图
+     */
+    public PlatformAiBriefView getAiBrief(Long userId, String briefType) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/brief"))
+                        .queryParam("userId", userId)
+                        .queryParam("briefType", briefType)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.GET,
+                null,
+                PlatformAiBriefView.class);
+    }
+
+    /**
+     * 抢占当日 AI 简报的生成权。
+     *
+     * @param userId       用户ID
+     * @param briefType    简报类型
+     * @param staleMinutes 陈旧判定分钟数
+     * @return true 表示抢占成功
+     */
+    public Boolean claimAiBrief(Long userId, String briefType, int staleMinutes) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/brief/claim"))
+                        .queryParam("userId", userId)
+                        .queryParam("briefType", briefType)
+                        .queryParam("staleMinutes", staleMinutes)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.POST,
+                null,
+                Boolean.class);
+    }
+
+    /**
+     * 回写 AI 简报生成结果。
+     *
+     * @param userId  用户ID
+     * @param request 回写请求
+     * @return 回写后的简报视图
+     */
+    public PlatformAiBriefView saveAiBrief(Long userId, PlatformAiBriefSaveRequest request) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/brief"))
+                        .queryParam("userId", userId)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.POST,
+                request,
+                PlatformAiBriefView.class);
+    }
+
+    /**
+     * 查询当日 AI 用量。
+     *
+     * @param userId 用户ID
+     * @return 用量统计
+     */
+    public PlatformAiQuotaUsage getAiQuotaUsage(Long userId) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/quota/usage"))
+                        .queryParam("userId", userId)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.GET,
+                null,
+                PlatformAiQuotaUsage.class);
+    }
+
+    /**
+     * 查询指定用户的 AI 会话列表。
+     *
+     * @param userId 用户ID
+     * @param limit  限制条数
+     * @return 会话列表
+     */
+    public List<PlatformAiSessionView> listAiSessions(Long userId, int limit) {
+        ResponseEntity<List<PlatformAiSessionView>> response = restTemplate.exchange(
+                UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/sessions"))
+                        .queryParam("userId", userId)
+                        .queryParam("limit", limit)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.GET,
+                new HttpEntity<>(headerFactory.buildHeaders()),
+                new ParameterizedTypeReference<List<PlatformAiSessionView>>() {
+                });
+        List<PlatformAiSessionView> body = response.getBody();
+        return body == null ? Collections.emptyList() : body;
+    }
+
+    /**
+     * 查询指定 AI 会话的消息列表。
+     *
+     * @param sessionId 会话ID
+     * @param userId    用户ID
+     * @param limit     限制条数
+     * @return 消息列表
+     */
+    public List<PlatformAiMessageView> listAiSessionMessages(Long sessionId, Long userId, int limit) {
+        ResponseEntity<List<PlatformAiMessageView>> response = restTemplate.exchange(
+                UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/sessions/" + sessionId + "/messages"))
+                        .queryParam("userId", userId)
+                        .queryParam("limit", limit)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.GET,
+                new HttpEntity<>(headerFactory.buildHeaders()),
+                new ParameterizedTypeReference<List<PlatformAiMessageView>>() {
+                });
+        List<PlatformAiMessageView> body = response.getBody();
+        return body == null ? Collections.emptyList() : body;
+    }
+
+    /**
+     * 追加一条 AI 会话消息。
+     *
+     * @param userId  用户ID
+     * @param request 追加请求
+     * @return 追加后的消息视图
+     */
+    public PlatformAiMessageView appendAiSessionMessage(Long userId, PlatformAiMessageAppendRequest request) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/sessions/messages"))
+                        .queryParam("userId", userId)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.POST,
+                request,
+                PlatformAiMessageView.class);
+    }
+
+    /**
+     * 逻辑删除 AI 会话。
+     *
+     * @param sessionId 会话ID
+     * @param userId    用户ID
+     * @return true 表示删除成功
+     */
+    public Boolean removeAiSession(Long sessionId, Long userId) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/sessions/" + sessionId))
+                        .queryParam("userId", userId)
+                        .build(true)
+                        .toUri(),
+                HttpMethod.DELETE,
+                null,
+                Boolean.class);
+    }
+
+    /**
+     * 重命名 AI 会话。
+     *
+     * @param sessionId 会话ID
+     * @param userId    用户ID
+     * @param title     新标题
+     * @return true 表示重命名成功
+     */
+    public Boolean renameAiSession(Long sessionId, Long userId, String title) {
+        return exchange(UriComponentsBuilder.fromUri(buildUri("/system/internal/ai/sessions/" + sessionId + "/title"))
+                        .queryParam("userId", userId)
+                        .queryParam("title", title)
+                        .build()
+                        .encode()
+                        .toUri(),
+                HttpMethod.PUT,
+                null,
+                Boolean.class);
     }
 
     /**
