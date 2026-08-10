@@ -1,6 +1,8 @@
 package com.erp.system.domain;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -22,9 +24,21 @@ public class SysAiBrief implements Serializable {
     private String briefType;
     /** 状态（PENDING/READY/FAILED） */
     private String status;
+    /*
+     * 下面四个字段必须用 ALWAYS 更新策略。
+     *
+     * MyBatis-Plus 默认的 NOT_NULL 策略会把 null 字段整个从 SET 子句里省掉，于是一次失败的重算
+     * （blocksJson/model/generateMs 全为 null）无法覆盖上一轮成功生成留下的旧值——用户会看到一份
+     * 状态是 FAILED、内容却还是上午那份数据的简报，甚至可能包含他此刻已无权查看的行。
+     * saveResult 每次都会给这四个字段赋值，因此 ALWAYS 是安全的。
+     */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String summary;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String blocksJson;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String model;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Long generateMs;
     private Date createTime;
     private Date updateTime;

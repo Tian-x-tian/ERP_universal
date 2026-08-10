@@ -8,6 +8,7 @@ import com.erp.platform.contract.model.PlatformAiMessageAppendRequest;
 import com.erp.platform.contract.model.PlatformAiMessageView;
 import com.erp.platform.contract.model.PlatformAiQuotaUsage;
 import com.erp.platform.contract.model.PlatformAiSessionView;
+import com.erp.common.client.internal.InternalSystemClientProperties;
 import com.erp.system.security.service.SecurityUserResolver;
 import com.erp.system.service.IAiDatasetService;
 import com.erp.system.service.ISysAiBriefService;
@@ -36,15 +37,18 @@ public class SystemAiInternalController {
     private final ISysAiSessionService aiSessionService;
     private final ISysAiBriefService aiBriefService;
     private final SecurityUserResolver securityUserResolver;
+    private final InternalSystemClientProperties internalSystemClientProperties;
 
     public SystemAiInternalController(IAiDatasetService aiDatasetService,
             ISysAiSessionService aiSessionService,
             ISysAiBriefService aiBriefService,
-            SecurityUserResolver securityUserResolver) {
+            SecurityUserResolver securityUserResolver,
+            InternalSystemClientProperties internalSystemClientProperties) {
         this.aiDatasetService = aiDatasetService;
         this.aiSessionService = aiSessionService;
         this.aiBriefService = aiBriefService;
         this.securityUserResolver = securityUserResolver;
+        this.internalSystemClientProperties = internalSystemClientProperties;
     }
 
     /**
@@ -205,12 +209,31 @@ public class SystemAiInternalController {
     }
 
     /**
-     * 解析目标用户ID，显式入参优先，其次取当前登录用户。
+     * 解析目标用户ID。
+     *
+     * <p>只有「调用方确实是服务账号」时才接受显式传入的 userId；其余情况一律以当前登录用户为准。
+     * 这些内部端点普遍不做归属校验，如果无条件信任入参，一旦有人能直接触达本接口，
+     * 就可以传别人的 userId 读写他人数据。网关已在入口拒绝 {@code /system/internal/**}，
+     * 这里是第二道防线。</p>
      *
      * @param userId 显式传入的用户ID
      * @return 目标用户ID
      */
     private Long resolveUserId(Long userId) {
-        return userId != null ? userId : securityUserResolver.getCurrentUserId();
+        if (userId != null && isServiceCaller()) {
+            return userId;
+        }
+        return securityUserResolver.getCurrentUserId();
+    }
+
+    /**
+     * 判断当前调用方是否为服务账号。
+     *
+     * @return true 表示服务间调用
+     */
+    private boolean isServiceCaller() {
+        String currentUsername = securityUserResolver.getCurrentUsername();
+        return currentUsername != null
+                && currentUsername.equals(internalSystemClientProperties.getServiceUserName());
     }
 }

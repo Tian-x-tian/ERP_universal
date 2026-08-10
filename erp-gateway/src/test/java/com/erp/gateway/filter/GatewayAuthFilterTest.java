@@ -37,6 +37,48 @@ class GatewayAuthFilterTest {
     private static final Instant NOW = Instant.parse("2026-08-02T03:00:00Z");
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * 校验内部契约路径不允许从公网入口进入。
+     *
+     * <p>这些端点接受显式 userId 入参且不做归属校验，其安全前提是「只有服务能调到」。
+     * 而网关对受保护路径签发的是调用者本人的身份头，下游只校验签名有效性、不校验主体是不是服务账号，
+     * 因此一旦放行，任何已登录用户都能传别人的 userId 读写他人数据。</p>
+     */
+    @Test
+    void shouldRejectInternalContractPathsFromEdge() {
+        String[] internalPaths = {
+                "/system/internal/ai/brief",
+                "/system/internal/ai/sessions",
+                "/system/internal/platform/oper-log",
+                "/workflow/internal/tasks/todo/pending",
+                "/business/internal/inventory/warehouses/1/reference-usage",
+                "/saas/internal/tenants",
+        };
+
+        for (String internalPath : internalPaths) {
+            GatewayAuthFilter filter = filter(builder(new ArrayList<>(), TenantResponse.ACTIVE, "tenant-a"));
+            MockServerHttpRequest request = MockServerHttpRequest.get(internalPath)
+                    .header(HttpHeaders.HOST, "Acme.Example:443")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer mock-token")
+                    .build();
+            MockServerWebExchange exchange = MockServerWebExchange.from(request);
+            AtomicReference<org.springframework.web.server.ServerWebExchange> forwarded = new AtomicReference<>();
+            GatewayFilterChain chain = forwardedExchange -> {
+                forwarded.set(forwardedExchange);
+                return Mono.empty();
+            };
+
+            filter.filter(exchange, chain).block();
+
+            assertThat(forwarded.get())
+                    .as("内部路径 %s 不应被转发给下游", internalPath)
+                    .isNull();
+            assertThat(exchange.getResponse().getStatusCode())
+                    .as("内部路径 %s 应被拒绝", internalPath)
+                    .isEqualTo(HttpStatus.FORBIDDEN);
+        }
+    }
+
     @Test
     void shouldResolveHostRemoveClientTenantHeadersAndRelayMatchingToken() {
         List<ClientRequest> calls = new ArrayList<>();

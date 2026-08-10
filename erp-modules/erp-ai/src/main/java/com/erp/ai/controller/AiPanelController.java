@@ -55,8 +55,24 @@ public class AiPanelController {
         // 权限在 AiReadToolService 内部再判一次，这里不做额外放行。
         AiReadToolResult result = aiReadToolService.execute(toolName, request.getParams());
         if (!result.isSuccess() || result.getBlock() == null) {
-            return R.failed(ResultCode.FORBIDDEN);
+            // 不要一律回 FORBIDDEN：下游不可用、工具被关闭与真正的无权限是三件事，
+            // 全都显示成「无权限」会让持有权限的用户和排障的人都被误导。
+            return R.failed(ResultCode.ERROR, resolveFailureMessage(result));
         }
         return R.success(result.getBlock().getDataSet());
+    }
+
+    /**
+     * 解析卡片取数失败提示。
+     *
+     * @param result 只读工具执行结果
+     * @return 失败提示
+     */
+    private String resolveFailureMessage(AiReadToolResult result) {
+        if (result != null && result.getModelText() != null && !result.getModelText().isBlank()) {
+            // AiReadToolResult.failure 会把原因写成「查询失败：xxx」，直接透出即可。
+            return result.getModelText();
+        }
+        return "卡片取数失败，请稍后重试";
     }
 }
