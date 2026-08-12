@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>字典类型管理</span>
-          <el-button type="primary" @click="handleAdd">新增</el-button>
+          <el-button v-hasPermi="['system:dict:add']" type="primary" @click="handleAdd">新增</el-button>
         </div>
       </template>
 
@@ -21,9 +21,9 @@
         <el-table-column label="备注" prop="remark" show-overflow-tooltip />
         <el-table-column label="操作" align="center" width="240">
           <template #default="scope">
-            <el-button link type="primary" @click="handleData(scope.row)">数据</el-button>
-            <el-button link type="primary" @click="handleUpdate(scope.row)">修改</el-button>
-            <el-button link type="danger" @click="handleDelete(scope.row)">删除</el-button>
+            <el-button v-hasPermi="['system:dict:query']" link type="primary" @click="handleData(scope.row)">数据</el-button>
+            <el-button v-hasPermi="['system:dict:edit']" link type="primary" @click="handleUpdate(scope.row)">修改</el-button>
+            <el-button v-hasPermi="['system:dict:remove']" link type="danger" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -50,14 +50,14 @@
       </el-form>
       <template #footer>
         <el-button @click="open = false">取 消</el-button>
-        <el-button type="primary" @click="submitForm">确 定</el-button>
+        <el-button v-hasPermi="['system:dict:add', 'system:dict:edit']" type="primary" @click="submitForm">确 定</el-button>
       </template>
     </el-dialog>
 
     <!-- 字典数据列表抽屉 -->
     <el-drawer title="字典数据列表" v-model="dataOpen" size="50%">
       <div class="drawer-header">
-        <el-button type="primary" size="small" @click="handleDataAdd">新增数据</el-button>
+        <el-button v-hasPermi="['system:dict:add']" type="primary" size="small" @click="handleDataAdd">新增数据</el-button>
       </div>
       <el-table :data="dataList" v-loading="dataLoading">
         <el-table-column label="标签" prop="dict_label" />
@@ -65,8 +65,8 @@
         <el-table-column label="排序" prop="dict_sort" width="80" />
         <el-table-column label="操作" align="center" width="160">
           <template #default="scope">
-            <el-button link type="primary" @click="handleDataUpdate(scope.row)">修改</el-button>
-            <el-button link type="danger" @click="handleDataDelete(scope.row)">删除</el-button>
+            <el-button v-hasPermi="['system:dict:edit']" link type="primary" @click="handleDataUpdate(scope.row)">修改</el-button>
+            <el-button v-hasPermi="['system:dict:remove']" link type="danger" @click="handleDataDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -96,7 +96,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dataFormOpen = false">取 消</el-button>
-        <el-button type="primary" @click="submitDataForm">确 定</el-button>
+        <el-button v-hasPermi="['system:dict:add', 'system:dict:edit']" type="primary" @click="submitDataForm">确 定</el-button>
       </template>
     </el-dialog>
   </div>

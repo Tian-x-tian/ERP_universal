@@ -2,7 +2,7 @@
   <div class="app-container">
     <el-card shadow="never">
       <div class="table-header">
-        <el-button type="primary" icon="Plus" @click="handleAdd">新增租户</el-button>
+        <el-button v-hasPermi="['system:tenant:add']" type="primary" icon="Plus" @click="handleAdd">新增租户</el-button>
         <el-input
           v-model="queryParams.name"
           placeholder="请输入租户名称"
@@ -26,8 +26,8 @@
         <el-table-column label="创建时间" align="center" prop="createTime" />
         <el-table-column label="操作" align="center" width="200">
           <template #default="scope">
-            <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)">编辑</el-button>
-            <el-button link type="danger" icon="Delete" @click="handleDelete(scope.row)">删除</el-button>
+            <el-button v-hasPermi="['system:tenant:edit']" link type="primary" icon="Edit" @click="handleUpdate(scope.row)">编辑</el-button>
+            <el-button v-hasPermi="['system:tenant:remove']" link type="danger" icon="Delete" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -64,7 +64,7 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="open = false">取 消</el-button>
-          <el-button type="primary" @click="submitForm">确 定</el-button>
+          <el-button v-hasPermi="['system:tenant:add', 'system:tenant:edit']" type="primary" @click="submitForm">确 定</el-button>
         </div>
       </template>
     </el-dialog>
@@ -149,19 +149,20 @@ async function handleUpdate(row: any) {
 
 /** 提交按钮 */
 async function submitForm() {
-  await tenantRef.value.validate(async (valid: boolean) => {
-    if (valid) {
-      if (form.value.id !== undefined) {
-        await updateTenant(form.value)
-        ElMessage.success('修改成功')
-      } else {
-        await addTenant(form.value)
-        ElMessage.success('新增成功')
-      }
-      open.value = false
-      getList()
+  try {
+    await tenantRef.value.validate()
+    if (form.value.id !== undefined) {
+      await updateTenant(form.value)
+      ElMessage.success('修改成功')
+    } else {
+      await addTenant(form.value)
+      ElMessage.success('新增成功')
     }
-  })
+    open.value = false
+    getList()
+  } catch (error) {
+    console.warn('表单提交中断:', error)
+  }
 }
 
 /** 删除按钮操作 */

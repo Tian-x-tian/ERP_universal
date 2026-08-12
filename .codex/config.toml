@@ -1,0 +1,8 @@
+[[hooks.SessionStart]]
+matcher = "startup|resume|clear|compact"
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = '"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -File "D:\workspace\ERP\.codex\hooks\erp_obsidian_graph_reminder.ps1"'
+timeout = 10
+statusMessage = "Loading ERP Obsidian graph reminder"

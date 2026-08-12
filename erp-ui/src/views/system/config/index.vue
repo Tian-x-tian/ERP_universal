@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>参数配置管理</span>
-          <el-button type="primary" @click="handleAdd">新增</el-button>
+          <el-button v-hasPermi="['system:config:add']" type="primary" @click="handleAdd">新增</el-button>
         </div>
       </template>
 
@@ -22,8 +22,8 @@
         <el-table-column label="备注" prop="remark" show-overflow-tooltip />
         <el-table-column label="操作" align="center" width="160">
           <template #default="scope">
-            <el-button link type="primary" @click="handleUpdate(scope.row)">修改</el-button>
-            <el-button link type="danger" @click="handleDelete(scope.row)">删除</el-button>
+            <el-button v-hasPermi="['system:config:edit']" link type="primary" @click="handleUpdate(scope.row)">修改</el-button>
+            <el-button v-hasPermi="['system:config:remove']" link type="danger" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -53,7 +53,7 @@
       </el-form>
       <template #footer>
         <el-button @click="open = false">取 消</el-button>
-        <el-button type="primary" @click="submitForm">确 定</el-button>
+        <el-button v-hasPermi="['system:config:add', 'system:config:edit']" type="primary" @click="submitForm">确 定</el-button>
       </template>
     </el-dialog>
   </div>

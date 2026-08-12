@@ -4,7 +4,39 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + Vue + TS</title>
+    <title>Executive ERP</title>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <!-- 彻底移除 Tailwind CDN，准备纯手写 SCSS 转化 -->
+    <script>
+      window.onerror = function(msg, url, line, col, error) {
+        var errDiv = document.getElementById('debug-error-log');
+        if (!errDiv) {
+          errDiv = document.createElement('div');
+          errDiv.id = 'debug-error-log';
+          errDiv.style.cssText = 'position:fixed; top:0; left:0; width:100vw; z-index:999999; background:#aa0000; color:white; padding:20px; font-size:14px; white-space:pre-wrap;';
+          document.body.appendChild(errDiv);
+        }
+        errDiv.innerHTML += '【致命错误】: ' + msg + '\n' + (error && error.stack ? error.stack : '') + '\n\n';
+      };
+      window.onunhandledrejection = function(event) {
+        var errDiv = document.getElementById('debug-error-log');
+        if (!errDiv) {
+          errDiv = document.createElement('div');
+          errDiv.id = 'debug-error-log';
+          errDiv.style.cssText = 'position:fixed; top:0; left:0; width:100vw; z-index:999999; background:#aa0000; color:white; padding:20px; font-size:14px; white-space:pre-wrap;';
+          document.body.appendChild(errDiv);
+        }
+        errDiv.innerHTML += '【异步Promise异常】: ' + (event.reason ? (event.reason.stack || event.reason) : 'Unknown') + '\n\n';
+      };
+    </script>
+    <style>
+      .executive-mode { font-family: 'Inter', sans-serif; }
+      .executive-mode h1, .executive-mode h2, .executive-mode h3 { font-family: 'Manrope', sans-serif; }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>

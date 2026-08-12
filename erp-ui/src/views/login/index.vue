@@ -22,14 +22,18 @@
           </div>
         </template>
         <el-form :model="loginForm" :rules="loginRules" ref="loginRef" label-position="top">
-          <el-form-item label="租户编号" prop="tenantId">
-            <el-input v-model="loginForm.tenantId" placeholder="请输入租户编号" prefix-icon="OfficeBuilding" />
-          </el-form-item>
+          <el-alert
+            :title="`当前租户由访问域名 ${currentHost} 安全识别`"
+            type="info"
+            :closable="false"
+            show-icon
+            class="tenant-context-alert"
+          />
           <el-form-item label="账号" prop="username">
-            <el-input v-model="loginForm.username" placeholder="请输入账号" prefix-icon="User" />
+            <el-input v-model="loginForm.username" placeholder="请输入账号" prefix-icon="User" @keyup.enter="handleLogin" />
           </el-form-item>
           <el-form-item label="密码" prop="password">
-            <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" prefix-icon="Lock" show-password />
+            <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" prefix-icon="Lock" show-password @keyup.enter="handleLogin" />
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="loading" @click="handleLogin" class="login-btn">
@@ -46,45 +50,46 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
-import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 
 const router = useRouter()
 const userStore = useUserStore()
 const loginRef = ref()
 const loading = ref(false)
+const POST_LOGIN_INIT_FLAG = 'erpPostLoginInitPending'
+const currentHost = window.location.host
 
 const loginForm = reactive({
-  tenantId: '',
   username: '',
   password: ''
 })
 
 const loginRules = {
-  tenantId: [{ required: true, message: '请输入租户编号', trigger: 'blur' }],
   username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
 const handleLogin = async () => {
+  if (loading.value) return
   if (!loginRef.value) return
   await loginRef.value.validate(async (valid: boolean) => {
     if (valid) {
       loading.value = true
       try {
-        // 调用后端登录接口 (erp-auth)
-        // 注意：此处 tenantId 会被 request.ts 拦截器注入请求头，但登录时由于未存 localStorage，需手动处理或后端接口参数包含
-        const res: any = await request.post('/login', loginForm, {
-            headers: { 'tenantId': loginForm.tenantId }
+        const usernameInput = (loginForm.username || '').trim()
+        const res: any = await request.post('/login', {
+          ...loginForm,
+          username: usernameInput
         })
-        
+        const resolvedTenantId = String(res.data?.tenantId || '').trim()
+        if (!resolvedTenantId) throw new Error('登录响应缺少域名解析后的租户信息')
+
         userStore.setToken(res.data.token)
-        userStore.setTenantId(loginForm.tenantId)
-        
-        ElMessage.success('登录成功')
+        userStore.setTenantId(resolvedTenantId)
+        sessionStorage.setItem(POST_LOGIN_INIT_FLAG, '1')
         router.push('/')
-      } catch (error: any) {
-        console.error(error)
+      } catch {
+        // Unified request handling already presents a safe user-facing error.
       } finally {
         loading.value = false
       }
@@ -147,7 +152,7 @@ const handleLogin = async () => {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.16);
     color: #f8fbff;
-    font-size: 12px;
+    font-size: calc(12px * var(--erp-font-scale, 1));
     letter-spacing: 0.06em;
   }
 
@@ -162,7 +167,7 @@ const handleLogin = async () => {
   p {
     margin: 0;
     max-width: 520px;
-    font-size: 16px;
+    font-size: calc(16px * var(--erp-font-scale, 1));
     line-height: 1.8;
     color: rgba(242, 249, 255, 0.92);
   }
@@ -180,7 +185,7 @@ const handleLogin = async () => {
     padding: 10px 14px;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.12);
-    font-size: 14px;
+    font-size: calc(14px * var(--erp-font-scale, 1));
     letter-spacing: 0.03em;
   }
 }
@@ -200,14 +205,18 @@ const handleLogin = async () => {
   h2 {
     margin: 0;
     color: #1f2f46;
-    font-size: 30px;
+    font-size: calc(30px * var(--erp-font-scale, 1));
   }
 
   p {
     margin: 10px 0 0;
     color: #5d6f85;
-    font-size: 14px;
+    font-size: calc(14px * var(--erp-font-scale, 1));
   }
+}
+
+.tenant-context-alert {
+  margin-bottom: 18px;
 }
 
 :deep(.el-card__header) {
@@ -227,7 +236,7 @@ const handleLogin = async () => {
   width: 100%;
   height: 46px;
   margin-top: 8px;
-  font-size: 16px;
+  font-size: calc(16px * var(--erp-font-scale, 1));
   font-weight: 600;
   border-radius: 10px;
   letter-spacing: 0.04em;
@@ -263,11 +272,11 @@ const handleLogin = async () => {
     padding: 16px;
 
     h1 {
-      font-size: 24px;
+      font-size: calc(24px * var(--erp-font-scale, 1));
     }
 
     p {
-      font-size: 14px;
+      font-size: calc(14px * var(--erp-font-scale, 1));
       line-height: 1.7;
     }
   }
@@ -288,3 +297,6 @@ const handleLogin = async () => {
   }
 }
 </style>
+
+
+

@@ -51,3 +51,14 @@ export function delRole(roleId: number | string) {
         method: 'delete'
     })
 }
+
+/**
+ * 分配角色数据权限
+ */
+export function updateRoleDataScope(data: any) {
+    return request({
+        url: '/system/role/dataScope',
+        method: 'put',
+        data: data
+    })
+}

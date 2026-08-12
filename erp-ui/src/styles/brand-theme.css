@@ -1,15 +1,35 @@
 :root {
   --erp-primary: #0d6fbe;
   --erp-primary-strong: #0a4f94;
+  --erp-primary-ink: #143d63;
   --erp-accent: #1cb9a0;
+  --erp-accent-strong: #14846f;
+  --erp-accent-ink: #114a41;
   --erp-warm: #ff8f4f;
-  --erp-text: #1f2f46;
-  --erp-muted: #5d6f85;
-  --erp-surface: rgba(255, 255, 255, 0.92);
-  --erp-surface-soft: rgba(255, 255, 255, 0.72);
-  --erp-border: rgba(27, 62, 108, 0.14);
-  --erp-radius-lg: 18px;
-  --erp-radius-md: 12px;
+  --erp-warm-strong: #d27716;
+  --erp-warm-ink: #6e4309;
+  --erp-danger: #d85b67;
+  --erp-danger-strong: #af3d48;
+  --erp-danger-ink: #6a2530;
+  --erp-info: #6d8198;
+  --erp-info-strong: #4e6176;
+  --erp-info-ink: #334458;
+  /* 以下语义值统一取自 palette.css，随明暗自动切换，勿写死 */
+  --erp-text: var(--erp-c-text);
+  --erp-muted: var(--erp-c-text-3);
+  --erp-surface: var(--erp-c-glass);
+  --erp-surface-soft: var(--erp-c-glass-soft);
+  --erp-border: var(--erp-c-border-strong);
+  --erp-radius-lg: 22px;
+  --erp-radius-md: 14px;
+  --erp-shadow-card: 0 18px 46px rgba(5, 36, 83, 0.14);
+}
+
+:root {
+  --el-color-primary: var(--erp-primary);
+  --el-color-primary-light-3: #3f93d2;
+  --el-color-primary-light-5: #66abd9;
+  --el-color-primary-light-7: #94c5e7;
   --erp-shadow-card: 0 18px 46px rgba(5, 36, 83, 0.14);
 }
 
@@ -19,8 +39,8 @@
   --el-color-primary-light-5: #66abd9;
   --el-color-primary-light-7: #94c5e7;
   --el-color-primary-dark-2: var(--erp-primary-strong);
-  --el-border-radius-base: 10px;
-  --el-border-radius-small: 8px;
+  --el-border-radius-base: 12px;
+  --el-border-radius-small: 10px;
   --el-font-size-base: 14px;
 }
 
@@ -33,7 +53,7 @@
 .erp-panel {
   border-radius: var(--erp-radius-lg);
   border: 1px solid var(--erp-border);
-  background: linear-gradient(165deg, rgba(255, 255, 255, 0.95), rgba(244, 250, 255, 0.9));
+  background: linear-gradient(165deg, var(--erp-c-glass-strong), var(--erp-c-glass));
   box-shadow: var(--erp-shadow-card);
 }
 
@@ -53,36 +73,178 @@
   box-shadow: 0 22px 56px rgba(5, 36, 83, 0.2);
 }
 
+.el-button {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border-radius: 8px;
+  min-height: 32px;
+  padding: 8px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1.35;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+  border: 1px solid var(--el-border-color);
+  background-color: var(--el-bg-color);
+  color: var(--el-text-color-regular);
+}
+
+.el-button:not(.is-disabled):hover,
+.el-button:not(.is-disabled):focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.el-button:not(.is-disabled):active {
+  transform: translateY(0);
+}
+
+/* Premium Default Button */
+.el-button--default {
+  color: var(--el-text-color-regular);
+  border-color: var(--el-border-color);
+  background: var(--el-bg-color);
+}
+.el-button--default:hover {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-5);
+  background-color: var(--el-color-primary-light-9);
+}
+
+/* Premium Primary Button */
 .el-button--primary {
   border: none;
-  background: linear-gradient(132deg, var(--erp-primary) 0%, #1185c8 100%);
+  color: #ffffff !important;
+  background: linear-gradient(180deg, var(--el-color-primary-light-3) 0%, var(--el-color-primary) 100%);
+  box-shadow: 0 4px 14px var(--el-color-primary-light-5);
+}
+.el-button--primary:hover {
+  background: linear-gradient(180deg, var(--el-color-primary-light-4) 0%, var(--el-color-primary-light-1) 100%);
+  color: #ffffff !important;
+}
+.el-button--primary:active {
+  background: linear-gradient(180deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
+  box-shadow: 0 2px 6px var(--el-color-primary-dark-2);
 }
 
-.el-button--primary:hover,
-.el-button--primary:focus {
-  background: linear-gradient(132deg, #0f7aca 0%, #1595d6 100%);
+/* Premium Success Button */
+.el-button--success {
+  border: none;
+  color: #ffffff !important;
+  background: linear-gradient(180deg, var(--el-color-success-light-3) 0%, var(--el-color-success) 100%);
+  box-shadow: 0 4px 14px var(--el-color-success-light-5);
+}
+.el-button--success:hover {
+  background: linear-gradient(180deg, var(--el-color-success-light-4) 0%, var(--el-color-success-light-1) 100%);
+}
+.el-button--success:active {
+  background: linear-gradient(180deg, var(--el-color-success) 0%, var(--el-color-success-dark-2) 100%);
 }
 
+/* Premium Warning Button */
+.el-button--warning {
+  border: none;
+  color: #ffffff !important;
+  background: linear-gradient(180deg, var(--el-color-warning-light-3) 0%, var(--el-color-warning) 100%);
+  box-shadow: 0 4px 14px var(--el-color-warning-light-5);
+}
+.el-button--warning:hover {
+  background: linear-gradient(180deg, var(--el-color-warning-light-4) 0%, var(--el-color-warning-light-1) 100%);
+}
+.el-button--warning:active {
+  background: linear-gradient(180deg, var(--el-color-warning) 0%, var(--el-color-warning-dark-2) 100%);
+}
+
+/* Premium Danger Button */
+.el-button--danger {
+  border: none;
+  color: #ffffff !important;
+  background: linear-gradient(180deg, var(--el-color-danger-light-3) 0%, var(--el-color-danger) 100%);
+  box-shadow: 0 4px 14px var(--el-color-danger-light-5);
+}
+.el-button--danger:hover {
+  background: linear-gradient(180deg, var(--el-color-danger-light-4) 0%, var(--el-color-danger-light-1) 100%);
+}
+.el-button--danger:active {
+  background: linear-gradient(180deg, var(--el-color-danger) 0%, var(--el-color-danger-dark-2) 100%);
+}
+
+/* Plain variants (Linkish tags) */
+.el-button.is-plain {
+  border-width: 1px;
+  background-color: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-7);
+  color: var(--el-color-primary);
+  box-shadow: none;
+}
+.el-button--primary.is-plain {
+  color: var(--el-color-primary);
+  background-color: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-6);
+}
+.el-button--primary.is-plain:hover {
+  background-color: var(--el-color-primary-light-7);
+  color: var(--el-color-primary-dark-2);
+}
+
+.el-button--success.is-plain {
+  color: var(--el-color-success);
+  background-color: var(--el-color-success-light-9);
+  border-color: var(--el-color-success-light-6);
+}
+.el-button--warning.is-plain {
+  color: var(--el-color-warning);
+  background-color: var(--el-color-warning-light-9);
+  border-color: var(--el-color-warning-light-6);
+}
+.el-button--danger.is-plain {
+  color: var(--el-color-danger);
+  background-color: var(--el-color-danger-light-9);
+  border-color: var(--el-color-danger-light-6);
+}
+
+.el-button.is-link, .el-button.is-text {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Disabled state protection */
+.el-button.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  background: var(--el-color-info-light-8) !important;
+  border: 1px solid var(--el-color-info-light-7) !important;
+  color: var(--el-color-info-light-3) !important;
+  box-shadow: none !important;
+}
+
+/* Input enhancements */
 .el-input__wrapper,
 .el-textarea__inner {
   border-radius: var(--erp-radius-md);
-  box-shadow: 0 0 0 1px rgba(20, 84, 147, 0.12) inset;
+  box-shadow: 0 0 0 1px var(--el-border-color) inset;
+  transition: all 0.2s;
+}
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 1.5px var(--el-color-primary) inset, 0 4px 12px var(--el-color-primary-light-8) !important;
 }
 
 .el-table {
-  --el-table-header-bg-color: #edf4ff;
-  --el-table-border-color: rgba(22, 84, 146, 0.12);
-  --el-table-row-hover-bg-color: #f4f9ff;
+  --el-table-header-bg-color: var(--el-color-primary-light-9);
+  --el-table-row-hover-bg-color: var(--el-color-primary-light-9);
   border-radius: var(--erp-radius-md);
   overflow: hidden;
 }
 
 .el-dialog {
   border-radius: var(--erp-radius-lg);
-  border: 1px solid var(--erp-border);
-  box-shadow: 0 24px 64px rgba(5, 36, 83, 0.26);
+  border: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.12);
 }
 
 .el-dialog__header {
-  border-bottom: 1px solid var(--erp-border);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }

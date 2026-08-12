@@ -1,11 +1,23 @@
 <template>
-  <el-config-provider>
+  <el-config-provider :locale="elementLocale" :size="componentSize">
     <router-view />
   </el-config-provider>
 </template>
 
 <script setup lang="ts">
-// Element Plus Config Provider can be used here for local/theme configuration
+import { computed } from 'vue'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import en from 'element-plus/es/locale/lang/en'
+import { useUiPreferenceStore } from '@/store/uiPreference'
+import { resolveComponentSize } from '@/utils/theme'
+
+const uiStore = useUiPreferenceStore()
+
+/** 组件尺寸由信息密度联动 */
+const componentSize = computed(() => resolveComponentSize(uiStore.density))
+
+/** Element Plus 语言包 */
+const elementLocale = computed(() => (uiStore.locale === 'en-US' ? en : zhCn))
 </script>
 
 <style>

@@ -11,6 +11,17 @@ export function listMenu() {
 }
 
 /**
+ * 查询菜单树节点
+ */
+export function listMenuTree(params?: { parentId?: number | string; keyword?: string }) {
+    return request({
+        url: '/system/menu/tree',
+        method: 'get',
+        params
+    })
+}
+
+/**
  * 查询菜单详细
  */
 export function getMenu(menuId: number | string) {
@@ -49,5 +60,16 @@ export function delMenu(menuId: number | string) {
     return request({
         url: '/system/menu/' + menuId,
         method: 'delete'
+    })
+}
+
+/**
+ * 同步当前页面菜单结构到菜单管理并入库
+ */
+export function syncMenu(data: any[]) {
+    return request({
+        url: '/system/menu/sync',
+        method: 'post',
+        data
     })
 }
