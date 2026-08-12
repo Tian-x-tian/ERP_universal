@@ -1,6 +1,6 @@
 -- ERP System Module DDL
 -- Database: erp_system (Recommended)
--- Created: 2026-02-12
+-- Updated: 2026-03-07
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
@@ -27,13 +27,38 @@ CREATE TABLE `sys_tenant` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='租户管理表';
 
 -- ----------------------------
--- 2. 部门表 (sys_dept)
+-- 2. 公司表 (sys_company)
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_company`;
+CREATE TABLE `sys_company` (
+  `company_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '公司ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `company_code` varchar(64) NOT NULL COMMENT '公司编码',
+  `company_name` varchar(128) NOT NULL COMMENT '公司名称',
+  `parent_company_id` bigint(20) DEFAULT 0 COMMENT '父公司ID',
+  `ancestors` varchar(255) DEFAULT '' COMMENT '祖级列表',
+  `leader` varchar(64) DEFAULT NULL COMMENT '负责人',
+  `phone` varchar(20) DEFAULT NULL COMMENT '联系电话',
+  `status` char(1) DEFAULT '0' COMMENT '状态（0正常 1停用）',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`company_id`),
+  UNIQUE KEY `idx_company_tenant_code` (`tenant_id`, `company_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='公司表';
+
+-- ----------------------------
+-- 3. 部门表 (sys_dept)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_dept`;
 CREATE TABLE `sys_dept` (
-  `dept_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '部门id',
+  `dept_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '部门ID',
   `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
-  `parent_id` bigint(20) DEFAULT 0 COMMENT '父部门id',
+  `company_id` bigint(20) DEFAULT NULL COMMENT '公司ID',
+  `parent_id` bigint(20) DEFAULT 0 COMMENT '父部门ID',
   `ancestors` varchar(50) DEFAULT '' COMMENT '祖级列表',
   `dept_name` varchar(30) DEFAULT '' COMMENT '部门名称',
   `order_num` int(4) DEFAULT 0 COMMENT '显示顺序',
@@ -46,11 +71,32 @@ CREATE TABLE `sys_dept` (
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
-  PRIMARY KEY (`dept_id`)
+  PRIMARY KEY (`dept_id`),
+  KEY `idx_dept_tenant_company` (`tenant_id`, `company_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='部门表';
 
 -- ----------------------------
--- 3. 用户信息表 (sys_user)
+-- 4. 岗位表 (sys_post)
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_post`;
+CREATE TABLE `sys_post` (
+  `post_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '岗位ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `post_code` varchar(64) NOT NULL COMMENT '岗位编码',
+  `post_name` varchar(64) NOT NULL COMMENT '岗位名称',
+  `post_sort` int(4) DEFAULT 0 COMMENT '显示顺序',
+  `status` char(1) DEFAULT '0' COMMENT '岗位状态（0正常 1停用）',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`post_id`),
+  UNIQUE KEY `idx_post_tenant_code` (`tenant_id`, `post_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='岗位表';
+
+-- ----------------------------
+-- 5. 用户信息表 (sys_user)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_user`;
 CREATE TABLE `sys_user` (
@@ -65,6 +111,7 @@ CREATE TABLE `sys_user` (
   `sex` char(1) DEFAULT '0' COMMENT '用户性别（0男 1女 2未知）',
   `avatar` varchar(100) DEFAULT '' COMMENT '头像地址',
   `password` varchar(100) DEFAULT '' COMMENT '密码',
+  `token_version` int(11) NOT NULL DEFAULT 0 COMMENT 'Token版本号',
   `status` char(1) DEFAULT '0' COMMENT '帐号状态（0正常 1停用）',
   `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   `login_ip` varchar(128) DEFAULT '' COMMENT '最后登录IP',
@@ -79,7 +126,7 @@ CREATE TABLE `sys_user` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户信息表';
 
 -- ----------------------------
--- 4. 角色信息表 (sys_role)
+-- 6. 角色信息表 (sys_role)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_role`;
 CREATE TABLE `sys_role` (
@@ -88,7 +135,7 @@ CREATE TABLE `sys_role` (
   `role_name` varchar(30) NOT NULL COMMENT '角色名称',
   `role_key` varchar(100) NOT NULL COMMENT '角色权限字符串',
   `role_sort` int(4) NOT NULL COMMENT '显示顺序',
-  `data_scope` char(1) DEFAULT '1' COMMENT '数据范围（1：全部数据权限 2：自定数据权限 3：本部门数据权限 4：本部门及以下数据权限）',
+  `data_scope` char(1) DEFAULT '1' COMMENT '数据范围（1全部 2自定义 3本部门 4本部门及以下）',
   `status` char(1) NOT NULL COMMENT '角色状态（0正常 1停用）',
   `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
@@ -100,7 +147,7 @@ CREATE TABLE `sys_role` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色信息表';
 
 -- ----------------------------
--- 5. 菜单权限表 (sys_menu)
+-- 7. 菜单权限表 (sys_menu)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_menu`;
 CREATE TABLE `sys_menu` (
@@ -115,37 +162,67 @@ CREATE TABLE `sys_menu` (
   `visible` char(1) DEFAULT '0' COMMENT '菜单状态（0显示 1隐藏）',
   `status` char(1) DEFAULT '0' COMMENT '菜单状态（0正常 1停用）',
   `perms` varchar(100) DEFAULT NULL COMMENT '权限标识',
+  `feature_key` varchar(128) DEFAULT NULL COMMENT 'Stable SaaS feature key',
   `icon` varchar(100) DEFAULT '#' COMMENT '菜单图标',
   `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   `remark` varchar(500) DEFAULT NULL COMMENT '备注',
-  PRIMARY KEY (`menu_id`)
+  PRIMARY KEY (`menu_id`),
+  KEY `idx_sys_menu_feature_key` (`feature_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='菜单权限表';
 
 -- ----------------------------
--- 6. 用户和角色关联表 (sys_user_role)
+-- 8. 用户和角色关联表 (sys_user_role)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_user_role`;
 CREATE TABLE `sys_user_role` (
+  `tenant_id` varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
   `user_id` bigint(20) NOT NULL COMMENT '用户ID',
   `role_id` bigint(20) NOT NULL COMMENT '角色ID',
-  PRIMARY KEY (`user_id`, `role_id`)
+  PRIMARY KEY (`user_id`, `role_id`),
+  KEY `idx_user_role_tenant` (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户和角色关联表';
 
 -- ----------------------------
--- 7. 角色和菜单关联表 (sys_role_menu)
+-- 9. 用户和岗位关联表 (sys_user_post)
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_user_post`;
+CREATE TABLE `sys_user_post` (
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+  `post_id` bigint(20) NOT NULL COMMENT '岗位ID',
+  PRIMARY KEY (`user_id`, `post_id`),
+  KEY `idx_user_post_tenant` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户和岗位关联表';
+
+-- ----------------------------
+-- 10. 角色和菜单关联表 (sys_role_menu)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_role_menu`;
 CREATE TABLE `sys_role_menu` (
+  `tenant_id` varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
   `role_id` bigint(20) NOT NULL COMMENT '角色ID',
   `menu_id` bigint(20) NOT NULL COMMENT '菜单ID',
-  PRIMARY KEY (`role_id`, `menu_id`)
+  PRIMARY KEY (`role_id`, `menu_id`),
+  KEY `idx_role_menu_tenant` (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色和菜单关联表';
 
 -- ----------------------------
--- 8. 字典类型表 (sys_dict_type)
+-- 11. 角色和部门关联表 (sys_role_dept)
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_role_dept`;
+CREATE TABLE `sys_role_dept` (
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `role_id` bigint(20) NOT NULL COMMENT '角色ID',
+  `dept_id` bigint(20) NOT NULL COMMENT '部门ID',
+  PRIMARY KEY (`role_id`, `dept_id`),
+  KEY `idx_role_dept_tenant` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色和部门关联表';
+
+-- ----------------------------
+-- 12. 字典类型表 (sys_dict_type)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_dict_type`;
 CREATE TABLE `sys_dict_type` (
@@ -163,7 +240,7 @@ CREATE TABLE `sys_dict_type` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='字典类型表';
 
 -- ----------------------------
--- 9. 字典数据表 (sys_dict_data)
+-- 13. 字典数据表 (sys_dict_data)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_dict_data`;
 CREATE TABLE `sys_dict_data` (
@@ -185,7 +262,7 @@ CREATE TABLE `sys_dict_data` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='字典数据表';
 
 -- ----------------------------
--- 10. 参数配置表 (sys_config)
+-- 14. 参数配置表 (sys_config)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_config`;
 CREATE TABLE `sys_config` (
@@ -203,19 +280,483 @@ CREATE TABLE `sys_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='参数配置表';
 
 -- ----------------------------
--- 11. 初始化基础数据
+-- 15. 审计日志表 (sys_audit_log)
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_audit_log`;
+CREATE TABLE `sys_audit_log` (
+  `log_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `operator` varchar(64) DEFAULT NULL COMMENT '操作人账号',
+  `operation_type` varchar(32) DEFAULT NULL COMMENT '操作类型',
+  `request_method` varchar(16) DEFAULT NULL COMMENT '请求方法',
+  `request_uri` varchar(500) DEFAULT NULL COMMENT '请求URI',
+  `request_ip` varchar(64) DEFAULT NULL COMMENT '请求IP',
+  `request_params` text COMMENT '请求参数',
+  `response_code` int(11) DEFAULT NULL COMMENT '响应状态码',
+  `success_flag` char(1) DEFAULT '1' COMMENT '是否成功（1成功 0失败）',
+  `error_msg` varchar(500) DEFAULT NULL COMMENT '错误信息',
+  `cost_time` bigint(20) DEFAULT NULL COMMENT '耗时毫秒',
+  `operation_time` datetime DEFAULT NULL COMMENT '操作时间',
+  PRIMARY KEY (`log_id`),
+  KEY `idx_audit_tenant_time` (`tenant_id`, `operation_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审计日志表';
+
+-- ----------------------------
+-- 16. 操作日志表 (sys_oper_log)
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_oper_log`;
+CREATE TABLE `sys_oper_log` (
+  `oper_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `operator` varchar(64) DEFAULT NULL COMMENT '操作人账号',
+  `request_method` varchar(16) DEFAULT NULL COMMENT '请求方法',
+  `request_uri` varchar(500) DEFAULT NULL COMMENT '请求URI',
+  `request_ip` varchar(64) DEFAULT NULL COMMENT '请求IP',
+  `request_params` text COMMENT '请求参数',
+  `response_code` int(11) DEFAULT NULL COMMENT '响应状态码',
+  `success_flag` char(1) DEFAULT '1' COMMENT '是否成功（1成功 0失败）',
+  `error_msg` varchar(500) DEFAULT NULL COMMENT '错误信息',
+  `cost_time` bigint(20) DEFAULT NULL COMMENT '耗时毫秒',
+  `operation_time` datetime DEFAULT NULL COMMENT '操作时间',
+  PRIMARY KEY (`oper_id`),
+  KEY `idx_oper_tenant_time` (`tenant_id`, `operation_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
+
+-- ----------------------------
+-- 17. 登录日志表 (sys_login_log)
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_login_log`;
+CREATE TABLE `sys_login_log` (
+  `info_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '日志主键',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `user_name` varchar(50) DEFAULT '' COMMENT '用户账号',
+  `ipaddr` varchar(128) DEFAULT '' COMMENT '登录IP地址',
+  `status` char(1) DEFAULT '0' COMMENT '登录状态（0成功 1失败）',
+  `msg` varchar(255) DEFAULT '' COMMENT '提示消息',
+  `login_time` datetime DEFAULT NULL COMMENT '访问时间',
+  PRIMARY KEY (`info_id`),
+  KEY `idx_login_tenant_time` (`tenant_id`, `login_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='登录日志表';
+
+-- ----------------------------
+-- 18. 系统消息通知表 (sys_notice)
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_notice`;
+CREATE TABLE `sys_notice` (
+  `notice_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '消息ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `title` varchar(255) NOT NULL COMMENT '消息标题',
+  `notice_type` varchar(32) NOT NULL COMMENT '消息类型',
+  `source` varchar(64) DEFAULT NULL COMMENT '消息来源',
+  `business_no` varchar(64) DEFAULT NULL COMMENT '关联业务单号',
+  `content` text COMMENT '消息内容',
+  `receiver_user_id` bigint(20) NOT NULL COMMENT '接收人用户ID',
+  `delivery_channel` varchar(16) DEFAULT 'IN_APP' COMMENT '送达渠道（IN_APP/SMS/WECOM）',
+  `delivery_status` char(1) DEFAULT '2' COMMENT '送达状态（0待发送 1发送中 2已送达 3失败）',
+  `delivery_time` datetime DEFAULT NULL COMMENT '送达时间',
+  `external_message_id` varchar(100) DEFAULT NULL COMMENT '外部消息ID',
+  `status` char(1) DEFAULT '0' COMMENT '状态（0未读 1已读）',
+  `read_time` datetime DEFAULT NULL COMMENT '已读时间',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  PRIMARY KEY (`notice_id`),
+  KEY `idx_notice_receiver` (`tenant_id`, `receiver_user_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统消息通知表';
+
+-- ----------------------------
+-- 24. 区域主数据表 (sys_region)
+
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_region`;
+CREATE TABLE `sys_region` (
+  `region_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '区域ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `region_code` varchar(64) NOT NULL COMMENT '区域编码',
+  `region_name` varchar(128) NOT NULL COMMENT '区域名称',
+  `parent_id` bigint(20) DEFAULT 0 COMMENT '父区域ID',
+  `ancestors` varchar(255) DEFAULT '' COMMENT '祖级列表',
+  `region_level` int(2) DEFAULT 1 COMMENT '区域层级',
+  `order_num` int(4) DEFAULT 0 COMMENT '显示顺序',
+  `status` char(1) DEFAULT '0' COMMENT '状态（0正常 1停用）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`region_id`),
+  UNIQUE KEY `idx_region_tenant_code` (`tenant_id`, `region_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='区域主数据表';
+
+-- ----------------------------
+-- 25. 编码规则表 (sys_code_rule)
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_code_rule`;
+CREATE TABLE `sys_code_rule` (
+  `rule_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '规则ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `rule_code` varchar(64) NOT NULL COMMENT '规则编码',
+  `rule_name` varchar(128) NOT NULL COMMENT '规则名称',
+  `prefix` varchar(32) DEFAULT NULL COMMENT '编码前缀',
+  `date_pattern` varchar(32) DEFAULT 'yyyyMMdd' COMMENT '日期格式',
+  `seq_length` int(4) DEFAULT 4 COMMENT '流水位数',
+  `current_seq` bigint(20) DEFAULT 0 COMMENT '当前流水值',
+  `status` char(1) DEFAULT '0' COMMENT '状态（0启用 1停用）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`rule_id`),
+  UNIQUE KEY `idx_code_rule_tenant_code` (`tenant_id`, `rule_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='编码规则表';
+
+-- ----------------------------
+-- 26. 主数据管理表（MDM）
+-- ----------------------------
+DROP TABLE IF EXISTS `mdm_org`;
+CREATE TABLE `mdm_org` (
+  `org_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '组织ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `org_code` varchar(64) NOT NULL COMMENT '组织编码',
+  `org_name` varchar(128) NOT NULL COMMENT '组织名称',
+  `org_type` varchar(32) DEFAULT NULL COMMENT '组织类型',
+  `parent_id` bigint(20) DEFAULT 0 COMMENT '父组织ID',
+  `ancestors` varchar(255) DEFAULT '0' COMMENT '祖级列表',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`org_id`),
+  UNIQUE KEY `idx_mdm_org_tenant_code` (`tenant_id`, `org_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM组织主数据表';
+
+DROP TABLE IF EXISTS `mdm_cost_center`;
+CREATE TABLE `mdm_cost_center` (
+  `cc_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '成本中心ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `cc_code` varchar(64) NOT NULL COMMENT '成本中心编码',
+  `cc_name` varchar(128) NOT NULL COMMENT '成本中心名称',
+  `org_id` bigint(20) NOT NULL COMMENT '组织ID',
+  `parent_id` bigint(20) DEFAULT 0 COMMENT '父级成本中心ID',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`cc_id`),
+  UNIQUE KEY `idx_mdm_cc_tenant_code` (`tenant_id`, `cc_code`),
+  KEY `idx_mdm_cc_org` (`tenant_id`, `org_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM成本中心主数据表';
+
+DROP TABLE IF EXISTS `mdm_project`;
+CREATE TABLE `mdm_project` (
+  `project_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '项目ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `project_code` varchar(64) NOT NULL COMMENT '项目编码',
+  `project_name` varchar(128) NOT NULL COMMENT '项目名称',
+  `manager_emp_id` bigint(20) DEFAULT NULL COMMENT '项目经理员工ID',
+  `customer_id` bigint(20) DEFAULT NULL COMMENT '关联客户ID',
+  `org_id` bigint(20) DEFAULT NULL COMMENT '归属组织ID',
+  `start_date` date DEFAULT NULL COMMENT '开始日期',
+  `end_date` date DEFAULT NULL COMMENT '结束日期',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`project_id`),
+  UNIQUE KEY `idx_mdm_project_tenant_code` (`tenant_id`, `project_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM项目主数据表';
+
+DROP TABLE IF EXISTS `mdm_settle_method`;
+CREATE TABLE `mdm_settle_method` (
+  `settle_method_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '结算方式ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `settle_code` varchar(64) NOT NULL COMMENT '结算方式编码',
+  `settle_name` varchar(128) NOT NULL COMMENT '结算方式名称',
+  `status` varchar(16) DEFAULT 'ACTIVE' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`settle_method_id`),
+  UNIQUE KEY `idx_mdm_settle_tenant_code` (`tenant_id`, `settle_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM结算方式字典';
+
+DROP TABLE IF EXISTS `mdm_tax_rate`;
+CREATE TABLE `mdm_tax_rate` (
+  `tax_rate_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '税率ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `tax_code` varchar(64) NOT NULL COMMENT '税率编码',
+  `tax_name` varchar(128) NOT NULL COMMENT '税率名称',
+  `tax_rate` decimal(8,4) NOT NULL COMMENT '税率值',
+  `effective_from` date DEFAULT NULL COMMENT '生效开始日期',
+  `effective_to` date DEFAULT NULL COMMENT '生效结束日期',
+  `status` varchar(16) DEFAULT 'ACTIVE' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`tax_rate_id`),
+  UNIQUE KEY `idx_mdm_tax_tenant_code` (`tenant_id`, `tax_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM税率字典';
+
+DROP TABLE IF EXISTS `mdm_currency`;
+CREATE TABLE `mdm_currency` (
+  `currency_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '币种ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `currency_code` varchar(64) NOT NULL COMMENT '币种编码',
+  `currency_name` varchar(128) NOT NULL COMMENT '币种名称',
+  `symbol` varchar(16) DEFAULT NULL COMMENT '货币符号',
+  `precision_scale` int(4) DEFAULT 2 COMMENT '金额精度',
+  `effective_from` date DEFAULT NULL COMMENT '生效开始日期',
+  `effective_to` date DEFAULT NULL COMMENT '生效结束日期',
+  `status` varchar(16) DEFAULT 'ACTIVE' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`currency_id`),
+  UNIQUE KEY `idx_mdm_currency_tenant_code` (`tenant_id`, `currency_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM币种字典';
+
+DROP TABLE IF EXISTS `mdm_uom`;
+CREATE TABLE `mdm_uom` (
+  `uom_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '单位ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `uom_code` varchar(64) NOT NULL COMMENT '单位编码',
+  `uom_name` varchar(128) NOT NULL COMMENT '单位名称',
+  `base_uom_code` varchar(64) DEFAULT NULL COMMENT '基准单位编码',
+  `convert_rate` decimal(18,6) DEFAULT NULL COMMENT '换算比率',
+  `status` varchar(16) DEFAULT 'ACTIVE' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`uom_id`),
+  UNIQUE KEY `idx_mdm_uom_tenant_code` (`tenant_id`, `uom_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM计量单位字典';
+
+DROP TABLE IF EXISTS `mdm_customer`;
+CREATE TABLE `mdm_customer` (
+  `customer_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '客户ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `customer_code` varchar(64) NOT NULL COMMENT '客户编码',
+  `customer_name` varchar(128) NOT NULL COMMENT '客户名称',
+  `short_name` varchar(128) DEFAULT NULL COMMENT '客户简称',
+  `customer_type` varchar(32) DEFAULT NULL COMMENT '客户类型',
+  `tax_no` varchar(64) DEFAULT NULL COMMENT '税号',
+  `invoice_title` varchar(255) DEFAULT NULL COMMENT '发票抬头',
+  `default_currency` varchar(32) DEFAULT NULL COMMENT '默认币种编码',
+  `default_tax_rate` decimal(8,4) DEFAULT NULL COMMENT '默认税率',
+  `credit_limit` decimal(18,2) DEFAULT NULL COMMENT '信用额度',
+  `credit_days` int(11) DEFAULT NULL COMMENT '信用天数',
+  `contact_name` varchar(64) DEFAULT NULL COMMENT '联系人',
+  `contact_phone` varchar(32) DEFAULT NULL COMMENT '联系人电话',
+  `contact_email` varchar(128) DEFAULT NULL COMMENT '联系人邮箱',
+  `province` varchar(64) DEFAULT NULL COMMENT '省份',
+  `city` varchar(64) DEFAULT NULL COMMENT '城市',
+  `district` varchar(64) DEFAULT NULL COMMENT '区县',
+  `detail_address` varchar(255) DEFAULT NULL COMMENT '详细地址',
+  `settle_method_id` bigint(20) DEFAULT NULL COMMENT '结算方式ID',
+  `org_id` bigint(20) DEFAULT NULL COMMENT '归属组织ID',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`customer_id`),
+  UNIQUE KEY `idx_mdm_customer_tenant_code` (`tenant_id`, `customer_code`),
+  KEY `idx_mdm_customer_tenant_status` (`tenant_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM客户主数据表';
+
+DROP TABLE IF EXISTS `mdm_supplier`;
+CREATE TABLE `mdm_supplier` (
+  `supplier_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '供应商ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `supplier_code` varchar(64) NOT NULL COMMENT '供应商编码',
+  `supplier_name` varchar(128) NOT NULL COMMENT '供应商名称',
+  `short_name` varchar(128) DEFAULT NULL COMMENT '供应商简称',
+  `supply_category` varchar(32) DEFAULT NULL COMMENT '供应类别',
+  `tax_no` varchar(64) DEFAULT NULL COMMENT '税号',
+  `default_currency` varchar(32) DEFAULT NULL COMMENT '默认币种编码',
+  `default_tax_rate` decimal(8,4) DEFAULT NULL COMMENT '默认税率',
+  `lead_time_days` int(11) DEFAULT NULL COMMENT '供货提前期天数',
+  `quality_level` varchar(32) DEFAULT NULL COMMENT '质量等级',
+  `bank_account_info` varchar(255) DEFAULT NULL COMMENT '银行账号信息',
+  `contact_name` varchar(64) DEFAULT NULL COMMENT '联系人',
+  `contact_phone` varchar(32) DEFAULT NULL COMMENT '联系人电话',
+  `contact_email` varchar(128) DEFAULT NULL COMMENT '联系人邮箱',
+  `address` varchar(255) DEFAULT NULL COMMENT '地址',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`supplier_id`),
+  UNIQUE KEY `idx_mdm_supplier_tenant_code` (`tenant_id`, `supplier_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM供应商主数据表';
+
+DROP TABLE IF EXISTS `mdm_item`;
+CREATE TABLE `mdm_item` (
+  `item_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '物料ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `item_code` varchar(64) NOT NULL COMMENT '物料编码',
+  `item_name` varchar(128) NOT NULL COMMENT '物料名称',
+  `spec_model` varchar(128) DEFAULT NULL COMMENT '规格型号',
+  `brand` varchar(128) DEFAULT NULL COMMENT '品牌',
+  `item_type` varchar(32) DEFAULT NULL COMMENT '物料类型',
+  `category_id` bigint(20) DEFAULT NULL COMMENT '物料分类ID',
+  `unit_id` bigint(20) DEFAULT NULL COMMENT '主计量单位ID',
+  `unit_convert` varchar(255) DEFAULT NULL COMMENT '辅助单位换算',
+  `tax_rate_id` bigint(20) DEFAULT NULL COMMENT '税率ID',
+  `barcode` varchar(128) DEFAULT NULL COMMENT '条码',
+  `shelf_life_days` int(11) DEFAULT NULL COMMENT '保质期天数',
+  `default_expiry_warn_days` int(11) DEFAULT NULL COMMENT '默认临期预警天数',
+  `batch_control` char(1) DEFAULT 'N' COMMENT '批次控制（Y/N）',
+  `serial_control` char(1) DEFAULT 'N' COMMENT '序列号控制（Y/N）',
+  `costing_method` varchar(32) DEFAULT NULL COMMENT '计价方式',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`item_id`),
+  UNIQUE KEY `idx_mdm_item_tenant_code` (`tenant_id`, `item_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM物料主数据表';
+
+DROP TABLE IF EXISTS `mdm_warehouse`;
+CREATE TABLE `mdm_warehouse` (
+  `warehouse_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '仓库ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `wh_code` varchar(64) NOT NULL COMMENT '仓库编码',
+  `wh_name` varchar(128) NOT NULL COMMENT '仓库名称',
+  `wh_type` varchar(32) DEFAULT NULL COMMENT '仓库类型',
+  `org_id` bigint(20) DEFAULT NULL COMMENT '归属组织ID',
+  `address` varchar(255) DEFAULT NULL COMMENT '仓库地址',
+  `manager_emp_id` bigint(20) DEFAULT NULL COMMENT '仓库负责人员工ID',
+  `allow_negative_stock` char(1) DEFAULT 'N' COMMENT '允许负库存（Y/N）',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态（DRAFT/ACTIVE/DISABLED）',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`warehouse_id`),
+  UNIQUE KEY `idx_mdm_wh_tenant_code` (`tenant_id`, `wh_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM仓库主数据表';
+
+DROP TABLE IF EXISTS `mdm_employee`;
+CREATE TABLE `mdm_employee` (
+  `employee_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '员工ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `emp_code` varchar(64) NOT NULL COMMENT '员工编码',
+  `emp_name` varchar(128) NOT NULL COMMENT '员工名称',
+  `mobile` varchar(32) DEFAULT NULL COMMENT '手机号',
+  `email` varchar(128) DEFAULT NULL COMMENT '邮箱',
+  `org_id` bigint(20) DEFAULT NULL COMMENT '组织ID',
+  `dept_id` bigint(20) DEFAULT NULL COMMENT '部门ID',
+  `position` varchar(64) DEFAULT NULL COMMENT '岗位',
+  `user_id` bigint(20) DEFAULT NULL COMMENT '账号ID',
+  `cost_center_id` bigint(20) DEFAULT NULL COMMENT '成本中心ID',
+  `status` varchar(16) DEFAULT 'ACTIVE' COMMENT '状态（ACTIVE/LEAVE）',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`employee_id`),
+  UNIQUE KEY `idx_mdm_emp_tenant_code` (`tenant_id`, `emp_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM员工主数据表';
+
+DROP TABLE IF EXISTS `mdm_change_log`;
+CREATE TABLE `mdm_change_log` (
+  `log_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '变更日志ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `domain_type` varchar(32) NOT NULL COMMENT '主数据域类型',
+  `biz_id` bigint(20) NOT NULL COMMENT '业务主键ID',
+  `change_type` varchar(32) NOT NULL COMMENT '变更类型（CREATE/UPDATE/STATUS/DELETE）',
+  `before_json` longtext COMMENT '变更前快照',
+  `after_json` longtext COMMENT '变更后快照',
+  `operator` varchar(64) DEFAULT NULL COMMENT '操作人',
+  `trace_id` varchar(64) DEFAULT NULL COMMENT '链路ID',
+  `source` varchar(64) DEFAULT NULL COMMENT '变更来源',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  PRIMARY KEY (`log_id`),
+  KEY `idx_mdm_change_tenant_domain` (`tenant_id`, `domain_type`, `biz_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM变更日志表';
+
+DROP TABLE IF EXISTS `mdm_version`;
+CREATE TABLE `mdm_version` (
+  `version_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '版本记录ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `domain_type` varchar(32) NOT NULL COMMENT '主数据域类型',
+  `biz_id` bigint(20) NOT NULL COMMENT '业务主键ID',
+  `version_no` int(11) NOT NULL COMMENT '版本号',
+  `status` varchar(16) DEFAULT NULL COMMENT '版本状态',
+  `effective_time` datetime DEFAULT NULL COMMENT '生效时间',
+  `snapshot_json` longtext COMMENT '版本快照',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  PRIMARY KEY (`version_id`),
+  UNIQUE KEY `idx_mdm_version_unique` (`tenant_id`, `domain_type`, `biz_id`, `version_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM版本快照表';
+
+-- ----------------------------
+-- 21. 初始化基础数据
 -- ----------------------------
 INSERT INTO `sys_tenant` (`id`, `tenant_id`, `name`, `contact_user`, `contact_phone`, `status`, `del_flag`, `create_by`, `create_time`, `remark`)
 VALUES (1, '000000', '默认租户', '系统管理员', '13800000000', '0', '0', 'system', NOW(), '系统初始化租户');
 
-INSERT INTO `sys_dept` (`dept_id`, `tenant_id`, `parent_id`, `ancestors`, `dept_name`, `order_num`, `leader`, `phone`, `email`, `status`, `del_flag`, `create_by`, `create_time`)
-VALUES (1, '000000', 0, '0', '总部', 1, '管理员', '13800000000', 'admin@erp.com', '0', '0', 'system', NOW());
+INSERT INTO `sys_company` (`company_id`, `tenant_id`, `company_code`, `company_name`, `parent_company_id`, `ancestors`, `leader`, `phone`, `status`, `del_flag`, `create_by`, `create_time`, `remark`)
+VALUES (1, '000000', 'HQ', '总部公司', 0, '0', '管理员', '13800000000', '0', '0', 'system', NOW(), '系统初始化公司');
+
+INSERT INTO `sys_dept` (`dept_id`, `tenant_id`, `company_id`, `parent_id`, `ancestors`, `dept_name`, `order_num`, `leader`, `phone`, `email`, `status`, `del_flag`, `create_by`, `create_time`)
+VALUES (1, '000000', 1, 0, '0', '总部', 1, '管理员', '13800000000', 'admin@erp.com', '0', '0', 'system', NOW());
+
+INSERT INTO `sys_post` (`post_id`, `tenant_id`, `post_code`, `post_name`, `post_sort`, `status`, `create_by`, `create_time`, `remark`)
+VALUES (1, '000000', 'CEO', '系统管理员岗位', 1, '0', 'system', NOW(), '系统初始化岗位');
 
 INSERT INTO `sys_role` (`role_id`, `tenant_id`, `role_name`, `role_key`, `role_sort`, `data_scope`, `status`, `del_flag`, `create_by`, `create_time`, `remark`)
 VALUES (1, '000000', '超级管理员', 'admin', 1, '1', '0', '0', 'system', NOW(), '系统初始化角色');
 
-INSERT INTO `sys_user` (`user_id`, `tenant_id`, `dept_id`, `user_name`, `nick_name`, `user_type`, `email`, `phonenumber`, `sex`, `avatar`, `password`, `status`, `del_flag`, `create_by`, `create_time`, `remark`)
-VALUES (1, '000000', 1, 'admin', '系统管理员', '00', 'admin@erp.com', '13800000000', '0', '', '$2a$10$/V6UcHU5GP.R6V9B9Iqage9GwBCI42PgHvBVfkozG3AMn9V5eUcpW', '0', '0', 'system', NOW(), '默认管理员账号（密码：admin123）');
+INSERT INTO `sys_user` (`user_id`, `tenant_id`, `dept_id`, `user_name`, `nick_name`, `user_type`, `email`, `phonenumber`, `sex`, `avatar`, `password`, `token_version`, `status`, `del_flag`, `create_by`, `create_time`, `remark`)
+VALUES (1, '000000', 1, 'admin', '系统管理员', '00', 'admin@erp.com', '13800000000', '0', '', '$2a$10$/V6UcHU5GP.R6V9B9Iqage9GwBCI42PgHvBVfkozG3AMn9V5eUcpW', 0, '0', '0', 'system', NOW(), '默认管理员账号（密码：admin123）');
 
 INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
 VALUES
@@ -227,11 +768,1000 @@ VALUES
   (6, '菜单管理', 2, 4, '/system/menu', '/views/system/menu/index', 1, 'C', '0', '0', 'system:menu:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (7, '部门管理', 2, 5, '/system/dept', '/views/system/dept/index', 1, 'C', '0', '0', 'system:dept:list', NULL, 'system', NOW(), '系统初始化菜单'),
   (8, '字典管理', 2, 6, '/system/dict', '/views/system/dict/index', 1, 'C', '0', '0', 'system:dict:list', NULL, 'system', NOW(), '系统初始化菜单'),
-  (9, '参数管理', 2, 7, '/system/config', '/views/system/config/index', 1, 'C', '0', '0', 'system:config:list', NULL, 'system', NOW(), '系统初始化菜单');
+  (9, '参数管理', 2, 7, '/system/config', '/views/system/config/index', 1, 'C', '0', '0', 'system:config:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (10, '公司管理', 2, 8, '/system/company', '/views/system/company/index', 1, 'C', '0', '0', 'system:company:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (11, '岗位管理', 2, 9, '/system/post', '/views/system/post/index', 1, 'C', '0', '0', 'system:post:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (12, '通知管理', 2, 10, '/system/notice-manage', '/views/system/notice/index', 1, 'C', '0', '0', 'system:notice:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (13, '审计日志', 2, 11, '/system/audit-log', '/views/platform/audit-log/index', 1, 'C', '0', '0', 'system:audit:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (14, '操作日志', 2, 12, '/system/oper-log', '/views/system/oper-log/index', 1, 'C', '0', '0', 'system:oper:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (20, '登录日志', 2, 13, '/system/login-log', '/views/system/login-log/index', 1, 'C', '0', '0', 'system:loginLog:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (21, '区域主数据', 2, 14, '/system/region', '/views/system/region/index', 1, 'C', '0', '0', 'system:region:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (23, '主数据管理', 0, 4, '/master-data', NULL, 1, 'M', '0', '0', NULL, 'Collection', 'system', NOW(), '系统初始化目录'),
+  (24, '客户主数据', 23, 1, '/system/mdm/customer', '/views/system/mdm/customer/index', 1, 'C', '0', '0', 'system:mdm:customer:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (25, '供应商主数据', 23, 2, '/system/mdm/supplier', '/views/system/mdm/supplier/index', 1, 'C', '0', '0', 'system:mdm:supplier:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (26, '物料主数据', 23, 3, '/system/mdm/item', '/views/system/mdm/item/index', 1, 'C', '0', '0', 'system:mdm:item:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (27, '仓库主数据', 23, 4, '/system/mdm/warehouse', '/views/system/mdm/warehouse/index', 1, 'C', '0', '0', 'system:mdm:warehouse:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (28, '员工主数据', 23, 5, '/system/mdm/employee', '/views/system/mdm/employee/index', 1, 'C', '0', '0', 'system:mdm:employee:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (29, '组织成本项目', 23, 6, '/system/mdm/dimension', '/views/system/mdm/dimension/index', 1, 'C', '0', '0', 'system:mdm:org:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (30, '基础字典', 23, 7, '/system/mdm/dict', '/views/system/mdm/dict/index', 1, 'C', '0', '0', 'system:mdm:dict:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (31, '变更追踪', 23, 8, '/system/mdm/trace', '/views/system/mdm/trace/index', 1, 'C', '0', '0', 'system:mdm:trace:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (15, '平台底座', 0, 3, '/platform', NULL, 1, 'M', '0', '0', NULL, NULL, 'system', NOW(), '系统初始化目录'),
+  (16, '组织架构增强', 15, 1, '/platform/org', '/views/platform/org/index', 1, 'C', '0', '0', 'system:org:view', NULL, 'system', NOW(), '系统初始化菜单'),
+  (17, '数据权限', 15, 2, '/system/data-permission', '/views/platform/data-scope/index', 1, 'C', '0', '0', 'system:dataScope:view', NULL, 'system', NOW(), '系统初始化菜单'),
+  (19, '编码规则', 15, 3, '/system/code-rule', '/views/platform/code-rule/index', 1, 'C', '0', '0', 'system:codeRule:list', NULL, 'system', NOW(), '系统初始化菜单'),
+  (32, '工作台', 0, 5, '/workbench', NULL, 1, 'M', '0', '0', NULL, NULL, 'system', NOW(), '系统初始化目录'),
+  (34, '系统消息', 32, 1, '/workbench/system-notice', '/views/system/notice/index', 1, 'C', '0', '0', 'system:message:list', NULL, 'system', NOW(), '系统初始化菜单');
 
-INSERT INTO `sys_user_role` (`user_id`, `role_id`) VALUES (1, 1);
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT button_perm.menu_name,
+       parent_menu.menu_id,
+       button_perm.order_num,
+       '',
+       NULL,
+       1,
+       'F',
+       '1',
+       '0',
+       button_perm.perms,
+       NULL,
+       'system',
+       NOW(),
+       '系统初始化按钮权限'
+FROM (
+  SELECT '/system/tenant' AS parent_path, '租户查询' AS menu_name, 1 AS order_num, 'system:tenant:query' AS perms
+  UNION ALL SELECT '/system/tenant', '租户新增', 2, 'system:tenant:add'
+  UNION ALL SELECT '/system/tenant', '租户修改', 3, 'system:tenant:edit'
+  UNION ALL SELECT '/system/tenant', '租户删除', 4, 'system:tenant:remove'
+  UNION ALL SELECT '/system/user', '用户查询', 1, 'system:user:query'
+  UNION ALL SELECT '/system/user', '用户新增', 2, 'system:user:add'
+  UNION ALL SELECT '/system/user', '用户修改', 3, 'system:user:edit'
+  UNION ALL SELECT '/system/user', '用户删除', 4, 'system:user:remove'
+  UNION ALL SELECT '/system/role', '角色查询', 1, 'system:role:query'
+  UNION ALL SELECT '/system/role', '角色新增', 2, 'system:role:add'
+  UNION ALL SELECT '/system/role', '角色修改', 3, 'system:role:edit'
+  UNION ALL SELECT '/system/role', '角色删除', 4, 'system:role:remove'
+  UNION ALL SELECT '/system/menu', '菜单查询', 1, 'system:menu:query'
+  UNION ALL SELECT '/system/menu', '菜单新增', 2, 'system:menu:add'
+  UNION ALL SELECT '/system/menu', '菜单修改', 3, 'system:menu:edit'
+  UNION ALL SELECT '/system/menu', '菜单删除', 4, 'system:menu:remove'
+  UNION ALL SELECT '/system/dept', '部门查询', 1, 'system:dept:query'
+  UNION ALL SELECT '/system/dept', '部门新增', 2, 'system:dept:add'
+  UNION ALL SELECT '/system/dept', '部门修改', 3, 'system:dept:edit'
+  UNION ALL SELECT '/system/dept', '部门删除', 4, 'system:dept:remove'
+  UNION ALL SELECT '/system/dict', '字典查询', 1, 'system:dict:query'
+  UNION ALL SELECT '/system/dict', '字典新增', 2, 'system:dict:add'
+  UNION ALL SELECT '/system/dict', '字典修改', 3, 'system:dict:edit'
+  UNION ALL SELECT '/system/dict', '字典删除', 4, 'system:dict:remove'
+  UNION ALL SELECT '/system/config', '参数查询', 1, 'system:config:query'
+  UNION ALL SELECT '/system/config', '参数新增', 2, 'system:config:add'
+  UNION ALL SELECT '/system/config', '参数修改', 3, 'system:config:edit'
+  UNION ALL SELECT '/system/config', '参数删除', 4, 'system:config:remove'
+  UNION ALL SELECT '/system/company', '公司查询', 1, 'system:company:query'
+  UNION ALL SELECT '/system/company', '公司新增', 2, 'system:company:add'
+  UNION ALL SELECT '/system/company', '公司修改', 3, 'system:company:edit'
+  UNION ALL SELECT '/system/company', '公司删除', 4, 'system:company:remove'
+  UNION ALL SELECT '/system/post', '岗位查询', 1, 'system:post:query'
+  UNION ALL SELECT '/system/post', '岗位新增', 2, 'system:post:add'
+  UNION ALL SELECT '/system/post', '岗位修改', 3, 'system:post:edit'
+  UNION ALL SELECT '/system/post', '岗位删除', 4, 'system:post:remove'
+  UNION ALL SELECT '/system/notice-manage', '通知查询', 1, 'system:notice:query'
+  UNION ALL SELECT '/system/notice-manage', '通知新增', 2, 'system:notice:add'
+  UNION ALL SELECT '/system/notice-manage', '通知修改', 3, 'system:notice:edit'
+  UNION ALL SELECT '/system/notice-manage', '通知删除', 4, 'system:notice:remove'
+  UNION ALL SELECT '/system/audit-log', '审计详情', 1, 'system:audit:query'
+  UNION ALL SELECT '/system/audit-log', '审计删除', 2, 'system:audit:remove'
+  UNION ALL SELECT '/system/oper-log', '操作日志详情', 1, 'system:oper:query'
+  UNION ALL SELECT '/system/oper-log', '操作日志删除', 2, 'system:oper:remove'
+  UNION ALL SELECT '/system/login-log', '登录日志删除', 1, 'system:loginLog:remove'
+  UNION ALL SELECT '/system/region', '区域查询', 1, 'system:region:query'
+  UNION ALL SELECT '/system/region', '区域新增', 2, 'system:region:add'
+  UNION ALL SELECT '/system/region', '区域修改', 3, 'system:region:edit'
+  UNION ALL SELECT '/system/region', '区域删除', 4, 'system:region:remove'
+  UNION ALL SELECT '/system/mdm/customer', '客户查询', 1, 'system:mdm:customer:query'
+  UNION ALL SELECT '/system/mdm/customer', '客户新增', 2, 'system:mdm:customer:add'
+  UNION ALL SELECT '/system/mdm/customer', '客户修改', 3, 'system:mdm:customer:edit'
+  UNION ALL SELECT '/system/mdm/customer', '客户停用', 4, 'system:mdm:customer:disable'
+  UNION ALL SELECT '/system/mdm/customer', '客户删除', 5, 'system:mdm:customer:remove'
+  UNION ALL SELECT '/system/mdm/supplier', '供应商查询', 1, 'system:mdm:supplier:query'
+  UNION ALL SELECT '/system/mdm/supplier', '供应商新增', 2, 'system:mdm:supplier:add'
+  UNION ALL SELECT '/system/mdm/supplier', '供应商修改', 3, 'system:mdm:supplier:edit'
+  UNION ALL SELECT '/system/mdm/supplier', '供应商停用', 4, 'system:mdm:supplier:disable'
+  UNION ALL SELECT '/system/mdm/supplier', '供应商删除', 5, 'system:mdm:supplier:remove'
+  UNION ALL SELECT '/system/mdm/item', '物料查询', 1, 'system:mdm:item:query'
+  UNION ALL SELECT '/system/mdm/item', '物料新增', 2, 'system:mdm:item:add'
+  UNION ALL SELECT '/system/mdm/item', '物料修改', 3, 'system:mdm:item:edit'
+  UNION ALL SELECT '/system/mdm/item', '物料停用', 4, 'system:mdm:item:disable'
+  UNION ALL SELECT '/system/mdm/item', '物料删除', 5, 'system:mdm:item:remove'
+  UNION ALL SELECT '/system/mdm/warehouse', '仓库查询', 1, 'system:mdm:warehouse:query'
+  UNION ALL SELECT '/system/mdm/warehouse', '仓库新增', 2, 'system:mdm:warehouse:add'
+  UNION ALL SELECT '/system/mdm/warehouse', '仓库修改', 3, 'system:mdm:warehouse:edit'
+  UNION ALL SELECT '/system/mdm/warehouse', '仓库停用', 4, 'system:mdm:warehouse:disable'
+  UNION ALL SELECT '/system/mdm/warehouse', '仓库删除', 5, 'system:mdm:warehouse:remove'
+  UNION ALL SELECT '/system/mdm/employee', '员工查询', 1, 'system:mdm:employee:query'
+  UNION ALL SELECT '/system/mdm/employee', '员工新增', 2, 'system:mdm:employee:add'
+  UNION ALL SELECT '/system/mdm/employee', '员工修改', 3, 'system:mdm:employee:edit'
+  UNION ALL SELECT '/system/mdm/employee', '员工离职', 4, 'system:mdm:employee:leave'
+  UNION ALL SELECT '/system/mdm/employee', '员工删除', 5, 'system:mdm:employee:remove'
+  UNION ALL SELECT '/system/mdm/dimension', '组织查询', 1, 'system:mdm:org:query'
+  UNION ALL SELECT '/system/mdm/dimension', '组织新增', 2, 'system:mdm:org:add'
+  UNION ALL SELECT '/system/mdm/dimension', '组织修改', 3, 'system:mdm:org:edit'
+  UNION ALL SELECT '/system/mdm/dimension', '组织停用', 4, 'system:mdm:org:disable'
+  UNION ALL SELECT '/system/mdm/dimension', '组织删除', 5, 'system:mdm:org:remove'
+  UNION ALL SELECT '/system/mdm/dimension', '成本中心查询', 6, 'system:mdm:cc:query'
+  UNION ALL SELECT '/system/mdm/dimension', '成本中心新增', 7, 'system:mdm:cc:add'
+  UNION ALL SELECT '/system/mdm/dimension', '成本中心修改', 8, 'system:mdm:cc:edit'
+  UNION ALL SELECT '/system/mdm/dimension', '成本中心停用', 9, 'system:mdm:cc:disable'
+  UNION ALL SELECT '/system/mdm/dimension', '成本中心删除', 10, 'system:mdm:cc:remove'
+  UNION ALL SELECT '/system/mdm/dimension', '项目查询', 11, 'system:mdm:project:query'
+  UNION ALL SELECT '/system/mdm/dimension', '项目新增', 12, 'system:mdm:project:add'
+  UNION ALL SELECT '/system/mdm/dimension', '项目修改', 13, 'system:mdm:project:edit'
+  UNION ALL SELECT '/system/mdm/dimension', '项目停用', 14, 'system:mdm:project:disable'
+  UNION ALL SELECT '/system/mdm/dimension', '项目删除', 15, 'system:mdm:project:remove'
+  UNION ALL SELECT '/system/mdm/dict', '字典项查询', 1, 'system:mdm:dict:query'
+  UNION ALL SELECT '/system/mdm/dict', '字典项新增', 2, 'system:mdm:dict:add'
+  UNION ALL SELECT '/system/mdm/dict', '字典项修改', 3, 'system:mdm:dict:edit'
+  UNION ALL SELECT '/system/mdm/dict', '字典项停用', 4, 'system:mdm:dict:disable'
+  UNION ALL SELECT '/system/mdm/dict', '字典项删除', 5, 'system:mdm:dict:remove'
+  UNION ALL SELECT '/system/mdm/trace', '追踪查询', 1, 'system:mdm:trace:query'
+  UNION ALL SELECT '/workbench/system-notice', '消息已读', 1, 'system:message:read'
+) button_perm
+INNER JOIN `sys_menu` parent_menu ON parent_menu.path = button_perm.parent_path;
 
-INSERT INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
-  (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9);
+INSERT INTO `sys_user_role` (`tenant_id`, `user_id`, `role_id`) VALUES ('000000', 1, 1);
+INSERT INTO `sys_user_post` (`tenant_id`, `user_id`, `post_id`) VALUES ('000000', 1, 1);
+
+INSERT INTO `sys_role_menu` (`tenant_id`, `role_id`, `menu_id`)
+SELECT '000000', 1, menu_id
+FROM sys_menu;
+
+INSERT INTO `sys_dict_type` (`dict_id`, `dict_name`, `dict_type`, `status`, `create_by`, `create_time`, `remark`) VALUES
+  (1, '系统开关', 'sys_normal_disable', '0', 'system', NOW(), '系统初始化字典类型'),
+  (2, '用户性别', 'sys_user_sex', '0', 'system', NOW(), '系统初始化字典类型');
+
+INSERT INTO `sys_dict_data` (`dict_code`, `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `is_default`, `status`, `create_by`, `create_time`, `remark`) VALUES
+  (1, 1, '正常', '0', 'sys_normal_disable', 'Y', '0', 'system', NOW(), '系统初始化字典数据'),
+  (2, 2, '停用', '1', 'sys_normal_disable', 'N', '0', 'system', NOW(), '系统初始化字典数据'),
+  (3, 1, '男', '0', 'sys_user_sex', 'Y', '0', 'system', NOW(), '系统初始化字典数据'),
+  (4, 2, '女', '1', 'sys_user_sex', 'N', '0', 'system', NOW(), '系统初始化字典数据'),
+  (5, 3, '未知', '2', 'sys_user_sex', 'N', '0', 'system', NOW(), '系统初始化字典数据');
+
+INSERT INTO `sys_region` (`region_id`, `tenant_id`, `region_code`, `region_name`, `parent_id`, `ancestors`, `region_level`, `order_num`, `status`, `create_time`)
+VALUES
+  (1, '000000', 'CN', '中国', 0, '0', 1, 1, '0', NOW()),
+  (2, '000000', 'CN-BJ', '北京市', 1, '0,1', 2, 1, '0', NOW()),
+  (3, '000000', 'CN-SH', '上海市', 1, '0,1', 2, 2, '0', NOW());
+
+INSERT INTO `sys_code_rule` (`rule_id`, `tenant_id`, `rule_code`, `rule_name`, `prefix`, `date_pattern`, `seq_length`, `current_seq`, `status`, `create_time`)
+VALUES
+  (1, '000000', 'ORG_DEPT', '部门编码', 'DP', 'yyyyMMdd', 4, 12, '0', NOW()),
+  (2, '000000', 'WF_BIZ', '流程业务单号', 'WF', 'yyyyMMdd', 5, 25, '0', NOW()),
+  (3, '000000', 'ATTACH', '附件编码', 'AT', 'yyyyMM', 4, 16, '0', NOW());
+
+INSERT INTO `mdm_settle_method` (`settle_method_id`, `tenant_id`, `settle_code`, `settle_name`, `status`, `create_by`, `create_time`)
+VALUES
+  (1, '000000', 'CASH', '现金', 'ACTIVE', 'system', NOW()),
+  (2, '000000', 'BANK', '转账', 'ACTIVE', 'system', NOW()),
+  (3, '000000', 'MONTHLY', '月结', 'ACTIVE', 'system', NOW()),
+  (4, '000000', 'NOTE', '票据', 'ACTIVE', 'system', NOW());
+
+INSERT INTO `mdm_tax_rate` (`tax_rate_id`, `tenant_id`, `tax_code`, `tax_name`, `tax_rate`, `status`, `create_by`, `create_time`)
+VALUES
+  (1, '000000', 'TAX_0', '税率0%', 0.0000, 'ACTIVE', 'system', NOW()),
+  (2, '000000', 'TAX_1', '税率1%', 0.0100, 'ACTIVE', 'system', NOW()),
+  (3, '000000', 'TAX_3', '税率3%', 0.0300, 'ACTIVE', 'system', NOW()),
+  (4, '000000', 'TAX_6', '税率6%', 0.0600, 'ACTIVE', 'system', NOW()),
+  (5, '000000', 'TAX_9', '税率9%', 0.0900, 'ACTIVE', 'system', NOW()),
+  (6, '000000', 'TAX_13', '税率13%', 0.1300, 'ACTIVE', 'system', NOW());
+
+INSERT INTO `mdm_currency` (`currency_id`, `tenant_id`, `currency_code`, `currency_name`, `symbol`, `precision_scale`, `status`, `create_by`, `create_time`)
+VALUES
+  (1, '000000', 'CNY', '人民币', '￥', 2, 'ACTIVE', 'system', NOW()),
+  (2, '000000', 'USD', '美元', '$', 2, 'ACTIVE', 'system', NOW()),
+  (3, '000000', 'EUR', '欧元', '€', 2, 'ACTIVE', 'system', NOW());
+
+INSERT INTO `mdm_uom` (`uom_id`, `tenant_id`, `uom_code`, `uom_name`, `status`, `create_by`, `create_time`)
+VALUES
+  (1, '000000', 'PCS', '件', 'ACTIVE', 'system', NOW()),
+  (2, '000000', 'BOX', '箱', 'ACTIVE', 'system', NOW()),
+  (3, '000000', 'KG', '千克', 'ACTIVE', 'system', NOW()),
+  (4, '000000', 'M', '米', 'ACTIVE', 'system', NOW());
+
+INSERT INTO `sys_notice` (`notice_id`, `tenant_id`, `title`, `notice_type`, `source`, `business_no`, `content`, `receiver_user_id`, `status`, `create_time`)
+VALUES
+  (1, '000000', '流程引擎已发布新版本，请核查审批节点配置', '系统公告', '流程引擎', NULL, '流程引擎发布 v2.0.1，请检查关键审批流配置。', 1, '0', NOW()),
+  (2, '000000', '导入任务 IM20260307-01 执行完成', '审批通知', '导入导出中心', 'IM20260307-01', '导入任务执行完成，请查看结果。', 1, '1', NOW()),
+  (3, '000000', '报表中心出现数据延迟预警', '预警提醒', '报表中心', NULL, '近30分钟内报表数据刷新延迟超过阈值。', 1, '0', NOW());
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `accounting_org_id` bigint(20) DEFAULT NULL COMMENT ''账务归属组织ID'' AFTER `org_id`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'accounting_org_id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `volume_capacity` decimal(18,4) DEFAULT NULL COMMENT ''容量体积'' AFTER `allow_negative_stock`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'volume_capacity'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `weight_capacity` decimal(18,4) DEFAULT NULL COMMENT ''容量重量'' AFTER `volume_capacity`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'weight_capacity'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `temperature_zone` varchar(32) DEFAULT NULL COMMENT ''温层'' AFTER `weight_capacity`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'temperature_zone'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `hazardous_flag` char(1) DEFAULT ''N'' COMMENT ''危险品标识（Y/N）'' AFTER `temperature_zone`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'hazardous_flag'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+    SELECT IF(COUNT(*) = 0,
+              'ALTER TABLE `mdm_warehouse` ADD COLUMN `location_code_prefix` varchar(32) DEFAULT NULL COMMENT ''库位编码前缀'' AFTER `hazardous_flag`',
+              'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mdm_warehouse'
+      AND COLUMN_NAME = 'location_code_prefix'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+CREATE TABLE IF NOT EXISTS `mdm_warehouse_area` (
+  `area_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '库区ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `area_code` varchar(64) NOT NULL COMMENT '库区编码',
+  `area_name` varchar(128) NOT NULL COMMENT '库区名称',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`area_id`),
+  UNIQUE KEY `idx_mdm_wh_area_unique` (`tenant_id`, `warehouse_id`, `area_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM仓库库区表';
+
+CREATE TABLE IF NOT EXISTS `mdm_warehouse_location` (
+  `location_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '库位ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `warehouse_id` bigint(20) NOT NULL COMMENT '仓库ID',
+  `area_id` bigint(20) NOT NULL COMMENT '库区ID',
+  `location_code` varchar(64) NOT NULL COMMENT '库位编码',
+  `location_name` varchar(128) NOT NULL COMMENT '库位名称',
+  `volume_capacity` decimal(18,4) DEFAULT NULL COMMENT '容量体积',
+  `weight_capacity` decimal(18,4) DEFAULT NULL COMMENT '容量重量',
+  `temperature_zone` varchar(32) DEFAULT NULL COMMENT '温层',
+  `hazardous_flag` char(1) DEFAULT 'N' COMMENT '危险品标识（Y/N）',
+  `status` varchar(16) DEFAULT 'DRAFT' COMMENT '状态',
+  `version_no` int(11) DEFAULT 1 COMMENT '版本号',
+  `del_flag` char(1) DEFAULT '0' COMMENT '删除标志',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`location_id`),
+  UNIQUE KEY `idx_mdm_wh_location_unique` (`tenant_id`, `warehouse_id`, `location_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MDM仓库库位表';
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '库区主数据', 23, 5, '/system/mdm/warehouse-area', '/views/system/mdm/warehouse-area/index', 1, 'C', '0', '0', 'system:mdm:warehouse-area:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/system/mdm/warehouse-area');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '库位主数据', 23, 6, '/system/mdm/warehouse-location', '/views/system/mdm/warehouse-location/index', 1, 'C', '0', '0', 'system:mdm:warehouse-location:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/system/mdm/warehouse-location');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '库存与仓储', 0, 5, '/inventory-manage', NULL, 1, 'M', '0', '0', NULL, 'Box', 'system', NOW(), '系统初始化目录'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/inventory-manage');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '库存台账', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 1, '/business/inventory/ledger', '/views/inventory/ledger/index', 1, 'C', '0', '0', 'business:inventory:ledger:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/ledger');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '入库管理', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 2, '/business/inventory/inbound', '/views/inventory/inbound/index', 1, 'C', '0', '0', 'business:inventory:inbound:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/inbound');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '出库管理', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 3, '/business/inventory/outbound', '/views/inventory/outbound/index', 1, 'C', '0', '0', 'business:inventory:outbound:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/outbound');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT button_def.menu_name, parent_menu.menu_id, button_def.order_num, button_def.path, NULL, 1, 'F', '0', '0', button_def.perms, NULL, 'system', NOW(), '系统初始化按钮权限'
+FROM (
+  SELECT '/system/mdm/warehouse-area' AS path, '库区查询' AS menu_name, 1 AS order_num, 'system:mdm:warehouse-area:query' AS perms
+  UNION ALL SELECT '/system/mdm/warehouse-area', '库区新增', 2, 'system:mdm:warehouse-area:add'
+  UNION ALL SELECT '/system/mdm/warehouse-area', '库区修改', 3, 'system:mdm:warehouse-area:edit'
+  UNION ALL SELECT '/system/mdm/warehouse-area', '库区停用', 4, 'system:mdm:warehouse-area:disable'
+  UNION ALL SELECT '/system/mdm/warehouse-area', '库区删除', 5, 'system:mdm:warehouse-area:remove'
+  UNION ALL SELECT '/system/mdm/warehouse-location', '库位查询', 1, 'system:mdm:warehouse-location:query'
+  UNION ALL SELECT '/system/mdm/warehouse-location', '库位新增', 2, 'system:mdm:warehouse-location:add'
+  UNION ALL SELECT '/system/mdm/warehouse-location', '库位修改', 3, 'system:mdm:warehouse-location:edit'
+  UNION ALL SELECT '/system/mdm/warehouse-location', '库位停用', 4, 'system:mdm:warehouse-location:disable'
+  UNION ALL SELECT '/system/mdm/warehouse-location', '库位删除', 5, 'system:mdm:warehouse-location:remove'
+  UNION ALL SELECT '/business/inventory/inbound', '入库查询', 1, 'business:inventory:inbound:query'
+  UNION ALL SELECT '/business/inventory/inbound', '入库新增', 2, 'business:inventory:inbound:add'
+  UNION ALL SELECT '/business/inventory/inbound', '入库修改', 3, 'business:inventory:inbound:edit'
+  UNION ALL SELECT '/business/inventory/inbound', '入库提交', 4, 'business:inventory:inbound:submit'
+  UNION ALL SELECT '/business/inventory/inbound', '入库执行', 5, 'business:inventory:inbound:execute'
+  UNION ALL SELECT '/business/inventory/inbound', '入库取消', 6, 'business:inventory:inbound:cancel'
+  UNION ALL SELECT '/business/inventory/outbound', '出库查询', 1, 'business:inventory:outbound:query'
+  UNION ALL SELECT '/business/inventory/outbound', '出库新增', 2, 'business:inventory:outbound:add'
+  UNION ALL SELECT '/business/inventory/outbound', '出库修改', 3, 'business:inventory:outbound:edit'
+  UNION ALL SELECT '/business/inventory/outbound', '出库提交', 4, 'business:inventory:outbound:submit'
+  UNION ALL SELECT '/business/inventory/outbound', '出库执行', 5, 'business:inventory:outbound:execute'
+  UNION ALL SELECT '/business/inventory/outbound', '出库取消', 6, 'business:inventory:outbound:cancel'
+) button_def
+INNER JOIN `sys_menu` parent_menu ON parent_menu.path = button_def.path
+WHERE NOT EXISTS (
+  SELECT 1 FROM `sys_menu` existed_menu
+  WHERE existed_menu.path = button_def.path
+    AND existed_menu.perms = button_def.perms
+);
+
+-- ----------------------------
+-- 库存业务表（inv_*）不在此声明
+-- 服务边界：inv_* 由 erp-business 独占，建表脚本见
+--   erp-modules/erp-business/src/main/resources/sql/init_business.sql
+-- 此处仅保留库存相关的菜单与权限种子数据（sys_menu 归 erp-system 所有）。
+-- ----------------------------
+
+CREATE TABLE IF NOT EXISTS `sys_imex_job` (
+  `job_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '任务ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `job_no` varchar(64) NOT NULL COMMENT '任务编号',
+  `job_type` varchar(32) NOT NULL COMMENT '任务类型',
+  `module_code` varchar(64) NOT NULL COMMENT '模块编码',
+  `file_name` varchar(255) DEFAULT NULL COMMENT '文件名',
+  `file_path` varchar(500) DEFAULT NULL COMMENT '文件路径',
+  `status` varchar(32) NOT NULL COMMENT '任务状态',
+  `progress` int(11) NOT NULL DEFAULT 0 COMMENT '进度',
+  `trigger_type` varchar(32) DEFAULT NULL COMMENT '触发方式',
+  `message` varchar(1000) DEFAULT NULL COMMENT '处理消息',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`job_id`),
+  UNIQUE KEY `uk_sys_imex_job_no` (`tenant_id`,`job_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='导入导出任务表';
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '调拨管理', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 4, '/business/inventory/transfer', '/views/inventory/transfer/index', 1, 'C', '0', '0', 'business:inventory:transfer:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/transfer');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '移库管理', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 5, '/business/inventory/move', '/views/inventory/move/index', 1, 'C', '0', '0', 'business:inventory:move:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/move');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '冻结解冻', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 6, '/business/inventory/freeze', '/views/inventory/freeze/index', 1, 'C', '0', '0', 'business:inventory:freeze:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/freeze');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '库存调整', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 7, '/business/inventory/adjust', '/views/inventory/adjust/index', 1, 'C', '0', '0', 'business:inventory:adjust:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/adjust');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '盘点管理', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 8, '/business/inventory/stocktake', '/views/inventory/stocktake/index', 1, 'C', '0', '0', 'business:inventory:stocktake:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/stocktake');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '批次查询', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 9, '/business/inventory/batch', '/views/inventory/batch/index', 1, 'C', '0', '0', 'business:inventory:batch:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/batch');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '序列号查询', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 10, '/business/inventory/serial', '/views/inventory/serial/index', 1, 'C', '0', '0', 'business:inventory:serial:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/serial');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '库存策略', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 11, '/business/inventory/policy', '/views/inventory/policy/index', 1, 'C', '0', '0', 'business:inventory:policy:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/policy');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '预警中心', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 12, '/business/inventory/warning', '/views/inventory/warning/index', 1, 'C', '0', '0', 'business:inventory:warning:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/warning');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '库存报表', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 13, '/business/inventory/report', '/views/inventory/report/index', 1, 'C', '0', '0', 'business:inventory:report:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/report');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '集成事件', (SELECT menu_id FROM `sys_menu` WHERE `path` = '/inventory-manage' LIMIT 1), 14, '/business/inventory/integration', '/views/inventory/integration/index', 1, 'C', '0', '0', 'business:inventory:integration:list', NULL, 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/business/inventory/integration');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT '导入导出中心', 0, 6, '/platform/imex', '/views/platform/imex/index', 1, 'C', '0', '0', 'system:imex:list', 'UploadFilled', 'system', NOW(), '系统初始化菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/platform/imex');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT button_def.menu_name, parent_menu.menu_id, button_def.order_num, button_def.path, NULL, 1, 'F', '0', '0', button_def.perms, NULL, 'system', NOW(), '系统初始化按钮权限'
+FROM (
+  SELECT '/business/inventory/transfer' AS path, '调拨查询' AS menu_name, 1 AS order_num, 'business:inventory:transfer:query' AS perms
+  UNION ALL SELECT '/business/inventory/transfer', '调拨新增', 2, 'business:inventory:transfer:add'
+  UNION ALL SELECT '/business/inventory/transfer', '调拨修改', 3, 'business:inventory:transfer:edit'
+  UNION ALL SELECT '/business/inventory/transfer', '调拨提交', 4, 'business:inventory:transfer:submit'
+  UNION ALL SELECT '/business/inventory/transfer', '调拨执行', 5, 'business:inventory:transfer:execute'
+  UNION ALL SELECT '/business/inventory/transfer', '调拨取消', 6, 'business:inventory:transfer:cancel'
+  UNION ALL SELECT '/business/inventory/move', '移库查询', 1, 'business:inventory:move:query'
+  UNION ALL SELECT '/business/inventory/move', '移库新增', 2, 'business:inventory:move:add'
+  UNION ALL SELECT '/business/inventory/move', '移库修改', 3, 'business:inventory:move:edit'
+  UNION ALL SELECT '/business/inventory/move', '移库提交', 4, 'business:inventory:move:submit'
+  UNION ALL SELECT '/business/inventory/move', '移库执行', 5, 'business:inventory:move:execute'
+  UNION ALL SELECT '/business/inventory/move', '移库取消', 6, 'business:inventory:move:cancel'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻查询', 1, 'business:inventory:freeze:query'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻新增', 2, 'business:inventory:freeze:add'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻修改', 3, 'business:inventory:freeze:edit'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻提交', 4, 'business:inventory:freeze:submit'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻执行', 5, 'business:inventory:freeze:execute'
+  UNION ALL SELECT '/business/inventory/freeze', '冻结解冻取消', 6, 'business:inventory:freeze:cancel'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整查询', 1, 'business:inventory:adjust:query'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整新增', 2, 'business:inventory:adjust:add'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整修改', 3, 'business:inventory:adjust:edit'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整提交', 4, 'business:inventory:adjust:submit'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整执行', 5, 'business:inventory:adjust:execute'
+  UNION ALL SELECT '/business/inventory/adjust', '库存调整取消', 6, 'business:inventory:adjust:cancel'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点查询', 1, 'business:inventory:stocktake:query'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点新增', 2, 'business:inventory:stocktake:add'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点修改', 3, 'business:inventory:stocktake:edit'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点提交', 4, 'business:inventory:stocktake:submit'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点确认', 5, 'business:inventory:stocktake:execute'
+  UNION ALL SELECT '/business/inventory/stocktake', '盘点取消', 6, 'business:inventory:stocktake:cancel'
+  UNION ALL SELECT '/business/inventory/policy', '库存策略查询', 1, 'business:inventory:policy:query'
+  UNION ALL SELECT '/business/inventory/policy', '库存策略新增', 2, 'business:inventory:policy:add'
+  UNION ALL SELECT '/business/inventory/policy', '库存策略修改', 3, 'business:inventory:policy:edit'
+  UNION ALL SELECT '/business/inventory/policy', '库存策略删除', 4, 'business:inventory:policy:remove'
+  UNION ALL SELECT '/business/inventory/warning', '预警处理', 1, 'business:inventory:warning:handle'
+  UNION ALL SELECT '/business/inventory/warning', '预警扫描', 2, 'business:inventory:warning:scan'
+  UNION ALL SELECT '/business/inventory/report', '报表导出', 1, 'business:inventory:report:export'
+  UNION ALL SELECT '/business/inventory/integration', '事件重放', 1, 'business:inventory:integration:replay'
+  UNION ALL SELECT '/platform/imex', '导入导出查询', 1, 'system:imex:query'
+  UNION ALL SELECT '/platform/imex', '导出文件下载', 2, 'system:imex:download'
+) button_def
+INNER JOIN `sys_menu` parent_menu ON parent_menu.path = button_def.path
+WHERE NOT EXISTS (
+  SELECT 1 FROM `sys_menu` existed_menu
+  WHERE existed_menu.path = button_def.path
+    AND existed_menu.perms = button_def.perms
+);
+
+INSERT INTO `sys_role_menu` (`tenant_id`, `role_id`, `menu_id`)
+SELECT '000000', admin_role.role_id, menu_item.menu_id
+FROM `sys_role` admin_role
+INNER JOIN `sys_menu` menu_item ON (
+  menu_item.path IN (
+    '/business/inventory/transfer', '/business/inventory/move', '/business/inventory/freeze',
+    '/business/inventory/adjust', '/business/inventory/stocktake', '/business/inventory/batch',
+    '/business/inventory/serial', '/business/inventory/policy', '/business/inventory/warning',
+    '/business/inventory/report', '/business/inventory/integration', '/platform/imex'
+  )
+  OR menu_item.perms IN (
+    'business:inventory:transfer:list', 'business:inventory:transfer:query', 'business:inventory:transfer:add',
+    'business:inventory:transfer:edit', 'business:inventory:transfer:submit', 'business:inventory:transfer:execute',
+    'business:inventory:transfer:cancel', 'business:inventory:move:list', 'business:inventory:move:query',
+    'business:inventory:move:add', 'business:inventory:move:edit', 'business:inventory:move:submit',
+    'business:inventory:move:execute', 'business:inventory:move:cancel', 'business:inventory:freeze:list',
+    'business:inventory:freeze:query', 'business:inventory:freeze:add', 'business:inventory:freeze:edit',
+    'business:inventory:freeze:submit', 'business:inventory:freeze:execute', 'business:inventory:freeze:cancel',
+    'business:inventory:adjust:list', 'business:inventory:adjust:query', 'business:inventory:adjust:add',
+    'business:inventory:adjust:edit', 'business:inventory:adjust:submit', 'business:inventory:adjust:execute',
+    'business:inventory:adjust:cancel', 'business:inventory:stocktake:list', 'business:inventory:stocktake:query',
+    'business:inventory:stocktake:add', 'business:inventory:stocktake:edit', 'business:inventory:stocktake:submit',
+    'business:inventory:stocktake:execute', 'business:inventory:stocktake:cancel', 'business:inventory:batch:list',
+    'business:inventory:serial:list', 'business:inventory:policy:list', 'business:inventory:policy:query',
+    'business:inventory:policy:add', 'business:inventory:policy:edit', 'business:inventory:policy:remove',
+    'business:inventory:warning:list', 'business:inventory:warning:handle', 'business:inventory:warning:scan',
+    'business:inventory:report:list', 'business:inventory:report:export', 'business:inventory:integration:list',
+    'business:inventory:integration:replay', 'system:imex:list', 'system:imex:query', 'system:imex:download'
+  )
+)
+WHERE admin_role.tenant_id = '000000'
+  AND admin_role.role_key = 'admin'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM `sys_role_menu` existed_role_menu
+    WHERE existed_role_menu.role_id = admin_role.role_id
+      AND existed_role_menu.menu_id = menu_item.menu_id
+  );
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+
+-- 2026-03-20 员工档案名称统一
+UPDATE `sys_menu`
+SET `menu_name` = '员工档案', `remark` = '兼容旧员工主数据菜单名称'
+WHERE `path` = '/system/mdm/employee';
+
+-- ----------------------------
+-- AI 配置中心（租户隔离配置 + 审计）
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `sys_ai_config` (
+  `config_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '配置ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `enabled` char(1) NOT NULL DEFAULT '1' COMMENT '是否启用（1启用 0停用）',
+  `model` varchar(128) DEFAULT 'gpt-5.1' COMMENT '模型编号',
+  `max_history_turns` int(11) DEFAULT 12 COMMENT '最大历史轮数',
+  `max_todo_items` int(11) DEFAULT 10 COMMENT '提示词注入待办上限',
+  `max_notice_items` int(11) DEFAULT 10 COMMENT '提示词注入消息上限',
+  `prompt_template` text COMMENT '租户提示词模板',
+  `action_policy_json` longtext COMMENT '动作策略JSON',
+  `tenant_daily_request_limit` int(11) DEFAULT NULL COMMENT '租户每日请求上限（0不限制，NULL按实例配置）',
+  `tenant_daily_token_limit` int(11) DEFAULT NULL COMMENT '租户每日token上限（0不限制，NULL按实例配置）',
+  `user_daily_request_limit` int(11) DEFAULT NULL COMMENT '单用户每日请求上限（0不限制，NULL按实例配置）',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`config_id`),
+  UNIQUE KEY `uk_sys_ai_config_tenant` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI租户配置表';
+
+CREATE TABLE IF NOT EXISTS `sys_ai_audit` (
+  `audit_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '审计ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `user_id` bigint(20) DEFAULT NULL COMMENT '用户ID',
+  `user_name` varchar(64) DEFAULT NULL COMMENT '用户账号',
+  `question_type` varchar(64) DEFAULT NULL COMMENT '问题类型',
+  `interaction_level` varchar(16) DEFAULT NULL COMMENT '交互分级（L1/L2/L3）',
+  `action_key` varchar(64) DEFAULT NULL COMMENT '动作编码',
+  `action_confirmed` char(1) DEFAULT '0' COMMENT '是否确认动作（1是0否）',
+  `success_flag` char(1) DEFAULT '1' COMMENT '是否成功（1成功0失败）',
+  `prompt_injection_flag` char(1) DEFAULT '0' COMMENT '提示词注入命中标记（1命中0未命中）',
+  `sensitive_hit_flag` char(1) DEFAULT '0' COMMENT '敏感命中标记（1命中0未命中）',
+  `request_excerpt` varchar(500) DEFAULT NULL COMMENT '请求摘要',
+  `response_excerpt` varchar(500) DEFAULT NULL COMMENT '响应摘要',
+  `duration_ms` bigint(20) DEFAULT NULL COMMENT '耗时毫秒',
+  `model` varchar(128) DEFAULT NULL COMMENT '本次交互使用的模型编号',
+  `prompt_tokens` int(11) DEFAULT NULL COMMENT '输入token数',
+  `completion_tokens` int(11) DEFAULT NULL COMMENT '输出token数',
+  `total_tokens` int(11) DEFAULT NULL COMMENT '总token数',
+  `tool_rounds` int(11) DEFAULT NULL COMMENT '工具调用轮次',
+  `tool_keys` varchar(500) DEFAULT NULL COMMENT '本次调用的只读工具，逗号分隔',
+  `session_id` bigint(20) DEFAULT NULL COMMENT '关联AI会话ID',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  PRIMARY KEY (`audit_id`),
+  KEY `idx_sys_ai_audit_tenant_time` (`tenant_id`,`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI审计日志表';
+
+CREATE TABLE IF NOT EXISTS `sys_ai_session` (
+  `session_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '会话ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `user_id` bigint(20) NOT NULL COMMENT '所属用户ID',
+  `title` varchar(255) DEFAULT NULL COMMENT '会话标题',
+  `model` varchar(128) DEFAULT NULL COMMENT '会话使用的模型编号',
+  `message_count` int(11) NOT NULL DEFAULT 0 COMMENT '消息条数',
+  `last_message_time` datetime DEFAULT NULL COMMENT '最后一条消息时间',
+  `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志（0存在 2删除）',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`session_id`),
+  KEY `idx_sys_ai_session_owner` (`tenant_id`, `user_id`, `del_flag`, `last_message_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI会话表';
+
+CREATE TABLE IF NOT EXISTS `sys_ai_message` (
+  `message_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '消息ID',
+  `session_id` bigint(20) NOT NULL COMMENT '会话ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `user_id` bigint(20) NOT NULL COMMENT '所属用户ID',
+  `role` varchar(16) NOT NULL COMMENT '消息角色（user/assistant）',
+  `content` mediumtext COMMENT '消息内容',
+  `blocks_json` longtext COMMENT '结构化区块JSON（指标卡/表格/图表）',
+  `action_key` varchar(64) DEFAULT NULL COMMENT '关联动作编码',
+  `prompt_tokens` int(11) DEFAULT NULL COMMENT '输入token数',
+  `completion_tokens` int(11) DEFAULT NULL COMMENT '输出token数',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`message_id`),
+  KEY `idx_sys_ai_message_session` (`session_id`, `message_id`),
+  KEY `idx_sys_ai_message_owner` (`tenant_id`, `user_id`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI会话消息表';
+
+CREATE TABLE IF NOT EXISTS `sys_ai_brief` (
+  `brief_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '简报ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `user_id` bigint(20) NOT NULL COMMENT '所属用户ID',
+  `brief_date` date NOT NULL COMMENT '简报日期',
+  `brief_type` varchar(32) NOT NULL DEFAULT 'daily' COMMENT '简报类型',
+  `status` varchar(16) NOT NULL DEFAULT 'PENDING' COMMENT '状态（PENDING生成中 READY可用 FAILED失败）',
+  `summary` text COMMENT '简报解读文本',
+  `blocks_json` longtext COMMENT '结构化区块JSON（指标卡/表格/图表）',
+  `model` varchar(128) DEFAULT NULL COMMENT '生成使用的模型编号',
+  `generate_ms` bigint(20) DEFAULT NULL COMMENT '生成耗时毫秒',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`brief_id`),
+  UNIQUE KEY `uk_sys_ai_brief_owner_date` (`tenant_id`,`user_id`,`brief_date`,`brief_type`),
+  KEY `idx_sys_ai_brief_status` (`tenant_id`,`status`,`update_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI每日简报表';
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT 'AI面板',
+       COALESCE((SELECT parent_id FROM `sys_menu` WHERE `path` = '/system/config' LIMIT 1), 0),
+       3,
+       '/system/ai-panel',
+       '/views/system/ai-panel/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:ai:panel:view',
+       NULL,
+       'system',
+       NOW(),
+       'AI 面板菜单'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/system/ai-panel');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT 'AI配置',
+       COALESCE((SELECT parent_id FROM `sys_menu` WHERE `path` = '/system/config' LIMIT 1), 0),
+       4,
+       '/system/ai-config',
+       '/views/system/ai-config/index',
+       1,
+       'C',
+       '0',
+       '0',
+       'system:ai:config:list',
+       NULL,
+       'system',
+       NOW(),
+       'AI配置中心菜单'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/system/ai-config');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT button_def.menu_name,
+       menu_parent.menu_id,
+       button_def.order_num,
+       '/system/ai-config',
+       NULL,
+       1,
+       'F',
+       '0',
+       '0',
+       button_def.perms,
+       NULL,
+       'system',
+       NOW(),
+       'AI配置中心按钮权限'
+FROM (
+  SELECT 'AI配置查询' AS menu_name, 1 AS order_num, 'system:ai:config:query' AS perms
+  UNION ALL SELECT 'AI配置修改', 2, 'system:ai:config:edit'
+  UNION ALL SELECT 'AI策略修改', 3, 'system:ai:policy:edit'
+  UNION ALL SELECT 'AI审计查看', 4, 'system:ai:audit:list'
+  UNION ALL SELECT 'AI运营查看', 5, 'system:ai:ops:view'
+  UNION ALL SELECT 'AI会话查看', 6, 'system:ai:session:list'
+  UNION ALL SELECT 'AI会话删除', 7, 'system:ai:session:remove'
+) button_def
+INNER JOIN `sys_menu` menu_parent ON menu_parent.path = '/system/ai-config'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `sys_menu` existed_menu
+  WHERE existed_menu.path = '/system/ai-config'
+    AND existed_menu.perms = button_def.perms
+);
+
+INSERT INTO `sys_role_menu` (`tenant_id`, `role_id`, `menu_id`)
+SELECT role_item.tenant_id,
+       role_item.role_id,
+       menu_item.menu_id
+FROM `sys_role` role_item
+INNER JOIN `sys_menu` menu_item ON (
+  menu_item.path = '/system/ai-config'
+  OR menu_item.perms IN (
+    'system:ai:config:list',
+    'system:ai:config:query',
+    'system:ai:config:edit',
+    'system:ai:policy:edit',
+    'system:ai:audit:list',
+    'system:ai:ops:view',
+    'system:ai:session:list',
+    'system:ai:session:remove',
+    'system:ai:panel:view'
+  )
+)
+LEFT JOIN `sys_role_menu` existed_role_menu ON existed_role_menu.role_id = role_item.role_id
+    AND existed_role_menu.menu_id = menu_item.menu_id
+WHERE role_item.role_key = 'admin'
+  AND existed_role_menu.menu_id IS NULL;
+
+-- ========== UI 个性化偏好（用户个人偏好 + 租户默认策略与锁定项） ==========
+CREATE TABLE IF NOT EXISTS `sys_user_ui_preference` (
+  `preference_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '偏好ID',
+  `tenant_id` varchar(20) NOT NULL COMMENT '租户编号',
+  `scope_type` char(1) NOT NULL DEFAULT '1' COMMENT '作用域（0租户默认 1用户个人）',
+  `user_id` bigint(20) NOT NULL DEFAULT 0 COMMENT '用户ID（租户默认固定为0）',
+  `preference_json` longtext COMMENT 'UI偏好JSON',
+  `locked_keys` varchar(1000) DEFAULT NULL COMMENT '锁定项（逗号分隔，仅租户默认生效）',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`preference_id`),
+  UNIQUE KEY `uk_sys_user_ui_preference` (`tenant_id`,`scope_type`,`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户UI偏好表';
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT 'UI设置',
+       COALESCE((SELECT parent_id FROM `sys_menu` WHERE `path` = '/system/config' LIMIT 1), 0),
+       6, '/system/theme', '/views/system/theme/index', 1, 'C', '0', '0',
+       'system:ui:preference:view', 'Monitor', 'system', NOW(), 'UI个性化设置菜单'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/system/theme');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT button_def.menu_name, menu_parent.menu_id, button_def.order_num, '/system/theme', NULL, 1, 'F', '0', '0',
+       button_def.perms, NULL, 'system', NOW(), 'UI个性化设置按钮权限'
+FROM (
+  SELECT 'UI偏好保存' AS menu_name, 1 AS order_num, 'system:ui:preference:edit' AS perms
+  UNION ALL SELECT 'UI租户策略查看', 2, 'system:ui:policy:query'
+  UNION ALL SELECT 'UI租户策略修改', 3, 'system:ui:policy:edit'
+) button_def
+INNER JOIN `sys_menu` menu_parent ON menu_parent.path = '/system/theme' AND menu_parent.menu_type = 'C'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `sys_menu` existed_menu
+  WHERE existed_menu.path = '/system/theme' AND existed_menu.perms = button_def.perms
+);
+
+INSERT INTO `sys_role_menu` (`tenant_id`, `role_id`, `menu_id`)
+SELECT role_item.tenant_id, role_item.role_id, menu_item.menu_id
+FROM `sys_role` role_item
+INNER JOIN `sys_menu` menu_item ON menu_item.perms IN (
+    'system:ui:preference:view', 'system:ui:preference:edit',
+    'system:ui:policy:query', 'system:ui:policy:edit')
+LEFT JOIN `sys_role_menu` existed_role_menu ON existed_role_menu.role_id = role_item.role_id
+    AND existed_role_menu.menu_id = menu_item.menu_id
+WHERE role_item.role_key = 'admin' AND existed_role_menu.menu_id IS NULL;
+
+-- ========== Tenant-local signed SaaS entitlement snapshot ==========
+CREATE TABLE IF NOT EXISTS `sys_saas_entitlement_snapshot` (
+  `tenant_id` varchar(20) NOT NULL COMMENT 'Tenant identifier',
+  `snapshot_version` bigint(20) NOT NULL COMMENT 'Control-plane snapshot version',
+  `snapshot_json` longtext NOT NULL COMMENT 'Signed entitlement snapshot JSON',
+  `issued_at` datetime(3) NOT NULL COMMENT 'Snapshot issue time in UTC',
+  `expires_at` datetime(3) NOT NULL COMMENT 'Snapshot lease expiry time in UTC',
+  `signature_key_id` varchar(64) NOT NULL COMMENT 'Verification key identifier',
+  `signature` varchar(128) NOT NULL COMMENT 'Base64url HMAC signature',
+  `create_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Created by',
+  `create_time` datetime(3) NOT NULL COMMENT 'Created at',
+  `update_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Updated by',
+  `update_time` datetime(3) NOT NULL COMMENT 'Updated at',
+  `version_no` bigint(20) NOT NULL DEFAULT 0 COMMENT 'Optimistic lock version',
+  PRIMARY KEY (`tenant_id`),
+  KEY `idx_sys_saas_snapshot_expiry` (`tenant_id`, `expires_at`),
+  CONSTRAINT `ck_sys_saas_snapshot_version` CHECK (`snapshot_version` >= 1),
+  CONSTRAINT `ck_sys_saas_snapshot_lease` CHECK (`expires_at` > `issued_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tenant-local signed SaaS entitlement snapshot';
+
+CREATE TABLE IF NOT EXISTS `sys_saas_quota_counter` (
+  `tenant_id` varchar(20) NOT NULL COMMENT 'Tenant identifier',
+  `metric_key` varchar(64) NOT NULL COMMENT 'Stable quota metric key',
+  `period_start` datetime(3) NOT NULL COMMENT 'UTC period start; 1970-01-01 for non-periodic metrics',
+  `used_amount` bigint(20) NOT NULL DEFAULT 0 COMMENT 'Settled usage',
+  `reserved_amount` bigint(20) NOT NULL DEFAULT 0 COMMENT 'In-flight reserved usage',
+  `create_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Created by',
+  `create_time` datetime(3) NOT NULL COMMENT 'Created at',
+  `update_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Updated by',
+  `update_time` datetime(3) NOT NULL COMMENT 'Updated at',
+  `version_no` bigint(20) NOT NULL DEFAULT 0 COMMENT 'Optimistic lock version',
+  PRIMARY KEY (`tenant_id`, `metric_key`, `period_start`),
+  CONSTRAINT `ck_sys_saas_quota_counter_used` CHECK (`used_amount` >= 0),
+  CONSTRAINT `ck_sys_saas_quota_counter_reserved` CHECK (`reserved_amount` >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tenant-local real-time SaaS quota counter';
+
+CREATE TABLE IF NOT EXISTS `sys_saas_quota_reservation` (
+  `reservation_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'Reservation primary key',
+  `tenant_id` varchar(20) NOT NULL COMMENT 'Tenant identifier',
+  `metric_key` varchar(64) NOT NULL COMMENT 'Stable quota metric key',
+  `reservation_key` varchar(128) NOT NULL COMMENT 'Idempotent business reservation key',
+  `period_start` datetime(3) NOT NULL COMMENT 'UTC period start; 1970-01-01 for non-periodic metrics',
+  `reserved_amount` bigint(20) NOT NULL COMMENT 'Maximum reserved amount',
+  `settled_amount` bigint(20) NOT NULL DEFAULT 0 COMMENT 'Actual settled amount',
+  `status` varchar(16) NOT NULL COMMENT 'RESERVED, SETTLED, or RELEASED',
+  `reserve_event_key` varchar(128) NOT NULL COMMENT 'Reserve event idempotency key',
+  `settle_event_key` varchar(128) DEFAULT NULL COMMENT 'Settle event idempotency key',
+  `release_event_key` varchar(128) DEFAULT NULL COMMENT 'Release event idempotency key',
+  `create_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Created by',
+  `create_time` datetime(3) NOT NULL COMMENT 'Created at',
+  `update_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Updated by',
+  `update_time` datetime(3) NOT NULL COMMENT 'Updated at',
+  `version_no` bigint(20) NOT NULL DEFAULT 0 COMMENT 'Optimistic lock version',
+  PRIMARY KEY (`reservation_id`),
+  UNIQUE KEY `uk_sys_saas_quota_reservation` (`tenant_id`, `metric_key`, `reservation_key`),
+  KEY `idx_sys_saas_quota_reservation_period` (`tenant_id`, `metric_key`, `period_start`, `status`),
+  CONSTRAINT `ck_sys_saas_quota_reservation_amount` CHECK (`reserved_amount` > 0 AND `settled_amount` >= 0 AND `settled_amount` <= `reserved_amount`),
+  CONSTRAINT `ck_sys_saas_quota_reservation_status` CHECK (`status` IN ('RESERVED', 'SETTLED', 'RELEASED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tenant-local SaaS quota reservation ledger';
+
+INSERT IGNORE INTO `sys_saas_quota_counter`
+  (`tenant_id`, `metric_key`, `period_start`, `used_amount`, `reserved_amount`,
+   `create_by`, `create_time`, `update_by`, `update_time`, `version_no`)
+SELECT `tenant_id`, 'user_count', '1970-01-01 00:00:00.000', COUNT(*), 0,
+       'saas-migration', NOW(3), 'saas-migration', NOW(3), 0
+FROM `sys_user`
+WHERE `status` = '0' AND `del_flag` = '0'
+GROUP BY `tenant_id`;
+
+CREATE TABLE IF NOT EXISTS `sys_saas_usage_outbox` (
+  `outbox_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'Outbox primary key',
+  `tenant_id` varchar(20) NOT NULL COMMENT 'Tenant identifier',
+  `event_key` varchar(128) NOT NULL COMMENT 'Idempotent central usage event key',
+  `metric_key` varchar(64) NOT NULL COMMENT 'Stable quota metric key',
+  `amount` bigint(20) NOT NULL COMMENT 'Absolute settled usage snapshot',
+  `period_start` datetime(3) DEFAULT NULL COMMENT 'UTC monthly period start; null for non-periodic metrics',
+  `occurred_at` datetime(3) NOT NULL COMMENT 'Local snapshot time in UTC',
+  `status` varchar(16) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING or SENT',
+  `attempt_count` int(11) NOT NULL DEFAULT 0 COMMENT 'Delivery attempt count',
+  `next_attempt_at` datetime(3) NOT NULL COMMENT 'Next eligible delivery time in UTC',
+  `sent_at` datetime(3) DEFAULT NULL COMMENT 'Successful delivery time in UTC',
+  `last_error_type` varchar(128) DEFAULT NULL COMMENT 'Last delivery exception type without message',
+  `create_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Created by',
+  `create_time` datetime(3) NOT NULL COMMENT 'Created at',
+  `update_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Updated by',
+  `update_time` datetime(3) NOT NULL COMMENT 'Updated at',
+  PRIMARY KEY (`outbox_id`),
+  UNIQUE KEY `uk_sys_saas_usage_outbox_event` (`tenant_id`, `event_key`),
+  KEY `idx_sys_saas_usage_outbox_pending` (`tenant_id`, `status`, `next_attempt_at`, `outbox_id`),
+  CONSTRAINT `ck_sys_saas_usage_outbox_amount` CHECK (`amount` >= 0),
+  CONSTRAINT `ck_sys_saas_usage_outbox_attempt` CHECK (`attempt_count` >= 0),
+  CONSTRAINT `ck_sys_saas_usage_outbox_status` CHECK (`status` IN ('PENDING', 'SENT')),
+  CONSTRAINT `ck_sys_saas_usage_outbox_sent` CHECK ((`status` = 'PENDING' AND `sent_at` IS NULL) OR (`status` = 'SENT' AND `sent_at` IS NOT NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tenant-local SaaS usage delivery outbox';
+
+INSERT IGNORE INTO `sys_saas_usage_outbox`
+  (`tenant_id`, `event_key`, `metric_key`, `amount`, `period_start`, `occurred_at`,
+   `status`, `attempt_count`, `next_attempt_at`, `sent_at`, `last_error_type`,
+   `create_by`, `create_time`, `update_by`, `update_time`)
+SELECT `tenant_id`,
+       CONCAT('bootstrap:', SHA2(CONCAT_WS('|', `tenant_id`, `metric_key`,
+              DATE_FORMAT(`period_start`, '%Y%m%d%H%i%s%f')), 256)),
+       `metric_key`, `used_amount`,
+       IF(`period_start` = '1970-01-01 00:00:00.000', NULL, `period_start`),
+       `update_time`, 'PENDING', 0, NOW(3), NULL, NULL,
+       'saas-migration', NOW(3), 'saas-migration', NOW(3)
+FROM `sys_saas_quota_counter`;
+
+CREATE TABLE IF NOT EXISTS `sys_saas_provisioning_task` (
+  `task_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'Provisioning task primary key',
+  `tenant_id` varchar(20) NOT NULL COMMENT 'Target tenant identifier',
+  `request_id` varchar(128) NOT NULL COMMENT 'Idempotent provisioning request identifier',
+  `request_hash` char(64) NOT NULL COMMENT 'SHA-256 hash of normalized request payload',
+  `status` varchar(16) NOT NULL COMMENT 'PROCESSING or SUCCEEDED',
+  `tenant_record_id` bigint(20) DEFAULT NULL COMMENT 'Created tenant record identifier',
+  `company_id` bigint(20) DEFAULT NULL COMMENT 'Created root company identifier',
+  `dept_id` bigint(20) DEFAULT NULL COMMENT 'Created root department identifier',
+  `role_id` bigint(20) DEFAULT NULL COMMENT 'Created tenant administrator role identifier',
+  `user_id` bigint(20) DEFAULT NULL COMMENT 'Created tenant administrator user identifier',
+  `activation_expires_at` datetime(3) DEFAULT NULL COMMENT 'One-time activation expiry in UTC',
+  `create_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Created by',
+  `create_time` datetime(3) NOT NULL COMMENT 'Created at',
+  `update_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Updated by',
+  `update_time` datetime(3) NOT NULL COMMENT 'Updated at',
+  PRIMARY KEY (`task_id`),
+  UNIQUE KEY `uk_sys_saas_provisioning_request` (`tenant_id`, `request_id`),
+  KEY `idx_sys_saas_provisioning_status` (`tenant_id`, `status`, `update_time`, `task_id`),
+  CONSTRAINT `ck_sys_saas_provisioning_status` CHECK (`status` IN ('PROCESSING', 'SUCCEEDED')),
+  CONSTRAINT `ck_sys_saas_provisioning_result` CHECK (
+    (`status` = 'PROCESSING' AND `tenant_record_id` IS NULL AND `company_id` IS NULL
+      AND `dept_id` IS NULL AND `role_id` IS NULL AND `user_id` IS NULL
+      AND `activation_expires_at` IS NULL)
+    OR
+    (`status` = 'SUCCEEDED' AND `tenant_record_id` IS NOT NULL AND `company_id` IS NOT NULL
+      AND `dept_id` IS NOT NULL AND `role_id` IS NOT NULL AND `user_id` IS NOT NULL
+      AND `activation_expires_at` IS NOT NULL)
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Idempotent tenant provisioning task';
+
+CREATE TABLE IF NOT EXISTS `sys_user_activation` (
+  `activation_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'Activation primary key',
+  `tenant_id` varchar(20) NOT NULL COMMENT 'Tenant identifier',
+  `user_id` bigint(20) NOT NULL COMMENT 'Disabled user awaiting activation',
+  `token_hash` char(64) NOT NULL COMMENT 'SHA-256 hash of one-time activation token',
+  `expires_at` datetime(3) NOT NULL COMMENT 'Activation expiry in UTC',
+  `activated_at` datetime(3) DEFAULT NULL COMMENT 'Successful activation time in UTC',
+  `status` varchar(16) NOT NULL COMMENT 'PENDING, USED, or REVOKED',
+  `create_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Created by',
+  `create_time` datetime(3) NOT NULL COMMENT 'Created at',
+  `update_by` varchar(64) NOT NULL DEFAULT '' COMMENT 'Updated by',
+  `update_time` datetime(3) NOT NULL COMMENT 'Updated at',
+  `version_no` bigint(20) NOT NULL DEFAULT 0 COMMENT 'Optimistic lock version',
+  PRIMARY KEY (`activation_id`),
+  UNIQUE KEY `uk_sys_user_activation_user` (`tenant_id`, `user_id`),
+  UNIQUE KEY `uk_sys_user_activation_token` (`tenant_id`, `token_hash`),
+  KEY `idx_sys_user_activation_pending` (`tenant_id`, `status`, `expires_at`),
+  CONSTRAINT `ck_sys_user_activation_status` CHECK (`status` IN ('PENDING', 'USED', 'REVOKED')),
+  CONSTRAINT `ck_sys_user_activation_used` CHECK (
+    (`status` = 'USED' AND `activated_at` IS NOT NULL)
+    OR (`status` IN ('PENDING', 'REVOKED') AND `activated_at` IS NULL)
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='One-time tenant administrator activation';
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`,
+  `menu_type`, `visible`, `status`, `perms`, `feature_key`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT 'SaaS管理', platform_menu.menu_id, 99, '/platform/saas', NULL, 1,
+  'M', '0', '0', NULL, 'platform.saas.manage', 'Management', 'saas-bootstrap', UTC_TIMESTAMP(3),
+  'Platform SaaS administration'
+FROM `sys_menu` platform_menu
+WHERE platform_menu.path = '/platform'
+  AND NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = '/platform/saas');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `is_frame`,
+  `menu_type`, `visible`, `status`, `perms`, `feature_key`, `icon`, `create_by`, `create_time`, `remark`)
+SELECT child.menu_name, parent.menu_id, child.order_num, child.path, child.component, 1,
+  'C', '0', '0', child.perms, 'platform.saas.manage', child.icon,
+  'saas-bootstrap', UTC_TIMESTAMP(3), 'Platform SaaS administration page'
+FROM (
+  SELECT '租户与开通' menu_name, 1 order_num, '/platform/saas/tenants' path,
+    '/views/platform/saas/tenants/index' component, 'saas:tenant:list' perms, 'OfficeBuilding' icon
+  UNION ALL SELECT '套餐与授权', 2, '/platform/saas/plans',
+    '/views/platform/saas/plans/index', 'saas:plan:list', 'SetUp'
+  UNION ALL SELECT '域名管理', 3, '/platform/saas/domains',
+    '/views/platform/saas/domains/index', 'saas:domain:list', 'Link'
+  UNION ALL SELECT '部署实例', 4, '/platform/saas/deployments',
+    '/views/platform/saas/deployments/index', 'saas:deployment:list', 'Connection'
+  UNION ALL SELECT '用量汇总', 5, '/platform/saas/usage',
+    '/views/platform/saas/usage/index', 'saas:usage:list', 'DataAnalysis'
+) child
+INNER JOIN `sys_menu` parent ON parent.path = '/platform/saas'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` existing WHERE existing.path = child.path);
+
+INSERT INTO `sys_role_menu` (`tenant_id`, `role_id`, `menu_id`)
+SELECT role_item.tenant_id, role_item.role_id, menu_item.menu_id
+FROM `sys_role` role_item
+INNER JOIN `sys_menu` menu_item
+  ON menu_item.path = '/platform/saas' OR menu_item.path LIKE '/platform/saas/%'
+LEFT JOIN `sys_role_menu` existing
+  ON existing.tenant_id = role_item.tenant_id
+  AND existing.role_id = role_item.role_id
+  AND existing.menu_id = menu_item.menu_id
+WHERE role_item.tenant_id = '000000'
+  AND role_item.role_key = 'admin'
+  AND existing.menu_id IS NULL;

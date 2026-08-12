@@ -1,12 +1,20 @@
 server:
-  port: 8081
+  port: 9091
 
 spring:
   application:
     name: erp-auth
+  config:
+    import:
+      - optional:classpath:/bootstrap/erp-auth.yml
+      - optional:nacos:erp-auth.yml?refreshable=true
   cloud:
     nacos:
       discovery:
         enabled: ${NACOS_DISCOVERY_ENABLED:true}
         register-enabled: ${NACOS_DISCOVERY_ENABLED:true}
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+
+erp:
+  saas:
+    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:}

@@ -1,0 +1,11 @@
+.git
+.tmp
+docs
+**/.idea
+**/.vscode
+**/src
+**/surefire-reports
+**/*-sources.jar
+**/*-javadoc.jar
+**/*.original
+**/*.log

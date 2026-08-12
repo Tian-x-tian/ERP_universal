@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: erp-workflow
+
+erp:
+  internal:
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    service-user-name: ${ERP_INTERNAL_SERVICE_USER_NAME:erp-workflow}
+  workflow:
+    http-enabled: true
+    scheduler-enabled: true
+  sql:
+    upgrade:
+      enabled: ${ERP_SQL_UPGRADE_ENABLED:true}
+      location: classpath:sql/upgrade/workflow/*.sql

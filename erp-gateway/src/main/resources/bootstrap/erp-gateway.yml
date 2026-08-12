@@ -1,0 +1,91 @@
+server:
+  port: 9090
+
+spring:
+  application:
+    name: erp-gateway
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.reactive.ReactiveUserDetailsServiceAutoConfiguration
+  config:
+    import:
+      - optional:nacos:erp-gateway.yml?refreshable=true
+  cloud:
+    nacos:
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:true}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        file-extension: yml
+        refresh-enabled: true
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        register-enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+    gateway:
+      enabled: true
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: erp-auth-login
+          uri: lb://erp-auth
+          predicates:
+            - Path=/login
+        - id: erp-auth-logout
+          uri: lb://erp-auth
+          predicates:
+            - Path=/logout
+        - id: erp-auth
+          uri: lb://erp-auth
+          predicates:
+            - Path=/auth/**
+        - id: erp-workflow
+          uri: lb://erp-workflow
+          predicates:
+            - Path=/workflow/**
+        - id: erp-ai
+          uri: lb://erp-ai
+          predicates:
+            - Path=/system/ai/**
+        - id: erp-system
+          uri: lb://erp-system
+          predicates:
+            - Path=/system/**
+        - id: erp-business
+          uri: lb://erp-business
+          predicates:
+            - Path=/business/**
+        - id: erp-saas-control
+          uri: lb://erp-saas-control
+          predicates:
+            - Path=/saas/**
+
+erp:
+  internal:
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    saas-base-url: ${ERP_SAAS_CONTROL_BASE_URL:http://erp-saas-control}
+  saas:
+    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:}
+    domain-resolve-timeout-ms: ${ERP_SAAS_DOMAIN_RESOLVE_TIMEOUT_MS:2000}
+    domain-cache-ttl-ms: ${ERP_SAAS_DOMAIN_CACHE_TTL_MS:86400000}
+    deployment-mode: ${ERP_SAAS_DEPLOYMENT_MODE:SHARED}
+    bound-tenant-id: ${ERP_SAAS_BOUND_TENANT_ID:}
+    bound-host: ${ERP_SAAS_BOUND_HOST:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,ping

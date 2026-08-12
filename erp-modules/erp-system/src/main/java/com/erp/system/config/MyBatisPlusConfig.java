@@ -1,66 +1,66 @@
 package com.erp.system.config;
 
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
-import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
-import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
-import com.erp.common.core.context.TenantContextHolder;
-import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.StringValue;
+import com.erp.common.mybatis.TenantGlobalTables;
+import com.erp.common.mybatis.TenantMybatisPlusConfigurationSupport;
+import com.erp.common.mybatis.TenantSchemaReadinessFilter;
+import com.erp.common.mybatis.TenantSchemaReadinessGate;
+import com.erp.common.mybatis.TenantSchemaValidationRunner;
+import com.erp.common.mybatis.TenantSchemaValidator;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Locale;
+import javax.sql.DataSource;
 import java.util.Set;
 
 /**
  * MyBatis Plus 配置
  */
 @Configuration
-public class MyBatisPlusConfig {
-    /**
-     * 无 tenant_id 字段的系统表。
-     * 这些表由业务逻辑自行控制访问范围，不由多租户插件自动拼接租户条件。
-     */
-    private static final Set<String> IGNORE_TENANT_TABLES = new HashSet<>(Arrays.asList(
-            "sys_tenant",
-            "sys_user_role",
-            "sys_role_menu",
-            "sys_menu",
-            "sys_dict_type",
-            "sys_dict_data",
-            "sys_config"));
+public class MyBatisPlusConfig extends TenantMybatisPlusConfigurationSupport {
+
+    public MyBatisPlusConfig(DataSource dataSource) {
+        super(dataSource);
+    }
 
     /**
      * 新多租户插件配置
      */
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
-        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        interceptor.addInnerInterceptor(new TenantLineInnerInterceptor(new TenantLineHandler() {
-            @Override
-            public Expression getTenantId() {
-                String tenantId = TenantContextHolder.getTenantId();
-                if (tenantId == null) {
-                    tenantId = "000000";
-                }
-                return new StringValue(tenantId);
-            }
+        return buildInterceptor();
+    }
 
-            @Override
-            public String getTenantIdColumn() {
-                return "tenant_id";
-            }
+    @Bean
+    @ConditionalOnProperty(name = "erp.tenant.schema-validation.enabled", havingValue = "true", matchIfMissing = true)
+    public TenantSchemaReadinessGate tenantSchemaReadinessGate() {
+        return new TenantSchemaReadinessGate();
+    }
 
-            @Override
-            public boolean ignoreTable(String tableName) {
-                if (tableName == null) {
-                    return false;
-                }
-                return IGNORE_TENANT_TABLES.contains(tableName.toLowerCase(Locale.ROOT));
-            }
-        }));
-        return interceptor;
+    @Bean
+    @ConditionalOnProperty(name = "erp.tenant.schema-validation.enabled", havingValue = "true", matchIfMissing = true)
+    public TenantSchemaReadinessFilter tenantSchemaReadinessFilter(TenantSchemaReadinessGate readinessGate) {
+        return new TenantSchemaReadinessFilter(readinessGate);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "erp.tenant.schema-validation.enabled", havingValue = "true", matchIfMissing = true)
+    public TenantSchemaValidationRunner tenantSchemaValidationRunner(
+            DataSource dataSource, TenantSchemaReadinessGate readinessGate) {
+        return new TenantSchemaValidationRunner(
+                new TenantSchemaValidator(new JdbcTemplate(dataSource), TenantGlobalTables.TABLES),
+                readinessGate);
+    }
+
+    /**
+     * 返回系统模块的全局平台表。
+     *
+     * @return 全局平台表集合
+     */
+    @Override
+    protected Set<String> globalTableCandidates() {
+        return TenantGlobalTables.TABLES;
     }
 }

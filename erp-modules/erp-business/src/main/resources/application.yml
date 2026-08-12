@@ -1,10 +1,94 @@
 server:
-  port: 8083
+  port: 9093
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 spring:
   application:
     name: erp-business
   cloud:
     nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
       discovery:
-        server-addr: 127.0.0.1:8848
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        register-enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        server-addr: ${spring.cloud.nacos.server-addr}
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:true}
+        server-addr: ${spring.cloud.nacos.server-addr}
+        file-extension: yml
+        refresh-enabled: true
+  config:
+    import:
+      - optional:nacos:erp-business.yml?refreshable=true
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_system}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:never}
+      schema-locations: classpath:sql/init_business.sql
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underline-to-camel-case: true
+
+erp:
+  internal:
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+  sql:
+    upgrade:
+      enabled: ${ERP_SQL_UPGRADE_ENABLED:true}
+      legacy-location: classpath:sql/upgrade_business.sql
+      location: classpath*:sql/upgrade/business/*.sql
+  business:
+    datasource:
+      enabled: false
+      url: jdbc:mysql://${MYSQL_BUSINESS_HOST:${MYSQL_HOST:127.0.0.1}}:${MYSQL_BUSINESS_PORT:${MYSQL_PORT:3306}}/${MYSQL_BUSINESS_DATABASE:${MYSQL_DATABASE:erp_system}}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+      username: ${MYSQL_BUSINESS_USERNAME:${MYSQL_USERNAME:root}}
+      password: ${MYSQL_BUSINESS_PASSWORD:${MYSQL_PASSWORD:}}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+
+hr:
+  storage:
+    s3:
+      enabled: ${HR_STORAGE_S3_ENABLED:false}
+      endpoint: ${HR_STORAGE_S3_ENDPOINT:}
+      region: ${HR_STORAGE_S3_REGION:us-east-1}
+      access-key: ${HR_STORAGE_S3_ACCESS_KEY:}
+      secret-key: ${HR_STORAGE_S3_SECRET_KEY:}
+      bucket: ${HR_STORAGE_S3_BUCKET:}
+      preview-expire-seconds: ${HR_STORAGE_S3_PREVIEW_EXPIRE_SECONDS:900}
+      download-expire-seconds: ${HR_STORAGE_S3_DOWNLOAD_EXPIRE_SECONDS:900}
+  integration:
+    attendance:
+      push-url: ${HR_INTEGRATION_ATTENDANCE_PUSH_URL:}
+      callback-token: ${HR_INTEGRATION_ATTENDANCE_CALLBACK_TOKEN:}
+    salary:
+      push-url: ${HR_INTEGRATION_SALARY_PUSH_URL:}
+      callback-token: ${HR_INTEGRATION_SALARY_CALLBACK_TOKEN:}
+    performance:
+      push-url: ${HR_INTEGRATION_PERFORMANCE_PUSH_URL:}
+      callback-token: ${HR_INTEGRATION_PERFORMANCE_CALLBACK_TOKEN:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,db,ping

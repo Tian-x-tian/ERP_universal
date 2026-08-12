@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: erp-ai
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        register-enabled: ${NACOS_DISCOVERY_ENABLED:true}
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:true}
+        file-extension: yml
+        refresh-enabled: true
+  config:
+    import:
+      - optional:nacos:erp-ai.yml?refreshable=true

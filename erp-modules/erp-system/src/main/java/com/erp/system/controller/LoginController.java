@@ -50,7 +50,7 @@ public class LoginController {
         }
 
         String tenantId = StringUtils.hasText(user.getTenantId()) ? user.getTenantId() : "DEFAULT";
-        String token = JwtUtils.createToken(user.getUserName(), tenantId);
+        String token = JwtUtils.createToken(user.getUserId(), user.getUserName(), tenantId, user.getTokenVersion());
 
         Map<String, Object> ajax = new HashMap<>();
         ajax.put("token", token);

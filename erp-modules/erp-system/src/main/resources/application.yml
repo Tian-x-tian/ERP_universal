@@ -1,5 +1,13 @@
 server:
-  port: 8082
+  port: 9092
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  tomcat:
+    accesslog:
+      enabled: ${ERP_ACCESS_LOG_ENABLED:false}
 
 spring:
   application:
@@ -20,13 +28,13 @@ spring:
     import:
       - optional:nacos:erp-system.yml?refreshable=true
   datasource:
-    url: jdbc:mysql://192.168.0.22:3306/erp_system?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
-    username: root
-    password: ${MYSQL_PASSWORD:123456}
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_system}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
   sql:
     init:
-      mode: always
+      mode: ${SQL_INIT_MODE:never}
       schema-locations: classpath:sql/init_system.sql
 
 mybatis-plus:
@@ -34,3 +42,69 @@ mybatis-plus:
   type-aliases-package: com.erp.system.domain.entity
   configuration:
     map-underline-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+erp:
+  ai:
+    enabled: ${ERP_AI_ENABLED:true}
+    base-url: ${ERP_AI_BASE_URL:http://127.0.0.1:8317/v1}
+    chat-path: ${ERP_AI_CHAT_PATH:/chat/completions}
+    model: ${ERP_AI_MODEL:gpt-5.1}
+    connect-timeout-ms: ${ERP_AI_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms: ${ERP_AI_READ_TIMEOUT_MS:120000}
+    max-history-turns: ${ERP_AI_MAX_HISTORY_TURNS:12}
+    max-todo-items: ${ERP_AI_MAX_TODO_ITEMS:10}
+    max-notice-items: ${ERP_AI_MAX_NOTICE_ITEMS:10}
+  internal:
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    saas-base-url: ${ERP_SAAS_CONTROL_BASE_URL:http://erp-saas-control}
+    saas-connect-timeout-ms: ${ERP_SAAS_CONNECT_TIMEOUT_MS:2000}
+    saas-read-timeout-ms: ${ERP_SAAS_READ_TIMEOUT_MS:5000}
+  saas:
+    snapshot:
+      refresh-enabled: ${ERP_SAAS_SNAPSHOT_REFRESH_ENABLED:true}
+      refresh-interval-ms: ${ERP_SAAS_SNAPSHOT_REFRESH_INTERVAL_MS:300000}
+      initial-delay-ms: ${ERP_SAAS_SNAPSHOT_INITIAL_DELAY_MS:30000}
+      verification:
+        key-id: ${ERP_SAAS_SNAPSHOT_VERIFICATION_KEY_ID:}
+        secret: ${ERP_SAAS_SNAPSHOT_VERIFICATION_SECRET:}
+        clock-skew: ${ERP_SAAS_SNAPSHOT_CLOCK_SKEW:1m}
+  workflow:
+    http-enabled: ${ERP_WORKFLOW_HTTP_ENABLED:false}
+    scheduler-enabled: ${ERP_WORKFLOW_SCHEDULER_ENABLED:false}
+  sql:
+    upgrade:
+      enabled: ${ERP_SQL_UPGRADE_ENABLED:true}
+      location: classpath:sql/upgrade/system/*.sql
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-N/A}] %logger{50} - %msg%n"
+  level:
+    root: ${ERP_LOG_ROOT_LEVEL:INFO}
+    com.erp.system: ${ERP_LOG_APP_LEVEL:DEBUG}
+    com.erp.system.controller: ${ERP_LOG_CONTROLLER_LEVEL:DEBUG}
+    com.erp.system.service: ${ERP_LOG_SERVICE_LEVEL:DEBUG}
+    com.erp.system.mapper: ${ERP_LOG_MAPPER_LEVEL:DEBUG}
+    org.mybatis: ${ERP_LOG_MYBATIS_LEVEL:DEBUG}
+    com.baomidou.mybatisplus: ${ERP_LOG_MP_LEVEL:DEBUG}
+    org.springframework.jdbc.core: ${ERP_LOG_JDBC_LEVEL:DEBUG}
+    org.springframework.web: ${ERP_LOG_WEB_LEVEL:DEBUG}
+    org.springframework.security: ${ERP_LOG_SECURITY_LEVEL:DEBUG}
+    com.alibaba.nacos: ${ERP_LOG_NACOS_LEVEL:INFO}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,db,ping

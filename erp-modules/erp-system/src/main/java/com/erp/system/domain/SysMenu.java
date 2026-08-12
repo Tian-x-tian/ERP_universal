@@ -4,18 +4,16 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import lombok.Data;
+import com.erp.common.mybatis.BaseAuditEntity;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 /**
  * 菜单权限表 sys_menu
  */
-@Data
 @TableName("sys_menu")
-public class SysMenu implements Serializable {
+public class SysMenu extends BaseAuditEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /** 菜单ID */
@@ -52,20 +50,19 @@ public class SysMenu implements Serializable {
     /** 权限标识 */
     private String perms;
 
+    /** SaaS 功能键 */
+    private String featureKey;
+
     /** 菜单图标 */
     private String icon;
 
     /** 创建者 */
-    private String createBy;
 
     /** 创建时间 */
-    private Date createTime;
 
     /** 更新者 */
-    private String updateBy;
 
     /** 更新时间 */
-    private Date updateTime;
 
     /** 备注 */
     private String remark;
@@ -73,4 +70,137 @@ public class SysMenu implements Serializable {
     /** 子菜单 */
     @TableField(exist = false)
     private List<SysMenu> children = new ArrayList<>();
+
+    /** 是否存在子菜单 */
+    @TableField(exist = false)
+    private Boolean hasChildren;
+
+
+    public Long getMenuId() {
+        return menuId;
+    }
+
+    public void setMenuId(Long menuId) {
+        this.menuId = menuId;
+    }
+
+    public String getMenuName() {
+        return menuName;
+    }
+
+    public void setMenuName(String menuName) {
+        this.menuName = menuName;
+    }
+
+    public Long getParentId() {
+        return parentId;
+    }
+
+    public void setParentId(Long parentId) {
+        this.parentId = parentId;
+    }
+
+    public Integer getOrderNum() {
+        return orderNum;
+    }
+
+    public void setOrderNum(Integer orderNum) {
+        this.orderNum = orderNum;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public void setPath(String path) {
+        this.path = path;
+    }
+
+    public String getComponent() {
+        return component;
+    }
+
+    public void setComponent(String component) {
+        this.component = component;
+    }
+
+    public Integer getIsFrame() {
+        return isFrame;
+    }
+
+    public void setIsFrame(Integer isFrame) {
+        this.isFrame = isFrame;
+    }
+
+    public String getMenuType() {
+        return menuType;
+    }
+
+    public void setMenuType(String menuType) {
+        this.menuType = menuType;
+    }
+
+    public String getVisible() {
+        return visible;
+    }
+
+    public void setVisible(String visible) {
+        this.visible = visible;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getPerms() {
+        return perms;
+    }
+
+    public void setPerms(String perms) {
+        this.perms = perms;
+    }
+
+    public String getFeatureKey() {
+        return featureKey;
+    }
+
+    public void setFeatureKey(String featureKey) {
+        this.featureKey = featureKey;
+    }
+
+    public String getIcon() {
+        return icon;
+    }
+
+    public void setIcon(String icon) {
+        this.icon = icon;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
+    }
+
+    public List<SysMenu> getChildren() {
+        return children;
+    }
+
+    public void setChildren(List<SysMenu> children) {
+        this.children = children;
+    }
+
+    public Boolean getHasChildren() {
+        return hasChildren;
+    }
+
+    public void setHasChildren(Boolean hasChildren) {
+        this.hasChildren = hasChildren;
+    }
 }

@@ -1,69 +1,35 @@
 package com.erp.system.security.filter;
 
-import com.erp.common.core.context.TenantContextHolder;
-import com.erp.common.utils.JwtUtils;
-import io.jsonwebtoken.Claims;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
+import com.erp.common.security.servlet.InternalAuthenticationFilterSupport;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
-import org.springframework.web.filter.OncePerRequestFilter;
-import java.io.IOException;
-import java.util.ArrayList;
 
 /**
  * JWT 认证过滤器
  */
 @Component
-public class JwtAuthenticationFilter extends OncePerRequestFilter {
+public class JwtAuthenticationFilter extends InternalAuthenticationFilterSupport {
+    private static final String PUBLIC_SAAS_ACTIVATION_PATH = "/system/public/saas/activation";
 
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
-        String tenantIdFromHeader = request.getHeader("tenantId");
-        if (StringUtils.hasText(tenantIdFromHeader)) {
-            TenantContextHolder.setTenantId(tenantIdFromHeader);
-        }
-
-        String token = parseJwt(request);
-        if (token != null) {
-            try {
-                Claims claims = JwtUtils.parseToken(token);
-                String userId = claims.getSubject();
-                String tenantId = (String) claims.get("tenantId");
-
-                if (StringUtils.hasText(tenantId)) {
-                    TenantContextHolder.setTenantId(tenantId);
-                }
-
-                // 将用户信息存入 SecurityContext
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        userId, null, new ArrayList<>());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            } catch (Exception e) {
-                // Token 无效或过期
-                TenantContextHolder.clear();
-            }
-        }
-        try {
-            chain.doFilter(request, response);
-        } finally {
-            TenantContextHolder.clear();
-        }
+    public JwtAuthenticationFilter(ObjectMapper objectMapper,
+            @Value("${erp.internal.auth-signature-secret:}") String internalSignatureSecret) {
+        super(objectMapper, internalSignatureSecret, "/system/", "系统模块");
     }
 
-    private String parseJwt(HttpServletRequest request) {
-        String headerAuth = request.getHeader("Authorization");
-        if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
-            return headerAuth.substring(7);
+    /**
+     * 判断当前请求是否需要内部签名认证。
+     *
+     * @param request 请求对象
+     * @return true 表示需要认证
+     */
+    @Override
+    protected boolean requiresAuth(HttpServletRequest request) {
+        String requestUri = request == null ? null : request.getRequestURI();
+        if (PUBLIC_SAAS_ACTIVATION_PATH.equals(requestUri)) {
+            return false;
         }
-        return null;
+        return super.requiresAuth(request);
     }
 }

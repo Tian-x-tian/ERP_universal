@@ -32,3 +32,10 @@ Enterprise HR + ERP integration platform.
 
 Constraints:
 Do not change core stack without approval.
+
+## 数据库脚本永久规则（2026-03-18）
+- 后续数据库初始化/升级脚本统一采用日期命名：`yyyyMMdd_nn_description.sql`。
+- `erp-system` 脚本目录：`erp-modules/erp-system/src/main/resources/sql/upgrade/system/`。
+- `erp-business` 脚本目录：`erp-modules/erp-business/src/main/resources/sql/upgrade/business/`。
+- 新增日期脚本后，必须先执行一遍并验证通过，再交付代码。
+- 同步把新结构与基础初始化数据追加到总初始化脚本（system 对应 `init_system.sql`，business 对应 `init_business.sql`）。

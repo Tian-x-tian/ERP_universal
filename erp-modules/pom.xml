@@ -14,7 +14,18 @@
     <description>Aggregator for business modules</description>
 
     <modules>
+        <module>erp-saas-contract</module>
+        <module>erp-platform-contract</module>
+        <module>erp-workflow-contract</module>
+        <module>erp-internal-client-core</module>
+        <module>erp-saas-client</module>
+        <module>erp-saas-control</module>
+        <module>erp-platform-client</module>
+        <module>erp-workflow-client</module>
+        <module>erp-business-client</module>
         <module>erp-system</module>
+        <module>erp-workflow</module>
         <module>erp-business</module>
+        <module>erp-ai</module>
     </modules>
 </project>

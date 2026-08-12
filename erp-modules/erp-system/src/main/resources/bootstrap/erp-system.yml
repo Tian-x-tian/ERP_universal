@@ -1,0 +1,68 @@
+server:
+  port: 9092
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  tomcat:
+    accesslog:
+      enabled: ${ERP_ACCESS_LOG_ENABLED:false}
+
+spring:
+  application:
+    name: erp-system
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        register-enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        server-addr: ${spring.cloud.nacos.server-addr}
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:true}
+        server-addr: ${spring.cloud.nacos.server-addr}
+        file-extension: yml
+        refresh-enabled: true
+  config:
+    import:
+      - optional:nacos:erp-system.yml?refreshable=true
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_system}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:never}
+      schema-locations: classpath:sql/init_system.sql
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.erp.system.domain.entity
+  configuration:
+    map-underline-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+erp:
+  internal:
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    saas-base-url: ${ERP_SAAS_CONTROL_BASE_URL:http://erp-saas-control}
+    saas-connect-timeout-ms: ${ERP_SAAS_CONNECT_TIMEOUT_MS:2000}
+    saas-read-timeout-ms: ${ERP_SAAS_READ_TIMEOUT_MS:5000}
+  saas:
+    snapshot:
+      refresh-enabled: ${ERP_SAAS_SNAPSHOT_REFRESH_ENABLED:true}
+      refresh-interval-ms: ${ERP_SAAS_SNAPSHOT_REFRESH_INTERVAL_MS:300000}
+      initial-delay-ms: ${ERP_SAAS_SNAPSHOT_INITIAL_DELAY_MS:30000}
+      verification:
+        key-id: ${ERP_SAAS_SNAPSHOT_VERIFICATION_KEY_ID:}
+        secret: ${ERP_SAAS_SNAPSHOT_VERIFICATION_SECRET:}
+        clock-skew: ${ERP_SAAS_SNAPSHOT_CLOCK_SKEW:1m}
+  workflow:
+    http-enabled: ${ERP_WORKFLOW_HTTP_ENABLED:false}
+    scheduler-enabled: ${ERP_WORKFLOW_SCHEDULER_ENABLED:false}
+  sql:
+    upgrade:
+      enabled: ${ERP_SQL_UPGRADE_ENABLED:true}
+      location: classpath:sql/upgrade/system/*.sql

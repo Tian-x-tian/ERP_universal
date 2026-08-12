@@ -1,0 +1,74 @@
+server:
+  port: 9091
+
+spring:
+  application:
+    name: erp-auth
+  config:
+    import:
+      - optional:nacos:erp-auth.yml?refreshable=true
+  cloud:
+    nacos:
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:true}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        file-extension: yml
+        refresh-enabled: true
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        register-enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_system}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT_MS:3000ms}
+
+mybatis-plus:
+  configuration:
+    map-underline-to-camel-case: true
+
+erp:
+  saas:
+    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:}
+  auth:
+    login:
+      fail:
+        max-attempts: ${ERP_AUTH_LOGIN_FAIL_MAX_ATTEMPTS:5}
+        window-seconds: ${ERP_AUTH_LOGIN_FAIL_WINDOW_SECONDS:300}
+        lock-seconds: ${ERP_AUTH_LOGIN_FAIL_LOCK_SECONDS:900}
+      rate-limit:
+        enabled: ${ERP_AUTH_LOGIN_RATE_LIMIT_ENABLED:true}
+        window-seconds: ${ERP_AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS:60}
+        max-requests: ${ERP_AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS:20}
+    captcha:
+      enabled: ${ERP_AUTH_CAPTCHA_ENABLED:false}
+      fixed-code: ${ERP_AUTH_CAPTCHA_FIXED_CODE:}
+
+security:
+  jwt:
+    secret: ${ERP_JWT_SECRET:}
+    expire: ${ERP_JWT_EXPIRE_MS:86400000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,db,redis,ping

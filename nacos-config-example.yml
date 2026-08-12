@@ -1,12 +1,15 @@
 # erp-system.yml (Nacos Config Example)
 server:
-  port: 8082
+  port: 9092
 
 spring:
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:never}
   datasource:
     url: jdbc:mysql://192.168.0.22:3306/erp_system?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
     username: root
-    password: ${MYSQL_PASSWORD:root}
+    password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 mybatis-plus:
@@ -18,5 +21,5 @@ mybatis-plus:
 # 安全配置也可以放入 Nacos
 security:
   jwt:
-    secret: erp-antigravity-secret-key-2026
+    secret: ${ERP_JWT_SECRET:}
     expire: 86400000
