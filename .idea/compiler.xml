@@ -6,11 +6,31 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+        <module name="erp-common" />
+      </profile>
+      <profile name="Annotation profile for erp-parent" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
+        </processorPath>
+        <module name="erp-ai" />
+        <module name="erp-common-core" />
+        <module name="erp-business-client" />
+        <module name="erp-internal-client-core" />
+        <module name="erp-platform-contract" />
+        <module name="erp-workflow-client" />
+        <module name="erp-platform-client" />
         <module name="erp-auth" />
         <module name="erp-business" />
+        <module name="erp-workflow-contract" />
         <module name="erp-system" />
-        <module name="erp-common" />
         <module name="erp-gateway" />
+        <module name="erp-saas-contract" />
+        <module name="erp-workflow" />
+        <module name="erp-saas-client" />
+        <module name="erp-saas-control" />
       </profile>
     </annotationProcessing>
   </component>
