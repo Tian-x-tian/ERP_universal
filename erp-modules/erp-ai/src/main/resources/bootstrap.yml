@@ -9,6 +9,8 @@ spring:
         register-enabled: ${NACOS_DISCOVERY_ENABLED:true}
       config:
         enabled: ${NACOS_CONFIG_ENABLED:true}
+        import-check:
+          enabled: ${NACOS_CONFIG_IMPORT_CHECK_ENABLED:${NACOS_CONFIG_ENABLED:true}}
         file-extension: yml
         refresh-enabled: true
   config:

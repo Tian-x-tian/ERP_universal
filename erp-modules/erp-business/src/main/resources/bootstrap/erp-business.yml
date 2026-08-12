@@ -18,6 +18,8 @@ spring:
         server-addr: ${spring.cloud.nacos.server-addr}
       config:
         enabled: ${NACOS_CONFIG_ENABLED:true}
+        import-check:
+          enabled: ${NACOS_CONFIG_IMPORT_CHECK_ENABLED:${NACOS_CONFIG_ENABLED:true}}
         server-addr: ${spring.cloud.nacos.server-addr}
         file-extension: yml
         refresh-enabled: true

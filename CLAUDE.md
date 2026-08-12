@@ -27,7 +27,9 @@ mvn -s project-settings.xml clean install -DskipTests
 - Run all tests: `mvn -s project-settings.xml test`
 - Test a single module: `mvn -s project-settings.xml -pl erp-modules/erp-system test`
 - Single test class: `mvn -s project-settings.xml -pl erp-modules/erp-system test -Dtest=SystemInternalControllerTest`
-- Run one service after building: `mvn -s project-settings.xml -pl erp-modules/erp-system spring-boot:run`
+- Run one service from that service directory after building, for example:
+  `cd erp-modules/erp-system && mvn -s ../../project-settings.xml spring-boot:run`.
+  If `target/classes` may contain stale resources after switching branches, run `clean spring-boot:run`.
 
 Requires JDK 17 and Maven 3.9+. Artifacts resolve through the Aliyun mirror configured in `pom.xml`.
 
@@ -66,7 +68,7 @@ Services need **Nacos** (discovery + config, default `127.0.0.1:8848`) and **MyS
 only required by `erp-auth`** (`LoginGuardService`, login throttling) — the other services do not use it.
 All services default to the **same database** (`erp_system`); they are separated by service boundary
 and ownership convention, not by schema, which is why a table must be declared in exactly one
-module's init script. Local dev can disable Nacos with env `NACOS_DISCOVERY_ENABLED=false` / `NACOS_CONFIG_ENABLED=false`. `nacos-config-example.yml` shows the expected per-service Nacos config shape. Key env vars: `MYSQL_HOST/PORT/USERNAME/PASSWORD`, `NACOS_SERVER_ADDR`, `ERP_INTERNAL_AUTH_SIGNATURE_SECRET` (mandatory — see below), `ERP_JWT_SECRET`.
+module's init script. Local dev can disable Nacos with env `NACOS_DISCOVERY_ENABLED=false` / `NACOS_CONFIG_ENABLED=false`; this also disables the Nacos import check unless `NACOS_CONFIG_IMPORT_CHECK_ENABLED` is explicitly set. `nacos-config-example.yml` shows the expected per-service Nacos config shape. Key env vars: `MYSQL_HOST/PORT/USERNAME/PASSWORD`, `NACOS_SERVER_ADDR`, `ERP_INTERNAL_AUTH_SIGNATURE_SECRET` (mandatory — see below), `ERP_JWT_SECRET`.
 
 ## Services & ports
 
