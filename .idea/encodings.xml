@@ -7,10 +7,32 @@
     <file url="file://$PROJECT_DIR$/erp-common/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/erp-gateway/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/erp-gateway/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-ai/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-ai/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-business-client/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-business-client/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/erp-modules/erp-business/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/erp-modules/erp-business/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-internal-client-core/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-internal-client-core/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-platform-client/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-platform-client/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-platform-contract/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-platform-contract/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-saas-client/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-saas-client/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-saas-contract/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-saas-contract/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-saas-control/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-saas-control/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/erp-modules/erp-system/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/erp-modules/erp-system/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-workflow-client/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-workflow-client/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-workflow-contract/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-workflow-contract/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-workflow/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/erp-modules/erp-workflow/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/erp-modules/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/erp-modules/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
