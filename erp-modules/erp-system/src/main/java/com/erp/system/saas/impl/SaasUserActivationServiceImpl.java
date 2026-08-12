@@ -8,6 +8,7 @@ import com.erp.system.mapper.SysUserActivationMapper;
 import com.erp.system.saas.SaasSecureTokenService;
 import com.erp.system.saas.SaasUserActivationService;
 import com.erp.system.service.ISysUserService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ public class SaasUserActivationServiceImpl implements SaasUserActivationService 
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
 
+    @Autowired
     public SaasUserActivationServiceImpl(SysUserActivationMapper activationMapper,
             ISysUserService userService, SaasSecureTokenService tokenService,
             PasswordEncoder passwordEncoder) {

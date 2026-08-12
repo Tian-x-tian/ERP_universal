@@ -4,6 +4,7 @@ import com.erp.common.security.ResolvedTenantAssertion;
 import com.erp.common.security.ResolvedTenantAssertionSignatureUtils;
 import com.erp.common.security.TenantAssertionHeaders;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -24,6 +25,7 @@ public class SaasTenantAssertionVerifier {
     private final String signatureSecret;
     private final Clock clock;
 
+    @Autowired
     public SaasTenantAssertionVerifier(
             @Value("${erp.saas.tenant-assertion-signature-secret:}") String signatureSecret) {
         this(signatureSecret, Clock.systemUTC());

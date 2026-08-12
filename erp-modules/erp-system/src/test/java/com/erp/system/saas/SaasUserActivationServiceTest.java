@@ -10,6 +10,7 @@ import com.erp.system.service.ISysUserService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Clock;
@@ -31,6 +32,21 @@ class SaasUserActivationServiceTest {
     private SaasSecureTokenService tokenService;
     private PasswordEncoder passwordEncoder;
     private SaasUserActivationService service;
+
+    @Test
+    void shouldCreateServiceThroughSpringConstructorInjection() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(SysUserActivationMapper.class, () -> mock(SysUserActivationMapper.class));
+            context.registerBean(ISysUserService.class, () -> mock(ISysUserService.class));
+            context.registerBean(SaasSecureTokenService.class, () -> mock(SaasSecureTokenService.class));
+            context.registerBean(PasswordEncoder.class, () -> mock(PasswordEncoder.class));
+            context.register(SaasUserActivationServiceImpl.class);
+
+            context.refresh();
+
+            assertThat(context.getBean(SaasUserActivationServiceImpl.class)).isNotNull();
+        }
+    }
 
     @BeforeEach
     void setUp() {

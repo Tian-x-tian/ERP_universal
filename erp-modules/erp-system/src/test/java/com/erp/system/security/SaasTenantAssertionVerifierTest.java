@@ -4,7 +4,9 @@ import com.erp.common.security.ResolvedTenantAssertion;
 import com.erp.common.security.ResolvedTenantAssertionSignatureUtils;
 import com.erp.common.security.TenantAssertionHeaders;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.test.context.support.TestPropertySourceUtils;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -16,6 +18,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SaasTenantAssertionVerifierTest {
     private static final String SECRET = "gateway-tenant-assertion-secret-32-bytes";
     private static final Instant NOW = Instant.parse("2026-08-02T12:00:00Z");
+
+    @Test
+    void shouldCreateVerifierThroughSpringConstructorInjection() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(context,
+                    "erp.saas.tenant-assertion-signature-secret=" + SECRET);
+            context.register(SaasTenantAssertionVerifier.class);
+
+            context.refresh();
+
+            assertThat(context.getBean(SaasTenantAssertionVerifier.class)).isNotNull();
+        }
+    }
 
     @Test
     void shouldVerifyGatewayAssertionBoundToActivationRequest() {

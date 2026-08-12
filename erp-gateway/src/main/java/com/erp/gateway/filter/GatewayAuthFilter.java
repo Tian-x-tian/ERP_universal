@@ -13,6 +13,7 @@ import com.erp.saas.contract.model.SaasHostResolution;
 import com.erp.saas.contract.model.TenantLifecycleState;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -91,6 +92,7 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
     private final String boundHost;
     private final ConcurrentMap<String, CachedHostResolution> hostResolutionCache = new ConcurrentHashMap<>();
 
+    @Autowired
     public GatewayAuthFilter(WebClient.Builder webClientBuilder,
             ObjectMapper objectMapper,
             @Value("${erp.internal.auth-signature-secret:}") String internalSignatureSecret,

@@ -8,12 +8,14 @@ import com.erp.saas.contract.model.DeploymentMode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
+import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeFunction;
@@ -36,6 +38,22 @@ class GatewayAuthFilterTest {
     private static final String ASSERTION_SECRET = "gateway-tenant-assertion-secret-32-bytes";
     private static final Instant NOW = Instant.parse("2026-08-02T03:00:00Z");
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void shouldCreateFilterThroughSpringConstructorInjection() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(context,
+                    "erp.internal.auth-signature-secret=" + INTERNAL_SECRET,
+                    "erp.saas.tenant-assertion-signature-secret=" + ASSERTION_SECRET);
+            context.registerBean(WebClient.Builder.class, WebClient::builder);
+            context.registerBean(ObjectMapper.class, () -> new ObjectMapper());
+            context.register(GatewayAuthFilter.class);
+
+            context.refresh();
+
+            assertThat(context.getBean(GatewayAuthFilter.class)).isNotNull();
+        }
+    }
 
     /**
      * 校验内部契约路径不允许从公网入口进入。
