@@ -30,12 +30,18 @@ class SaasDomainHostNormalizerTest {
     }
 
     @Test
+    void shouldNormalizeValidIpv4Literals() {
+        assertThat(normalizer.normalize("127.0.0.1:9000")).isEqualTo("127.0.0.1");
+        assertThat(normalizer.normalize(" 192.168.0.22 ")).isEqualTo("192.168.0.22");
+    }
+
+    @Test
     void shouldRejectAmbiguousPortsIpLiteralsAndInvalidLabels() {
         assertInvalid("tenant.example.com:0");
         assertInvalid("tenant.example.com:65536");
         assertInvalid("tenant.example.com:not-a-port");
         assertInvalid("tenant.example.com::443");
-        assertInvalid("127.0.0.1");
+        assertInvalid("999.999.999.999");
         assertInvalid("[::1]");
         assertInvalid("-tenant.example.com");
         assertInvalid("tenant..example.com");

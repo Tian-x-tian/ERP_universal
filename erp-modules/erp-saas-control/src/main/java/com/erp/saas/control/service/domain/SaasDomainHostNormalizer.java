@@ -44,7 +44,7 @@ public class SaasDomainHostNormalizer {
             throw invalid();
         }
         String normalized = String.join(".", asciiLabels);
-        if (normalized.length() > MAX_HOST_LENGTH || isIpv4Literal(asciiLabels)) {
+        if (normalized.length() > MAX_HOST_LENGTH || isInvalidIpv4Literal(asciiLabels)) {
             throw invalid();
         }
         return normalized;
@@ -88,8 +88,24 @@ public class SaasDomainHostNormalizer {
         return value.substring(0, firstColon);
     }
 
-    private static boolean isIpv4Literal(List<String> labels) {
-        return labels.size() == 4 && labels.stream().allMatch(label -> label.chars().allMatch(Character::isDigit));
+    private static boolean isInvalidIpv4Literal(List<String> labels) {
+        if (labels.size() != 4 || !labels.stream().allMatch(label -> label.chars().allMatch(Character::isDigit))) {
+            return false;
+        }
+        for (String label : labels) {
+            if (label.length() > 3) {
+                return true;
+            }
+            try {
+                int octet = Integer.parseInt(label);
+                if (octet < 0 || octet > 255) {
+                    return true;
+                }
+            } catch (NumberFormatException exception) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static SaasDomainException invalid() {
