@@ -29,7 +29,7 @@ spring:
 
 erp:
   internal:
-    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:dev-internal-auth-signature-secret-must-be-32bytes!}
   ai:
     enabled: ${ERP_AI_ENABLED:true}
     base-url: ${ERP_AI_BASE_URL:http://127.0.0.1:8317/v1}

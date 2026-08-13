@@ -42,7 +42,7 @@ mybatis-plus:
 
 erp:
   internal:
-    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:dev-internal-auth-signature-secret-must-be-32bytes!}
   saas:
     lifecycle:
       reconcile-enabled: ${ERP_SAAS_LIFECYCLE_RECONCILE_ENABLED:true}

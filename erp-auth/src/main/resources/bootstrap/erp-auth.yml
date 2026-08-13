@@ -21,7 +21,7 @@ spring:
         register-enabled: ${NACOS_DISCOVERY_ENABLED:true}
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_system}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${MYSQL_HOST:192.168.0.22}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_system}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -39,7 +39,7 @@ mybatis-plus:
 
 erp:
   saas:
-    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:}
+    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:dev-tenant-assertion-signature-secret-32b!}
   auth:
     login:
       fail:
@@ -56,7 +56,7 @@ erp:
 
 security:
   jwt:
-    secret: ${ERP_JWT_SECRET:}
+    secret: ${ERP_JWT_SECRET:dev-jwt-secret-must-be-at-least-64-bytes-long-for-hs512-local-development-environment!}
     expire: ${ERP_JWT_EXPIRE_MS:86400000}
 
 management:

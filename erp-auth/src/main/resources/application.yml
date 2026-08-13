@@ -10,6 +10,13 @@ spring:
       - optional:nacos:erp-auth.yml?refreshable=true
   cloud:
     nacos:
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:true}
+        import-check:
+          enabled: ${NACOS_CONFIG_IMPORT_CHECK_ENABLED:${NACOS_CONFIG_ENABLED:true}}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        file-extension: yml
+        refresh-enabled: true
       discovery:
         enabled: ${NACOS_DISCOVERY_ENABLED:true}
         register-enabled: ${NACOS_DISCOVERY_ENABLED:true}
@@ -17,4 +24,4 @@ spring:
 
 erp:
   saas:
-    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:}
+    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:dev-tenant-assertion-signature-secret-32b!}

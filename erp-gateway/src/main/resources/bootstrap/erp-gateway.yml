@@ -66,10 +66,10 @@ spring:
 
 erp:
   internal:
-    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:dev-internal-auth-signature-secret-must-be-32bytes!}
     saas-base-url: ${ERP_SAAS_CONTROL_BASE_URL:http://erp-saas-control}
   saas:
-    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:}
+    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:dev-tenant-assertion-signature-secret-32b!}
     domain-resolve-timeout-ms: ${ERP_SAAS_DOMAIN_RESOLVE_TIMEOUT_MS:2000}
     domain-cache-ttl-ms: ${ERP_SAAS_DOMAIN_CACHE_TTL_MS:86400000}
     deployment-mode: ${ERP_SAAS_DEPLOYMENT_MODE:SHARED}

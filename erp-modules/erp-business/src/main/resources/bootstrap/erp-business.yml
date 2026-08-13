@@ -43,7 +43,7 @@ mybatis-plus:
 
 erp:
   internal:
-    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:dev-internal-auth-signature-secret-must-be-32bytes!}
   sql:
     upgrade:
       enabled: ${ERP_SQL_UPGRADE_ENABLED:true}

@@ -4,7 +4,7 @@ spring:
 
 erp:
   internal:
-    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:dev-internal-auth-signature-secret-must-be-32bytes!}
     service-user-name: ${ERP_INTERNAL_SERVICE_USER_NAME:erp-workflow}
   workflow:
     http-enabled: true

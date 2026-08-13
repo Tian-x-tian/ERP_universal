@@ -3,8 +3,8 @@
 ## 当前机器状态
 
 - Redis：本机 `127.0.0.1:6379` 已有 Windows 服务在运行。
-- MySQL：本机 `127.0.0.1:3306` 当前不可用；共享库 `192.168.0.22:3306` 网络可达，但写入共享库前必须单独确认。
-- Nacos：本机 `127.0.0.1:8848` 当前不可用。
+- MySQL：共享库 `192.168.0.22:3306` 网络可达；本机 `127.0.0.1:33317` 已用 `D:\software\mysql-8.0.17-winx64` 启动，数据目录为 `D:\workspace\ERP\.tmp\mysql-33317-data`。后端服务 YAML 默认 MySQL host 为 `192.168.0.22`，仍可用 `MYSQL_HOST` 覆盖。本机 Nacos 中七个服务的配置目前统一指向 `192.168.0.22:3306`：`erp-saas-control` 用 `erp_saas_control` 库，其余用 `erp_system` 库。
+- Nacos：本机 `127.0.0.1:8848` 可访问，默认组已有全部七份配置（含 `erp-saas-control.yml`）。
 - Docker：当前 PATH 中不可用，不能直接使用 `deploy/saas/docker-compose.dedicated.yml` 的 bundled infra。
 
 ## 完整联调需要启动的服务
@@ -25,24 +25,34 @@
 
 ## 最小开发启动方式
 
-单服务调试可以不启动 Nacos，但必须关闭发现和配置检查：
+YAML 配置已内置满足强校验要求的默认开发密钥（`dev-internal-auth-signature-secret-must-be-32bytes!` 等），本地直接启动（如 `mvn spring-boot:run`）无需额外设置环境变量。
+
+若本地未启动 Nacos，可以关闭服务发现与远程配置检查进行单服务离线调试：
 
 ```powershell
 $env:NACOS_DISCOVERY_ENABLED = 'false'
 $env:NACOS_CONFIG_ENABLED = 'false'
-$env:ERP_INTERNAL_AUTH_SIGNATURE_SECRET = '<至少 32 字节的本地开发密钥>'
-$env:ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET = '<至少 32 字节的本地开发密钥>'
+```
+
+如需覆盖默认密钥，可按需传入环境变量：
+
+```powershell
+$env:ERP_INTERNAL_AUTH_SIGNATURE_SECRET = '<至少 32 字节的自定义密钥>'
+$env:ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET = '<至少 32 字节的自定义密钥>'
+$env:ERP_JWT_SECRET = '<至少 64 字节的自定义密钥>'
 ```
 
 需要数据库的服务还要指定 MySQL：
 
 ```powershell
-$env:MYSQL_HOST = '<mysql-host>'
+$env:MYSQL_HOST = '192.168.0.22'
 $env:MYSQL_PORT = '3306'
 $env:MYSQL_DATABASE = 'erp_system'
 $env:MYSQL_USERNAME = '<mysql-user>'
 $env:MYSQL_PASSWORD = '<mysql-password>'
 ```
+
+`erp-saas-control` 默认连接库名为 `erp_saas_control`。本机 `33317` 已创建 `erp_system_test` 和 `erp_saas_control` 两个空库；共享库 `192.168.0.22:3306/erp_saas_control` 已由 `SaasControlSqlUpgradeRunner` 初始化完成，当前有 15 张 `saas_%` 表、7 条成功 upgrade log，且没有失败或运行中的 log。启动时 `SaasControlSqlUpgradeRunner` 会按文件名顺序执行 `classpath:sql/upgrade/control/*.sql`，并写入 `saas_sql_upgrade_log`；随后 `SaasControlCatalogSchemaValidationRunner` 校验表结构。`spring.sql.init.schema-locations=classpath:sql/init_control.sql` 只有在 `SQL_INIT_MODE` 打开时才由 Spring SQL init 执行。
 
 `erp-auth` 还需要：
 

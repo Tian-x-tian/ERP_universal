@@ -27,9 +27,9 @@ spring:
     import:
       - optional:nacos:erp-business.yml?refreshable=true
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_system}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${MYSQL_HOST:192.168.0.22}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:erp_system}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:}
+    password: ${MYSQL_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
   sql:
     init:
@@ -43,7 +43,7 @@ mybatis-plus:
 
 erp:
   internal:
-    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:dev-internal-auth-signature-secret-must-be-32bytes!}
   sql:
     upgrade:
       enabled: ${ERP_SQL_UPGRADE_ENABLED:true}
@@ -52,7 +52,7 @@ erp:
   business:
     datasource:
       enabled: false
-      url: jdbc:mysql://${MYSQL_BUSINESS_HOST:${MYSQL_HOST:127.0.0.1}}:${MYSQL_BUSINESS_PORT:${MYSQL_PORT:3306}}/${MYSQL_BUSINESS_DATABASE:${MYSQL_DATABASE:erp_system}}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+      url: jdbc:mysql://${MYSQL_BUSINESS_HOST:${MYSQL_HOST:192.168.0.22}}:${MYSQL_BUSINESS_PORT:${MYSQL_PORT:3306}}/${MYSQL_BUSINESS_DATABASE:${MYSQL_DATABASE:erp_system}}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
       username: ${MYSQL_BUSINESS_USERNAME:${MYSQL_USERNAME:root}}
       password: ${MYSQL_BUSINESS_PASSWORD:${MYSQL_PASSWORD:}}
       driver-class-name: com.mysql.cj.jdbc.Driver

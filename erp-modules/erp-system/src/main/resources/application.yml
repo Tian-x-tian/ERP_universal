@@ -58,18 +58,19 @@ erp:
     max-todo-items: ${ERP_AI_MAX_TODO_ITEMS:10}
     max-notice-items: ${ERP_AI_MAX_NOTICE_ITEMS:10}
   internal:
-    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:}
+    auth-signature-secret: ${ERP_INTERNAL_AUTH_SIGNATURE_SECRET:dev-internal-auth-signature-secret-must-be-32bytes!}
     saas-base-url: ${ERP_SAAS_CONTROL_BASE_URL:http://erp-saas-control}
     saas-connect-timeout-ms: ${ERP_SAAS_CONNECT_TIMEOUT_MS:2000}
     saas-read-timeout-ms: ${ERP_SAAS_READ_TIMEOUT_MS:5000}
   saas:
+    tenant-assertion-signature-secret: ${ERP_SAAS_TENANT_ASSERTION_SIGNATURE_SECRET:dev-tenant-assertion-signature-secret-32b!}
     snapshot:
       refresh-enabled: ${ERP_SAAS_SNAPSHOT_REFRESH_ENABLED:true}
       refresh-interval-ms: ${ERP_SAAS_SNAPSHOT_REFRESH_INTERVAL_MS:300000}
       initial-delay-ms: ${ERP_SAAS_SNAPSHOT_INITIAL_DELAY_MS:30000}
       verification:
-        key-id: ${ERP_SAAS_SNAPSHOT_VERIFICATION_KEY_ID:}
-        secret: ${ERP_SAAS_SNAPSHOT_VERIFICATION_SECRET:}
+        key-id: ${ERP_SAAS_SNAPSHOT_VERIFICATION_KEY_ID:primary-2026}
+        secret: ${ERP_SAAS_SNAPSHOT_VERIFICATION_SECRET:dev-saas-snapshot-verification-secret-32b!}
         clock-skew: ${ERP_SAAS_SNAPSHOT_CLOCK_SKEW:1m}
   workflow:
     http-enabled: ${ERP_WORKFLOW_HTTP_ENABLED:false}
