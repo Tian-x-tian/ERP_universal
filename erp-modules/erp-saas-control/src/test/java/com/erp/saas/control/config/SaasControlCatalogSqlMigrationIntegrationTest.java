@@ -155,6 +155,7 @@ class SaasControlCatalogSqlMigrationIntegrationTest {
         execute(dataSource, "sql/upgrade/control/20260802_03_saas_tenant_provisioning.sql");
         execute(dataSource, "sql/upgrade/control/20260802_04_saas_legacy_full_access.sql");
         execute(dataSource, "sql/upgrade/control/20260802_05_saas_core_features.sql");
+        execute(dataSource, "sql/upgrade/control/20260813_01_saas_default_platform_domain.sql");
     }
     private void execute(DriverManagerDataSource dataSource, String path) throws Exception {
         try (Connection connection = dataSource.getConnection()) {
